@@ -6,6 +6,10 @@
 - [x] Phase 4: Write design document to docs/plans
 - [ ] Phase 5: Worktree setup (optional, implementation)
 - [x] Phase 6: Planning handoff (implementation plan created)
+- [x] Phase 7: Add integration coverage for run-request and runtime mode behavior
+  - [x] Add mocked-subprocess success/fallback/failure integration tests
+  - [x] Add output/workspace mode resolution tests
+  - [x] Re-run verification commands
 
 ## Review
 - Confirm design uses `dc-cli-kit` with incur semantics.

@@ -1,6 +1,6 @@
-import { z } from 'dc-cli-kit'
+import { z } from 'zod'
 
-import { type NormalizedRequest, providerIds, type CliOutputMode } from '../types.js'
+import { type NormalizedRequest, providerIds, type ProviderId, type CliOutputMode } from '../types.js'
 import type { GenieConfig } from '../config/schema.js'
 
 export const requestSchema = z.object({
@@ -41,23 +41,21 @@ export function normalizeRequest(
 }
 
 export function resolveProviderOrder(config: GenieConfig, explicit?: string): {
-  order: string[]
+  order: ProviderId[]
   explicitUsed: boolean
 } {
-  if (explicit && config.provider.fallbackOrder.includes(explicit as any)) {
+  const explicitProvider = explicit?.trim().toLowerCase()
+  const includes = (value: string): value is ProviderId => providerIds.includes(value as ProviderId)
+
+  if (explicitProvider && includes(explicitProvider)) {
     return {
-      order: [explicit as any, ...config.provider.fallbackOrder.filter((id) => id !== explicit)],
+      order: [explicitProvider, ...config.provider.fallbackOrder.filter((id) => id !== explicitProvider)],
       explicitUsed: true,
     }
   }
 
-  if (explicit) {
-    return {
-      order: [explicit, ...config.provider.fallbackOrder.filter((id) => id !== explicit)],
-      explicitUsed: true,
-    }
+  return {
+    order: [config.provider.default, ...config.provider.fallbackOrder.filter((id) => id !== config.provider.default)],
+    explicitUsed: false,
   }
-
-  const order = [config.provider.default, ...config.provider.fallbackOrder.filter((id) => id !== config.provider.default)]
-  return { order, explicitUsed: false }
 }

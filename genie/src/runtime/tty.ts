@@ -1,31 +1,27 @@
-import type { CliOutputMode } from '../types.js'
+import type { CliOutputMode, RawOutput } from '../types.js'
 
 export type RuntimeOutput = {
   interactive: boolean
-  manualOutputMode: 'pretty' | 'json' | string
-  formatOverride?: 'toon' | 'json' | 'yaml' | 'md' | string
+  manualOutputMode: 'json' | 'pretty'
+  formatOverride: RawOutput | undefined
 }
 
 export type RuntimeState = {
   outputMode: CliOutputMode
-  explicitFormat: string | undefined
+  explicitFormat: RawOutput | undefined
+  ttyAwareMode: 'json' | 'pretty'
 }
 
 export function isAgentContext(): boolean {
-  return process.stdout.isTTY !== true
+  return process.stdout.isTTY !== true || !!process.env.CI
 }
 
 export function parseExplicitFormat(argv: string[]): string | undefined {
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i]
-    if (!token) continue
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]
     if (token === '--json') return 'json'
-    if (token === '--format' && argv[i + 1]) {
-      return argv[i + 1].toLowerCase()
-    }
-    if (token.startsWith('--format=')) {
-      return token.slice('--format='.length).toLowerCase()
-    }
+    if (token === '--format' && argv[index + 1]) return argv[index + 1].toLowerCase()
+    if (token.startsWith('--format=')) return token.slice('--format='.length).toLowerCase()
   }
   return undefined
 }
@@ -36,22 +32,19 @@ export function resolveRuntimeState(params: {
   explicitFormat: string | undefined
   argv?: string[]
 }): RuntimeState {
-  if (params.explicitOutput === 'json' || (!params.explicitOutput || params.explicitOutput === 'auto')) {
-    // allow explicit --format/--json to force machine format in tty too
-    const format = params.explicitFormat ?? parseExplicitFormat(params.argv ?? process.argv.slice(2))
-    return {
-      outputMode: params.explicitOutput === 'json' ? 'json' : 'auto',
-      manualOutputMode: format === 'json' || params.explicitOutput === 'json' ? 'json' : 'pretty',
-      explicitFormat: format,
-
-type: format as any,
-    }
-  }
+  const parsedFormat = parseExplicitFormat(params.argv ?? process.argv.slice(2))
+  const format = (params.explicitFormat || parsedFormat)?.toLowerCase()
+  const outputMode = params.explicitOutput ?? params.configOutput
+  const ttyAwareMode = resolveOutputMode({
+    agent: isAgentContext(),
+    outputMode,
+    explicitFormat: format,
+  })
 
   return {
-    outputMode: params.explicitOutput,
-    manualOutputMode: params.explicitOutput === 'json' ? 'json' : 'pretty',
-    explicitFormat: params.explicitFormat,
+    outputMode,
+    explicitFormat: format,
+    ttyAwareMode,
   }
 }
 
@@ -60,11 +53,8 @@ export function resolveOutputMode(params: {
   outputMode: CliOutputMode
   explicitFormat?: string
 }): 'json' | 'pretty' {
-  if (params.explicitFormat) {
-    return params.explicitFormat === 'json' ? 'json' : 'pretty'
-  }
-
   if (params.outputMode === 'json') return 'json'
   if (params.outputMode === 'pretty') return 'pretty'
+  if ((params.explicitFormat ?? '').toLowerCase() === 'json') return 'json'
   return params.agent ? 'json' : 'pretty'
 }

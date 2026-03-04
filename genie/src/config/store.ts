@@ -35,10 +35,13 @@ export async function saveConfig(config: GenieConfig, options?: ConfigStorageOpt
   const directory = dirname(path)
   mkdirSync(directory, { recursive: true })
 
-  const marker = { _meta: { schema: 'genie-config-v1', savedAt: new Date().toISOString() } }
+  const marker = { schema: 'genie-config-v1', savedAt: new Date().toISOString() }
   const tmp = `${path}.${randomUUID()}.tmp`
 
-  const content = { ...config, ...marker }
+  const content = {
+    ...config,
+    _meta: marker,
+  }
   writeFileSync(tmp, JSON.stringify(content, null, 2), 'utf8')
   renameSync(tmp, path)
 }

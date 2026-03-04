@@ -1,9 +1,11 @@
+import { AggregatedProviderError } from '../errors.js'
 import {
   type CommandRunner,
   type ProviderAdapter,
   type NormalizedRequest,
   type ProviderFailureReason,
   type GenieRunResult,
+  type ProviderId,
 } from '../types.js'
 import { runPreflight } from './preflight.js'
 
@@ -12,9 +14,17 @@ export type FallbackResult = {
   provider: ProviderAdapter
 }
 
+function toFailureReasonForMissingProvider(providerId: string): ProviderFailureReason {
+  return {
+    provider: providerId as ProviderId,
+    stage: 'availability',
+    reason: `Unknown provider '${providerId}' in configured fallback list`,
+  }
+}
+
 export async function executeWithFallback(params: {
   providers: ProviderAdapter[]
-  order: string[]
+  order: ProviderId[]
   request: NormalizedRequest
   runner: CommandRunner
 }): Promise<FallbackResult> {
@@ -23,15 +33,11 @@ export async function executeWithFallback(params: {
   for (const providerId of params.order) {
     const provider = params.providers.find((entry) => entry.id === providerId)
     if (!provider) {
-      failures.push({
-        provider: providerId as any,
-        stage: 'availability',
-        reason: `Unknown provider '${providerId}' in config`,
-      })
+      failures.push(toFailureReasonForMissingProvider(providerId))
       continue
     }
 
-    const { failures: preflightFailures } = await runPreflight(provider, params.runner)
+    const preflightFailures = await runPreflight(provider, params.runner)
     if (preflightFailures.length > 0) {
       failures.push(...preflightFailures)
       continue
@@ -61,11 +67,5 @@ export async function executeWithFallback(params: {
     }
   }
 
-  const details = failures
-    .map((item) => `${item.provider} (${item.stage}): ${item.reason}`)
-    .join('\n')
-
-  const error = new Error(`All providers failed.\n${details}`)
-  ;(error as any).causes = failures
-  throw error
+  throw new AggregatedProviderError(failures)
 }

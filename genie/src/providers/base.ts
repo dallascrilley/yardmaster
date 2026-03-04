@@ -1,29 +1,37 @@
 import { spawn } from 'node:child_process'
 
 import {
-  type CommandInvocation,
-  type CommandResult,
   type CommandRunner,
   type NormalizedRequest,
   type ProviderAdapter,
-  type ProviderCheckResult,
+  type ProviderInvocation,
   type ProviderParseResult,
+  type CommandResult,
 } from '../types.js'
 
-const isCommandNotFoundError = (error: unknown): boolean => {
-  return (error as NodeJS.ErrnoException).code === 'ENOENT'
+export type ProviderFactoryParams = {
+  id: ProviderAdapter['id']
+  binary: string
+  buildInvocation: (request: NormalizedRequest) => ProviderInvocation
+  parse: (result: CommandResult) => ProviderParseResult
 }
 
-export const DEFAULT_NOOP_RESULT: CommandResult = {
+const defaultCommandError: CommandResult = {
   stdout: '',
   stderr: '',
   code: 127,
 }
 
-export async function runCommand(invocation: ProviderInvocation, runner?: CommandRunner): Promise<CommandResult> {
-  if (runner) return runner(invocation)
+function isCommandNotFound(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === 'ENOENT'
+}
 
-  return new Promise((resolve) => {
+export async function runCommand(invocation: ProviderInvocation, runner?: CommandRunner): Promise<CommandResult> {
+  if (runner) {
+    return runner(invocation)
+  }
+
+  return new Promise<CommandResult>((resolve) => {
     const child = spawn(invocation.command, invocation.args, {
       cwd: invocation.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -40,8 +48,19 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
       stderr += chunk.toString()
     })
 
-    child.on('error', () => {
-      resolve(DEFAULT_NOOP_RESULT)
+    child.on('error', (error) => {
+      if (isCommandNotFound(error)) {
+        resolve({
+          ...defaultCommandError,
+          stderr: error.message,
+        })
+        return
+      }
+
+      resolve({
+        ...defaultCommandError,
+        stderr: String(error),
+      })
     })
 
     child.on('close', (code) => {
@@ -54,43 +73,33 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
   })
 }
 
-function buildDefaultCheckFailure(binary: string) {
+function buildCheckFailure(binary: string) {
   return {
     ok: false as const,
     reason: `${binary} is not available on PATH`,
-    hint: `Run: which ${binary}`,
+    hint: `Install ${binary} and ensure it is in your PATH.`,
   }
 }
 
-export function createProviderAdapter(params: {
-  id: ProviderAdapter['id']
-  binary: string
-  buildInvocation: (request: NormalizedRequest) => CommandInvocation
-  parse: (result: CommandResult) => ProviderParseResult
-}): ProviderAdapter {
-  const invoke = async (
-    request: NormalizedRequest,
-    runner: CommandRunner = runCommand,
-  ): Promise<ProviderParseResult> => {
-    const invocation = params.buildInvocation(request)
-    const raw = await runWithRunner(runner, invocation)
-
-    if (raw.code !== 0) {
-      throw new Error(raw.stderr.trim() || raw.stdout.trim() || `${params.id} exited with ${raw.code}`)
-    }
-
-    return params.parse(raw)
-  }
-
-  const runWithRunner = async (runner: CommandRunner, invocation: CommandInvocation): Promise<CommandResult> => {
+export function createProviderAdapter(params: ProviderFactoryParams): ProviderAdapter {
+  async function runWithRunner(
+    runner: CommandRunner,
+    invocation: ProviderInvocation,
+  ): Promise<CommandResult> {
     try {
-      const result = await runner(invocation)
-      return result
+      return await runner(invocation)
     } catch (error) {
-      if (isCommandNotFoundError(error)) {
-        return { ...DEFAULT_NOOP_RESULT, stderr: String(error) }
+      if (isCommandNotFound(error)) {
+        return {
+          ...defaultCommandError,
+          stderr: (error as Error).message,
+        }
       }
-      throw error
+
+      return {
+        ...defaultCommandError,
+        stderr: String(error),
+      }
     }
   }
 
@@ -101,13 +110,16 @@ export function createProviderAdapter(params: {
         command: params.binary,
         args: ['--version'],
       })
+
       if (result.code !== 0) {
         return {
-          ...buildDefaultCheckFailure(params.binary),
+          ...buildCheckFailure(params.binary),
           reason: `Unable to execute ${params.binary} --version`,
-          hint: result.stderr.trim() || result.stdout.trim(),
+          hint: result.stderr || result.stdout || undefined,
+          code: result.code,
         }
       }
+
       return { ok: true }
     },
     isAuthenticated: async (runner = runCommand) => {
@@ -115,16 +127,29 @@ export function createProviderAdapter(params: {
         command: params.binary,
         args: ['auth', 'status'],
       })
-      if (result.code === 0) return { ok: true }
+
+      if (result.code === 0) {
+        return { ok: true }
+      }
+
       return {
         ok: false,
-        reason: `${params.id} auth check failed`,
-        hint: result.stderr.trim() || 'Run the provider login flow to authenticate.',
+        reason: `${params.id} authentication check failed`,
+        hint: result.stderr || result.stdout || 'Authenticate with the provider CLI and retry.',
       }
     },
     buildInvocation: params.buildInvocation,
-    execute: invoke,
+    execute: async (request: NormalizedRequest, runner = runCommand) => {
+      const invocation = params.buildInvocation(request)
+      const result = await runWithRunner(runner, invocation)
+
+      if (result.code !== 0) {
+        const detail = [result.stderr, result.stdout].filter(Boolean).join('\n').trim()
+        throw new Error(`${params.id} execution failed (${result.code}): ${detail || 'no output'}`)
+      }
+
+      return params.parse(result)
+    },
     parse: params.parse,
   }
 }
-

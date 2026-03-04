@@ -1,133 +1,235 @@
-import {
-  Cli,
-  createCli,
-  Formatter,
-  AuthError,
-  ConfigError,
-  z,
-} from 'dc-cli-kit'
+import { readFileSync } from 'node:fs'
 
+import { AggregatedProviderError } from './errors.js'
 import { loadConfig } from './config/store.js'
-import { providerIds } from './types.js'
-import { cliOutputModeSchema, type CliOutputMode } from './types.js'
+import { providerIds, type CliOutputMode, type ProviderId, type ProviderFailureReason } from './types.js'
 import { resolveWorkspacePath } from './runtime/workspace.js'
-import { parseExplicitFormat, isAgentContext, resolveOutputMode } from './runtime/tty.js'
-import { runRequest, toResponseEnvelope, type run } from './execution/run-request.js'
+import { parseExplicitFormat, resolveRuntimeState } from './runtime/tty.js'
+import { runRequest, toResponseEnvelope, type RunRequestInput } from './execution/run-request.js'
 
-const requestOptionsSchema = z.object({
-  provider: z.enum(providerIds).optional().describe('Preferred provider'),
-  model: z.string().trim().optional().describe('Provider model to use'),
-  workspace: z.string().trim().optional().describe('Workspace path'),
-  mode: z.string().trim().optional().describe('Provider execution mode'),
-  trust: z.boolean().default(false).describe('Skip safety prompts when supported'),
-  output: cliOutputModeSchema.default('auto').describe('Output mode: auto|pretty|json'),
-})
+type CliOptions = {
+  provider?: ProviderId
+  model?: string
+  workspace?: string
+  mode?: string
+  trust: boolean
+  output?: CliOutputMode
+  format?: string
+}
 
-const requestArgsSchema = z.object({
-  prompt: z.string().trim().min(1).describe('Prompt text to send to the provider'),
-})
+type ParsedInput = {
+  prompt: string
+  options: CliOptions
+}
 
-const responseSchema = z.object({
-  provider: z.enum(providerIds),
-  model: z.string().optional(),
-  mode: z.string(),
-  workspace: z.string(),
-  trust: z.boolean(),
-  response: z.string(),
-})
+const aliasCommands = new Set(['wish', 'rub'])
 
-function requestArgsForCommand(rawArgs: { prompt: string }, providedWorkspace?: string) {
-  const prompt = rawArgs.prompt
-  if (!prompt.trim()) {
-    throw new ConfigError({ message: 'Prompt cannot be empty.' })
+function readPackageVersion(): string {
+  try {
+    const pkgPath = new URL('../package.json', import.meta.url)
+    const raw = readFileSync(pkgPath, 'utf8')
+    const parsed = JSON.parse(raw) as { version?: string }
+    return parsed.version ?? '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+function printUsage(): never {
+  const output = [
+    'Usage: genie [options] <prompt>',
+    '       genie wish|rub [options] <prompt>',
+    '',
+    'Options:',
+    '  --provider, -p <id>      Preferred provider',
+    '  --model, -m <name>       Provider model',
+    '  --workspace, -w <path>   Working directory',
+    '  --mode <name>            Provider mode',
+    '  --trust                   Skip safety prompts if supported',
+    '  --output <auto|pretty|json>  Output mode',
+    '  --format <json|pretty|toon|yaml|md>',
+    '  --json                   Force JSON output',
+    '  --help, -h               Show this help',
+    '  --version, -v            Show version',
+    '',
+    `Providers: ${providerIds.join(', ')}`,
+  ]
+
+  process.stdout.write(`${output.join('\n')}\n`)
+  process.exit(0)
+}
+
+function parsePositionalAndOptions(argv: string[]): ParsedInput {
+  const inputArgs = [...argv]
+
+  if (inputArgs[0] && aliasCommands.has(inputArgs[0])) {
+    inputArgs.shift()
+  }
+
+  const options: CliOptions = { trust: false }
+  const positional: string[] = []
+
+  for (let index = 0; index < inputArgs.length; index += 1) {
+    const token = inputArgs[index]
+    if (!token) continue
+
+    if (token === '--help' || token === '-h') {
+      printUsage()
+    }
+
+    if (token === '--version' || token === '-v') {
+      process.stdout.write(`${readPackageVersion()}\n`)
+      process.exit(0)
+    }
+
+    if (token === '--json') {
+      options.output = 'json'
+      options.format = 'json'
+      continue
+    }
+
+    if (token === '--trust') {
+      options.trust = true
+      continue
+    }
+
+    if (token === '--provider' || token === '-p') {
+      const value = inputArgs[index + 1]
+      if (!value) throw new Error(`Missing value for ${token}`)
+      if (!providerIds.includes(value as ProviderId)) {
+        throw new Error(`Unknown provider '${value}'`)
+      }
+      options.provider = value as ProviderId
+      index += 1
+      continue
+    }
+
+    if (token === '--model' || token === '-m') {
+      options.model = inputArgs[index + 1]
+      if (!options.model) throw new Error(`Missing value for ${token}`)
+      index += 1
+      continue
+    }
+
+    if (token === '--workspace' || token === '-w') {
+      options.workspace = inputArgs[index + 1]
+      if (!options.workspace) throw new Error(`Missing value for ${token}`)
+      index += 1
+      continue
+    }
+
+    if (token === '--mode') {
+      options.mode = inputArgs[index + 1]
+      if (!options.mode) throw new Error(`Missing value for ${token}`)
+      index += 1
+      continue
+    }
+
+    if (token === '--output') {
+      const value = inputArgs[index + 1]
+      if (value !== 'auto' && value !== 'pretty' && value !== 'json') {
+        throw new Error(`Invalid output mode '${value}'`)
+      }
+      options.output = value
+      index += 1
+      continue
+    }
+
+    if (token === '--format') {
+      options.format = inputArgs[index + 1]
+      if (!options.format) throw new Error('Missing value for --format')
+      index += 1
+      continue
+    }
+
+    if (token.startsWith('--format=')) {
+      options.format = token.slice('--format='.length)
+      continue
+    }
+
+    if (token.startsWith('-')) {
+      throw new Error(`Unknown option '${token}'`)
+    }
+
+    positional.push(token)
+  }
+
+  const prompt = positional.join(' ').trim()
+  if (!prompt) {
+    throw new Error('Prompt is required')
   }
 
   return {
     prompt,
+    options,
   }
 }
 
-async function executeCommand(args: { prompt: string }, options: ReturnType<typeof requestOptionsSchema.parse>): Promise<ReturnType<typeof responseSchema.parse>> {
+function formatError(error: unknown): string {
+  if (error instanceof AggregatedProviderError) {
+    const lines = [
+      'All providers failed. Enable a configured provider and try again.',
+      ...error.reasons.map((item: ProviderFailureReason) =>
+        `- ${item.provider} (${item.stage}): ${item.reason}${item.hint ? ` — ${item.hint}` : ''}`,
+      ),
+    ]
+    return lines.join('\n')
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return String(error)
+}
+
+export async function runFromArgv(argv: string[]): Promise<ReturnType<typeof toResponseEnvelope>> {
+  const parsed = parsePositionalAndOptions(argv)
   const config = await loadConfig()
-  const workspace = resolveWorkspacePath(options.workspace, config.workspace.last)
-  const explicitFormat = parseExplicitFormat(process.argv.slice(2))
-  const outputMode = options.output as CliOutputMode
+  const workspace = resolveWorkspacePath(parsed.options.workspace, config.workspace.last)
 
+  const parsedFormat = parsed.options.format ?? parseExplicitFormat(argv)
+  const runtime = resolveRuntimeState({
+    configOutput: config.output.default,
+    explicitOutput: parsed.options.output,
+    explicitFormat: parsedFormat,
+    argv,
+  })
+
+  const request: RunRequestInput = {
+    prompt: parsed.prompt,
+    provider: parsed.options.provider,
+    model: parsed.options.model,
+    workspace,
+    mode: parsed.options.mode,
+    trust: parsed.options.trust,
+    output: runtime.outputMode,
+  }
+
+  const result = await runRequest({
+    input: request,
+    config,
+  })
+
+  const envelope = toResponseEnvelope(result)
+  if (runtime.ttyAwareMode === 'json' || parsed.options.output === 'json') {
+    process.stdout.write(JSON.stringify(envelope, null, 2))
+    process.stdout.write('\n')
+  } else {
+    process.stdout.write(envelope.response)
+    if (!envelope.response.endsWith('\n')) {
+      process.stdout.write('\n')
+    }
+  }
+
+  return envelope
+}
+
+export async function cli(argv: string[] = process.argv.slice(2)): Promise<void> {
   try {
-    const result = await runRequest({
-      input: {
-        prompt: args.prompt,
-        provider: options.provider,
-        model: options.model,
-        workspace,
-        mode: options.mode,
-        trust: options.trust,
-        output: outputMode,
-      },
-      config,
-      runner: undefined as never,
-    })
-
-    const mode = isAgentContext() || outputMode === 'json' || (!outputMode && explicitFormat === 'json') ? 'json' : resolveOutputMode({
-      agent: isAgentContext(),
-      outputMode,
-      explicitFormat,
-    })
-
-    if (!explicitFormat) {
-      const printable = {
-        ...toResponseEnvelope(result),
-      }
-      process.stdout.write(Formatter.format(printable, mode === 'json' ? 'json' : 'toon'))
-      if (!String(process.stdout.write).includes('')) {
-        // no-op
-      }
-    }
-
-    return toResponseEnvelope(result)
+    await runFromArgv(argv)
   } catch (error) {
-    if (error instanceof Error && error.name === 'AggregatedProviderError') {
-      const summary = error.message
-      throw new ConfigError({ message: summary })
-    }
-
-    if (error instanceof Error && error.message.includes('is not authenticated')) {
-      throw new AuthError({ message: error.message, hint: 'Authenticate provider and retry.' })
-    }
-
-    throw error
+    process.stderr.write(`${formatError(error)}\n`)
+    process.exitCode = 1
   }
 }
-
-export const cli = createCli('genie', {
-  version: '0.1.0',
-  description: 'A fast, multi-provider CLI for headless LLM prompts',
-  args: requestArgsSchema,
-  options: requestOptionsSchema,
-  output: responseSchema,
-  outputPolicy: 'agent-only',
-  format: 'json',
-  run: async (context) => {
-    const args = requestArgsForCommand(context.args)
-    const out = await executeCommand(args, context.options)
-    return context.ok(out)
-  },
-})
-
-function buildAlias(name: string) {
-  cli.command(name, {
-    args: requestArgsSchema,
-    options: requestOptionsSchema,
-    output: responseSchema,
-    outputPolicy: 'agent-only',
-    run: async (context) => {
-      const args = requestArgsForCommand(context.args)
-      return context.ok(await executeCommand(args, context.options))
-    },
-  })
-}
-
-buildAlias('wish')
-buildAlias('rub')
-
-export type GenieCliRun = typeof cli

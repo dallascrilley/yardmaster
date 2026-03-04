@@ -1,0 +1,37 @@
+import { describe, expect, it } from 'vitest'
+
+import { defaultConfig } from '../src/config/schema.js'
+import { normalizeRequest, resolveProviderOrder } from '../src/execution/normalize.js'
+
+const withHistory = {
+  ...defaultConfig,
+  workspace: {
+    last: '/tmp/last-workspace',
+  },
+}
+
+describe('request normalization', () => {
+  it('applies defaults from config', () => {
+    const request = normalizeRequest({ prompt: '  hello there  ' }, withHistory)
+    expect(request.prompt).toBe('hello there')
+    expect(request.workspace).toBe('/tmp/last-workspace')
+    expect(request.mode).toBe('default')
+    expect(request.output).toBe('auto')
+  })
+
+  it('resolves explicit and fallback provider order', () => {
+    const explicit = resolveProviderOrder(withHistory, 'codex')
+    const implicit = resolveProviderOrder(withHistory)
+
+    expect(explicit.order[0]).toBe('codex')
+    expect(implicit.order[0]).toBe('claude')
+    expect(explicit.explicitUsed).toBe(true)
+    expect(implicit.explicitUsed).toBe(false)
+  })
+
+  it('throws when provider is invalid', () => {
+    expect(() => {
+      normalizeRequest({ prompt: 'x', provider: 'invalid' }, withHistory)
+    }).toThrow()
+  })
+})

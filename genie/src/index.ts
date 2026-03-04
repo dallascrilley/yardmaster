@@ -1,3 +1,2 @@
-import { cli } from './cli.js'
-
-await cli.serve()
+export { cli } from './cli.js'
+export { runFromArgv } from './cli.js'

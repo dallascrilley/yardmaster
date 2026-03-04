@@ -1,4 +1,4 @@
-import { z } from 'dc-cli-kit'
+import { z } from 'zod'
 
 export const providerIds = ['claude', 'codex', 'cursor-agent', 'gemini'] as const
 
@@ -6,6 +6,18 @@ export type ProviderId = (typeof providerIds)[number]
 
 export const cliOutputModeSchema = z.enum(['auto', 'pretty', 'json'])
 export type CliOutputMode = z.infer<typeof cliOutputModeSchema>
+
+export type RawOutput = 'json' | 'pretty' | 'toon' | 'yaml' | 'md' | string
+
+export type RequestInput = {
+  prompt: string
+  provider?: string
+  model?: string
+  workspace?: string
+  mode?: string
+  trust?: boolean
+  output?: CliOutputMode
+}
 
 export type ProviderInvocation = {
   command: string
@@ -23,7 +35,7 @@ export type CommandRunner = (invocation: ProviderInvocation) => Promise<CommandR
 
 export type ProviderCheckResult =
   | { ok: true }
-  | { ok: false; reason: string; hint?: string }
+  | { ok: false; reason: string; hint?: string; code?: number }
 
 export type ProviderParseResult = {
   text: string
@@ -47,7 +59,7 @@ export type ProviderFailureReason = {
   hint?: string
 }
 
-export type GenieResponse = {
+export type GenieRunResult = {
   provider: ProviderId
   model: string | undefined
   mode: string
@@ -55,6 +67,10 @@ export type GenieResponse = {
   trust: boolean
   response: string
   raw: CommandResult
+  fallbackUsed: boolean
+}
+
+export type GenieResponse = Omit<GenieRunResult, 'fallbackUsed' | 'raw'> & {
   fallbackUsed: boolean
 }
 
