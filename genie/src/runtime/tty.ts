@@ -1,33 +1,41 @@
 import type { CliOutputMode } from '../types.js'
 
-export type RuntimeOutput = {
-  interactive: boolean
-  manualOutputMode: 'pretty' | 'json' | string
-  formatOverride?: 'toon' | 'json' | 'yaml' | 'md' | string
-}
-
 export type RuntimeState = {
   outputMode: CliOutputMode
-  explicitFormat: string | undefined
+  ttyAwareMode: 'json' | 'plain' | 'pretty'
+  interactive: boolean
+  colorEnabled: boolean
 }
 
-export function isAgentContext(): boolean {
-  return process.stdout.isTTY !== true
+export function isInteractiveSession(): boolean {
+  return process.stdout.isTTY === true && process.stdin.isTTY === true && process.env.CI !== 'true'
 }
 
 export function parseExplicitFormat(argv: string[]): string | undefined {
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i]
-    if (!token) continue
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]
     if (token === '--json') return 'json'
-    if (token === '--format' && argv[i + 1]) {
-      return argv[i + 1].toLowerCase()
-    }
-    if (token.startsWith('--format=')) {
-      return token.slice('--format='.length).toLowerCase()
-    }
+    if (token === '--plain') return 'plain'
+    if (token === '--format' && argv[index + 1]) return argv[index + 1].toLowerCase()
+    if (token.startsWith('--format=')) return token.slice('--format='.length).toLowerCase()
   }
   return undefined
+}
+
+export function resolveOutputMode(params: {
+  interactive: boolean
+  outputMode: CliOutputMode
+  explicitFormat?: string
+}): 'json' | 'plain' | 'pretty' {
+  if (params.outputMode === 'json') return 'json'
+  if (params.outputMode === 'plain') return 'plain'
+  if (params.outputMode === 'pretty') return 'pretty'
+
+  const explicitFormat = (params.explicitFormat ?? '').toLowerCase()
+  if (explicitFormat === 'json') return 'json'
+  if (explicitFormat === 'plain') return 'plain'
+
+  return params.interactive ? 'pretty' : 'json'
 }
 
 export function resolveRuntimeState(params: {
@@ -36,35 +44,19 @@ export function resolveRuntimeState(params: {
   explicitFormat: string | undefined
   argv?: string[]
 }): RuntimeState {
-  if (params.explicitOutput === 'json' || (!params.explicitOutput || params.explicitOutput === 'auto')) {
-    // allow explicit --format/--json to force machine format in tty too
-    const format = params.explicitFormat ?? parseExplicitFormat(params.argv ?? process.argv.slice(2))
-    return {
-      outputMode: params.explicitOutput === 'json' ? 'json' : 'auto',
-      manualOutputMode: format === 'json' || params.explicitOutput === 'json' ? 'json' : 'pretty',
-      explicitFormat: format,
-
-type: format as any,
-    }
-  }
+  const interactive = isInteractiveSession()
+  const outputMode = params.explicitOutput ?? params.configOutput
+  const parsedFormat = parseExplicitFormat(params.argv ?? process.argv.slice(2))
+  const explicitFormat = params.explicitFormat ?? parsedFormat
 
   return {
-    outputMode: params.explicitOutput,
-    manualOutputMode: params.explicitOutput === 'json' ? 'json' : 'pretty',
-    explicitFormat: params.explicitFormat,
+    outputMode,
+    ttyAwareMode: resolveOutputMode({
+      interactive,
+      outputMode,
+      explicitFormat,
+    }),
+    interactive,
+    colorEnabled: process.env.NO_COLOR === undefined && process.env.TERM !== 'dumb',
   }
-}
-
-export function resolveOutputMode(params: {
-  agent: boolean
-  outputMode: CliOutputMode
-  explicitFormat?: string
-}): 'json' | 'pretty' {
-  if (params.explicitFormat) {
-    return params.explicitFormat === 'json' ? 'json' : 'pretty'
-  }
-
-  if (params.outputMode === 'json') return 'json'
-  if (params.outputMode === 'pretty') return 'pretty'
-  return params.agent ? 'json' : 'pretty'
 }

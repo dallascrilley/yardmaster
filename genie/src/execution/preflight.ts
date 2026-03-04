@@ -5,36 +5,41 @@ import {
   type ProviderFailureReason,
 } from '../types.js'
 
-export function formatReason(id: string, check: ProviderCheckResult, stage: ProviderFailureReason['stage']): ProviderFailureReason {
+export function formatFailureReason(
+  providerId: string,
+  check: ProviderCheckResult,
+  stage: ProviderFailureReason['stage'],
+): ProviderFailureReason {
   if (check.ok) {
-    throw new Error('No reason for successful check')
+    throw new Error('formatFailureReason called with successful check')
   }
 
   return {
-    provider: id as ProviderFailureReason['provider'],
+    provider: providerId as ProviderFailureReason['provider'],
     stage,
     reason: check.reason,
     hint: check.hint,
+    authFailure: stage === 'auth' || check.authFailure,
+    timeout: check.timeout,
   }
 }
 
 export async function runPreflight(
   provider: ProviderAdapter,
   runner: CommandRunner,
-): Promise<{ failures: ProviderFailureReason[] }> {
+): Promise<ProviderFailureReason[]> {
   const failures: ProviderFailureReason[] = []
 
-  const available = await provider.isAvailable(runner)
-  if (!available.ok) {
-    failures.push(formatReason(provider.id, available, 'availability'))
-    return { failures }
+  const availability = await provider.isAvailable(runner)
+  if (!availability.ok) {
+    failures.push(formatFailureReason(provider.id, availability, 'availability'))
+    return failures
   }
 
   const auth = await provider.isAuthenticated(runner)
   if (!auth.ok) {
-    failures.push(formatReason(provider.id, auth, 'auth'))
-    return { failures }
+    failures.push(formatFailureReason(provider.id, auth, 'auth'))
   }
 
-  return { failures: [] }
+  return failures
 }

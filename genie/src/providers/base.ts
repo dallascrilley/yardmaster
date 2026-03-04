@@ -1,29 +1,48 @@
 import { spawn } from 'node:child_process'
 
 import {
-  type CommandInvocation,
-  type CommandResult,
   type CommandRunner,
   type NormalizedRequest,
   type ProviderAdapter,
-  type ProviderCheckResult,
+  type ProviderInvocation,
   type ProviderParseResult,
+  type CommandResult,
+  type ProviderCheckResult,
 } from '../types.js'
 
-const isCommandNotFoundError = (error: unknown): boolean => {
-  return (error as NodeJS.ErrnoException).code === 'ENOENT'
+export type ProviderFactoryParams = {
+  id: ProviderAdapter['id']
+  binary: string
+  buildInvocation: (request: NormalizedRequest) => ProviderInvocation
+  parse: (result: CommandResult) => ProviderParseResult
+  availabilityInvocation?: ProviderInvocation
+  availabilityCheck?: (runner: CommandRunner) => Promise<ProviderCheckResult>
+  authCheck?: (runner: CommandRunner) => Promise<ProviderCheckResult>
 }
 
-export const DEFAULT_NOOP_RESULT: CommandResult = {
+const defaultCommandError: CommandResult = {
   stdout: '',
   stderr: '',
   code: 127,
 }
 
-export async function runCommand(invocation: ProviderInvocation, runner?: CommandRunner): Promise<CommandResult> {
-  if (runner) return runner(invocation)
+const DEFAULT_EXECUTION_TIMEOUT_MS = 30_000
 
-  return new Promise((resolve) => {
+function isCommandNotFound(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === 'ENOENT'
+}
+
+function isLikelyTimeout(result: CommandResult): boolean {
+  return result.code === 124 || /timed out/i.test(`${result.stderr}\n${result.stdout}`)
+}
+
+export async function runCommand(invocation: ProviderInvocation, runner?: CommandRunner): Promise<CommandResult> {
+  if (runner) {
+    return runner(invocation)
+  }
+
+  return new Promise<CommandResult>((resolve) => {
+    let didResolve = false
     const child = spawn(invocation.command, invocation.args, {
       cwd: invocation.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -40,11 +59,52 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
       stderr += chunk.toString()
     })
 
-    child.on('error', () => {
-      resolve(DEFAULT_NOOP_RESULT)
+    const timeoutHandle =
+      typeof invocation.timeoutMs === 'number' && invocation.timeoutMs > 0
+        ? setTimeout(() => {
+            if (didResolve) return
+            didResolve = true
+            child.kill('SIGTERM')
+            setTimeout(() => {
+              child.kill('SIGKILL')
+            }, 250)
+            child.stdout?.destroy()
+            child.stderr?.destroy()
+            child.unref()
+            resolve({
+              stdout,
+              stderr: `${stderr}\nTimed out after ${invocation.timeoutMs}ms`.trim(),
+              code: 124,
+            })
+          }, invocation.timeoutMs)
+        : undefined
+
+    child.on('error', (error) => {
+      if (didResolve) return
+      didResolve = true
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle)
+      }
+      if (isCommandNotFound(error)) {
+        resolve({
+          ...defaultCommandError,
+          stderr: error.message,
+        })
+        return
+      }
+
+      resolve({
+        ...defaultCommandError,
+        stderr: String(error),
+      })
     })
 
     child.on('close', (code) => {
+      if (didResolve) return
+      didResolve = true
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle)
+      }
       resolve({
         stdout,
         stderr,
@@ -54,77 +114,128 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
   })
 }
 
-function buildDefaultCheckFailure(binary: string) {
-  return {
-    ok: false as const,
-    reason: `${binary} is not available on PATH`,
-    hint: `Run: which ${binary}`,
+function createDefaultAvailabilityCheck(binary: string, invocation?: ProviderInvocation) {
+  return async (runner: CommandRunner): Promise<ProviderCheckResult> => {
+    const result = await runner(
+      invocation ?? {
+        command: binary,
+        args: ['--version'],
+        timeoutMs: 3_000,
+      },
+    )
+
+    if (result.code !== 0) {
+      return {
+        ok: false,
+        reason: `Unable to execute ${binary} ${(invocation?.args || ['--version']).join(' ')}`,
+        hint: result.stderr || result.stdout || `Install ${binary} and ensure it is in your PATH.`,
+        code: result.code,
+        timeout: isLikelyTimeout(result),
+      }
+    }
+
+    return {
+      ok: true,
+      details: (result.stdout || result.stderr).trim() || undefined,
+    }
   }
 }
 
-export function createProviderAdapter(params: {
-  id: ProviderAdapter['id']
-  binary: string
-  buildInvocation: (request: NormalizedRequest) => CommandInvocation
-  parse: (result: CommandResult) => ProviderParseResult
-}): ProviderAdapter {
-  const invoke = async (
-    request: NormalizedRequest,
-    runner: CommandRunner = runCommand,
-  ): Promise<ProviderParseResult> => {
-    const invocation = params.buildInvocation(request)
-    const raw = await runWithRunner(runner, invocation)
+function createDefaultAuthCheck(id: string, binary: string) {
+  return async (runner: CommandRunner): Promise<ProviderCheckResult> => {
+    const result = await runner({
+      command: binary,
+      args: ['auth', 'status'],
+      timeoutMs: 4_000,
+    })
 
-    if (raw.code !== 0) {
-      throw new Error(raw.stderr.trim() || raw.stdout.trim() || `${params.id} exited with ${raw.code}`)
-    }
-
-    return params.parse(raw)
-  }
-
-  const runWithRunner = async (runner: CommandRunner, invocation: CommandInvocation): Promise<CommandResult> => {
-    try {
-      const result = await runner(invocation)
-      return result
-    } catch (error) {
-      if (isCommandNotFoundError(error)) {
-        return { ...DEFAULT_NOOP_RESULT, stderr: String(error) }
+    if (result.code === 0) {
+      return {
+        ok: true,
+        details: (result.stdout || result.stderr).trim() || undefined,
       }
-      throw error
+    }
+
+    return {
+      ok: false,
+      reason: `${id} authentication check failed`,
+      hint: result.stderr || result.stdout || 'Authenticate with the provider CLI and retry.',
+      authFailure: true,
+      timeout: isLikelyTimeout(result),
+      code: result.code,
     }
   }
+}
+
+export function extractResponseText(result: CommandResult, fallbackLabel: string): string {
+  const stdout = result.stdout.trim()
+  const stderr = result.stderr.trim()
+  if (stdout) return stdout
+
+  const nonDiagnosticStderr = stderr
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !/^warning[:\s]/i.test(line))
+
+  if (nonDiagnosticStderr.length > 0) {
+    return nonDiagnosticStderr.join('\n')
+  }
+
+  return `No response from ${fallbackLabel}`
+}
+
+export function createProviderAdapter(params: ProviderFactoryParams): ProviderAdapter {
+  async function runWithRunner(
+    runner: CommandRunner,
+    invocation: ProviderInvocation,
+  ): Promise<CommandResult> {
+    try {
+      return await runner(invocation)
+    } catch (error) {
+      if (isCommandNotFound(error)) {
+        return {
+          ...defaultCommandError,
+          stderr: (error as Error).message,
+        }
+      }
+
+      return {
+        ...defaultCommandError,
+        stderr: String(error),
+      }
+    }
+  }
+
+  const availabilityCheck =
+    params.availabilityCheck ??
+    createDefaultAvailabilityCheck(params.binary, params.availabilityInvocation)
+
+  const authCheck = params.authCheck ?? createDefaultAuthCheck(params.id, params.binary)
 
   return {
     id: params.id,
     isAvailable: async (runner = runCommand) => {
-      const result = await runWithRunner(runner, {
-        command: params.binary,
-        args: ['--version'],
-      })
-      if (result.code !== 0) {
-        return {
-          ...buildDefaultCheckFailure(params.binary),
-          reason: `Unable to execute ${params.binary} --version`,
-          hint: result.stderr.trim() || result.stdout.trim(),
-        }
-      }
-      return { ok: true }
+      return availabilityCheck((invocation) => runWithRunner(runner, invocation))
     },
     isAuthenticated: async (runner = runCommand) => {
-      const result = await runWithRunner(runner, {
-        command: params.binary,
-        args: ['auth', 'status'],
-      })
-      if (result.code === 0) return { ok: true }
-      return {
-        ok: false,
-        reason: `${params.id} auth check failed`,
-        hint: result.stderr.trim() || 'Run the provider login flow to authenticate.',
-      }
+      return authCheck((invocation) => runWithRunner(runner, invocation))
     },
     buildInvocation: params.buildInvocation,
-    execute: invoke,
+    execute: async (request: NormalizedRequest, runner = runCommand) => {
+      const invocation = params.buildInvocation(request)
+      const result = await runWithRunner(runner, {
+        ...invocation,
+        timeoutMs: invocation.timeoutMs ?? request.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS,
+      })
+
+      if (result.code !== 0) {
+        const detail = [result.stderr, result.stdout].filter(Boolean).join('\n').trim()
+        throw new Error(`${params.id} execution failed (${result.code}): ${detail || 'no output'}`)
+      }
+
+      return params.parse(result)
+    },
     parse: params.parse,
   }
 }
-

@@ -8,13 +8,14 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "dc-cli-kit": "file:../../dc-cli-kit",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/node": "^25.3.3",
     "typescript": "^5.7.3",
     "vitest": "^3.0.6"
   }
