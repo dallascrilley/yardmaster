@@ -1,47 +1,52 @@
-import { type CommandRunner, type NormalizedRequest, type GenieRunResult, type ProviderId } from '../types.js'
-import { resolveProviderOrder, normalizeRequest } from './normalize.js'
+import { type CommandRunner, type NormalizedRequest, type GenieRunResult, type ProviderId, type GenieResponseEnvelope } from '../types.js'
+import { resolveProviderOrder, normalizeRequest, type NormalizedPromptRequest } from './normalize.js'
 import { executeWithFallback } from './fallback.js'
 import { providerAdapters } from '../providers/registry.js'
-import { type GenieConfig, defaultConfig } from '../config/schema.js'
+import { defaultConfig, type GenieConfig } from '../config/schema.js'
 import { updateConfig } from '../config/store.js'
-import { AggregatedProviderError } from '../errors.js'
+import { runCommand } from '../providers/base.js'
+
+export type RunRequestInput = {
+  prompt: string
+  provider?: ProviderId
+  model?: string
+  workspace?: string
+  mode?: string
+  trust?: boolean
+  output?: 'auto' | 'pretty' | 'json' | 'plain'
+  timeoutMs?: number
+  noFallback?: boolean
+}
 
 export async function runRequest(params: {
-  input: {
-    prompt: string
-    provider?: ProviderId
-    model?: string
-    workspace?: string
-    mode?: string
-    trust?: boolean
-    output?: 'auto' | 'pretty' | 'json'
-  }
+  input: RunRequestInput
   config: GenieConfig
-  runner: CommandRunner
+  runner?: CommandRunner
 }): Promise<GenieRunResult> {
+  const runner = params.runner ?? runCommand
   const request: NormalizedRequest = normalizeRequest(params.input, params.config)
-  const { order } = resolveProviderOrder(params.config, request.provider)
+  const { order } = resolveProviderOrder(params.config, request.provider, request.noFallback)
+
   const result = await executeWithFallback({
     providers: providerAdapters,
     order,
     request,
-    runner: params.runner,
+    runner,
   })
 
-  const saved = await updateConfig((current) => {
-    const nextModel = {
+  await updateConfig((current) => {
+    const byProvider = {
       ...current.model.byProvider,
-      [result.provider.id]: request.model ?? defaultConfig.model.byProvider[result.provider.id] ?? '',
+      ...(request.model && { [result.provider.id]: request.model }),
     }
 
     return {
-      ...current,
       provider: {
         ...current.provider,
         default: result.provider.id,
       },
       model: {
-        byProvider: nextModel,
+        byProvider,
       },
       mode: {
         default: request.mode,
@@ -55,22 +60,50 @@ export async function runRequest(params: {
       trust: {
         default: request.trust,
       },
+      runtime: {
+        timeoutMs: request.timeoutMs,
+      },
+      _meta: current._meta,
     }
   })
 
   return {
     ...result.result,
-    workspace: saved.workspace.last ?? request.workspace,
+    model: request.model ?? defaultConfig.model.byProvider[result.provider.id],
+    workspace: request.workspace,
   }
 }
 
-export function toResponseEnvelope(result: GenieRunResult) {
+export function toResponseEnvelope(result: GenieRunResult): GenieResponseEnvelope {
   return {
     provider: result.provider,
-    model: result.model,
-    mode: result.mode,
-    workspace: result.workspace,
-    trust: result.trust,
+    model: result.model ?? null,
     response: result.response,
+    fallbackUsed: result.fallbackUsed,
+    timings: result.timings,
+    error: null,
+  }
+}
+
+export function toErrorEnvelope(error: { code: string; message: string }, timings?: GenieRunResult['timings']): GenieResponseEnvelope {
+  return {
+    provider: null,
+    model: null,
+    response: '',
+    fallbackUsed: false,
+    timings: timings ?? {
+      totalMs: 0,
+      attempts: [],
+    },
+    error,
+  }
+}
+
+export function isNormalizedPromptRequest(value: unknown): value is NormalizedPromptRequest {
+  try {
+    normalizeRequest(value as RunRequestInput, defaultConfig)
+    return true
+  } catch {
+    return false
   }
 }

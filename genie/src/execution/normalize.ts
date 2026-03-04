@@ -1,7 +1,9 @@
-import { z } from 'dc-cli-kit'
+import { z } from 'zod'
 
-import { type NormalizedRequest, providerIds, type CliOutputMode } from '../types.js'
+import { type NormalizedRequest, providerIds, type ProviderId, type CliOutputMode } from '../types.js'
 import type { GenieConfig } from '../config/schema.js'
+
+const DEFAULT_TIMEOUT_MS = 30_000
 
 export const requestSchema = z.object({
   prompt: z.string().trim().min(1),
@@ -10,7 +12,9 @@ export const requestSchema = z.object({
   workspace: z.string().trim().min(1),
   mode: z.string().trim().min(1).default('default'),
   trust: z.boolean().default(false),
-  output: z.enum(['auto', 'pretty', 'json']).default('auto'),
+  output: z.enum(['auto', 'pretty', 'json', 'plain']).default('auto'),
+  timeoutMs: z.number().int().positive().max(300_000).default(DEFAULT_TIMEOUT_MS),
+  noFallback: z.boolean().default(false),
 })
 
 export type NormalizedPromptRequest = z.infer<typeof requestSchema>
@@ -24,6 +28,8 @@ export function normalizeRequest(
     mode?: string
     trust?: boolean
     output?: CliOutputMode
+    timeoutMs?: number
+    noFallback?: boolean
   },
   config: GenieConfig,
 ): NormalizedRequest {
@@ -35,29 +41,39 @@ export function normalizeRequest(
     mode: input.mode || config.mode.default,
     trust: input.trust ?? config.trust.default,
     output: input.output || config.output.default,
+    timeoutMs: input.timeoutMs ?? config.runtime.timeoutMs,
+    noFallback: input.noFallback ?? false,
   })
 
   return parsed
 }
 
-export function resolveProviderOrder(config: GenieConfig, explicit?: string): {
-  order: string[]
+export function resolveProviderOrder(
+  config: GenieConfig,
+  explicit?: string,
+  noFallback = false,
+): {
+  order: ProviderId[]
   explicitUsed: boolean
 } {
-  if (explicit && config.provider.fallbackOrder.includes(explicit as any)) {
-    return {
-      order: [explicit as any, ...config.provider.fallbackOrder.filter((id) => id !== explicit)],
-      explicitUsed: true,
-    }
-  }
+  const explicitProvider = explicit?.trim().toLowerCase()
+  const includes = (value: string): value is ProviderId => providerIds.includes(value as ProviderId)
 
-  if (explicit) {
-    return {
-      order: [explicit, ...config.provider.fallbackOrder.filter((id) => id !== explicit)],
-      explicitUsed: true,
+  const baseOrder = (() => {
+    if (explicitProvider && includes(explicitProvider)) {
+      return [explicitProvider, ...config.provider.fallbackOrder.filter((id) => id !== explicitProvider)]
     }
-  }
 
-  const order = [config.provider.default, ...config.provider.fallbackOrder.filter((id) => id !== config.provider.default)]
-  return { order, explicitUsed: false }
+    return [
+      config.provider.default,
+      ...config.provider.fallbackOrder.filter((id) => id !== config.provider.default),
+    ]
+  })()
+
+  const order = noFallback ? baseOrder.slice(0, 1) : baseOrder
+
+  return {
+    order,
+    explicitUsed: Boolean(explicitProvider && includes(explicitProvider)),
+  }
 }

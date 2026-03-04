@@ -1,5 +1,5 @@
-import { z } from 'dc-cli-kit'
-import { cliOutputModeSchema, providerIds, type ProviderId } from '../types.js'
+import { z } from 'zod'
+import { cliOutputModeSchema, providerIds } from '../types.js'
 
 export const modelMapSchema = z.record(z.string(), z.string()).default({})
 
@@ -23,6 +23,16 @@ export const genieConfigSchema = z.object({
   trust: z.object({
     default: z.boolean().default(false),
   }),
+  runtime: z.object({
+    timeoutMs: z.number().int().positive().max(300_000).default(30_000),
+  }),
+  _meta: z
+    .object({
+      schema: z.string().optional(),
+      savedAt: z.string().optional(),
+    })
+    .partial()
+    .optional(),
 })
 
 export type GenieConfig = z.infer<typeof genieConfigSchema>
@@ -46,6 +56,9 @@ export const defaultConfig: GenieConfig = {
   },
   trust: {
     default: false,
+  },
+  runtime: {
+    timeoutMs: 30_000,
   },
 }
 
@@ -76,5 +89,9 @@ export function mergeConfig(base: GenieConfig, updates: Partial<GenieConfig>): G
     trust: {
       default: updates.trust?.default ?? base.trust.default,
     },
+    runtime: {
+      timeoutMs: updates.runtime?.timeoutMs ?? base.runtime.timeoutMs,
+    },
+    _meta: updates._meta ?? base._meta,
   }
 }

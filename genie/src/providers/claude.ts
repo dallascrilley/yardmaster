@@ -1,4 +1,4 @@
-import { createProviderAdapter } from './base.js'
+import { createProviderAdapter, extractResponseText } from './base.js'
 import { type NormalizedRequest } from '../types.js'
 
 function buildInvocation(request: NormalizedRequest) {
@@ -20,13 +20,13 @@ function buildInvocation(request: NormalizedRequest) {
     command: 'claude',
     args,
     cwd: request.workspace,
+    timeoutMs: request.timeoutMs,
   }
 }
 
 function parse(result: { stdout: string; stderr: string; code: number }) {
-  const response = (result.stdout || result.stderr).trim()
   return {
-    text: response || 'No response from claude',
+    text: extractResponseText(result, 'claude'),
     raw: result,
   }
 }
