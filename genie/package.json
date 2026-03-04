@@ -1,0 +1,21 @@
+{
+  "name": "genie",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "genie": "./dist/bin/genie.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dc-cli-kit": "file:../../dc-cli-kit",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.6"
+  }
+}
