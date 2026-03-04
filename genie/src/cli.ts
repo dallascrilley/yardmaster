@@ -1,26 +1,87 @@
 import { readFileSync } from 'node:fs'
 
-import { AggregatedProviderError } from './errors.js'
+import {
+  AggregatedProviderError,
+  getExitCode,
+  UsageError,
+} from './errors.js'
+import {
+  configGet,
+  configInit,
+  configPath,
+  configSet,
+  isConfigKey,
+} from './config/commands.js'
 import { loadConfig } from './config/store.js'
-import { providerIds, type CliOutputMode, type ProviderId, type ProviderFailureReason } from './types.js'
+import { providerIds, type CliOutputMode, type ProviderFailureReason, type ProviderId } from './types.js'
 import { resolveWorkspacePath } from './runtime/workspace.js'
-import { parseExplicitFormat, resolveRuntimeState } from './runtime/tty.js'
-import { runRequest, toResponseEnvelope, type RunRequestInput } from './execution/run-request.js'
+import { resolveRuntimeState } from './runtime/tty.js'
+import {
+  runRequest,
+  toErrorEnvelope,
+  toResponseEnvelope,
+  type RunRequestInput,
+} from './execution/run-request.js'
+import { doctorProviders, listProviders } from './providers/doctor.js'
 
-type CliOptions = {
+type GlobalOptions = {
+  help: boolean
+  version: boolean
+  json: boolean
+  plain: boolean
+  noColor: boolean
+  quiet: boolean
+  verbose: boolean
+  noInput: boolean
+}
+
+type RunOptions = {
   provider?: ProviderId
   model?: string
   workspace?: string
   mode?: string
   trust: boolean
-  output?: CliOutputMode
-  format?: string
+  timeoutMs?: number
+  noFallback: boolean
 }
 
-type ParsedInput = {
-  prompt: string
-  options: CliOptions
-}
+type ParsedCommand =
+  | { kind: 'help'; topic?: 'run' | 'providers' | 'config' }
+  | { kind: 'version' }
+  | {
+      kind: 'run'
+      prompt: string
+      globals: GlobalOptions
+      options: RunOptions
+    }
+  | {
+      kind: 'providers-list'
+      globals: GlobalOptions
+    }
+  | {
+      kind: 'providers-doctor'
+      provider?: ProviderId
+      globals: GlobalOptions
+    }
+  | {
+      kind: 'config-get'
+      key?: string
+      globals: GlobalOptions
+    }
+  | {
+      kind: 'config-set'
+      key: string
+      value: string
+      globals: GlobalOptions
+    }
+  | {
+      kind: 'config-init'
+      globals: GlobalOptions
+    }
+  | {
+      kind: 'config-path'
+      globals: GlobalOptions
+    }
 
 const aliasCommands = new Set(['wish', 'rub'])
 
@@ -35,56 +96,167 @@ function readPackageVersion(): string {
   }
 }
 
-function printUsage(): never {
-  const output = [
-    'Usage: genie [options] <prompt>',
-    '       genie wish|rub [options] <prompt>',
+function defaultGlobals(): GlobalOptions {
+  return {
+    help: false,
+    version: false,
+    json: false,
+    plain: false,
+    noColor: false,
+    quiet: false,
+    verbose: false,
+    noInput: false,
+  }
+}
+
+function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config'): string {
+  const root = [
+    'Usage:',
+    '  genie <prompt>',
+    '  genie run [options] <prompt>',
+    '  genie providers list [--json]',
+    '  genie providers doctor [--provider <id>] [--json]',
+    '  genie config get [key] [--json]',
+    '  genie config set <key> <value>',
+    '  genie config init',
+    '  genie config path [--json]',
     '',
-    'Options:',
-    '  --provider, -p <id>      Preferred provider',
-    '  --model, -m <name>       Provider model',
-    '  --workspace, -w <path>   Working directory',
-    '  --mode <name>            Provider mode',
-    '  --trust                   Skip safety prompts if supported',
-    '  --output <auto|pretty|json>  Output mode',
-    '  --format <json|pretty|toon|yaml|md>',
-    '  --json                   Force JSON output',
-    '  --help, -h               Show this help',
-    '  --version, -v            Show version',
+    'Global flags:',
+    '  -h, --help',
+    '  --version',
+    '  --json',
+    '  --plain',
+    '  --no-color',
+    '  -q, --quiet',
+    '  -v, --verbose',
+    '  --no-input',
     '',
     `Providers: ${providerIds.join(', ')}`,
   ]
 
-  process.stdout.write(`${output.join('\n')}\n`)
-  process.exit(0)
+  const run = [
+    'Usage: genie run [options] <prompt>',
+    '  -p, --provider <claude|codex|cursor-agent|gemini>',
+    '  -m, --model <name>',
+    '  -w, --workspace <path>',
+    '  --mode <name>',
+    '  --trust',
+    '  --timeout-ms <n>',
+    '  --no-fallback',
+  ]
+
+  const providers = [
+    'Usage: genie providers <subcommand>',
+    'Subcommands:',
+    '  list [--json]',
+    '  doctor [--provider <id>] [--json]',
+  ]
+
+  const config = [
+    'Usage: genie config <subcommand>',
+    'Subcommands:',
+    '  get [key] [--json]',
+    '  set <key> <value>',
+    '  init',
+    '  path [--json]',
+  ]
+
+  if (topic === 'run') return run.join('\n')
+  if (topic === 'providers') return providers.join('\n')
+  if (topic === 'config') return config.join('\n')
+  return root.join('\n')
 }
 
-function parsePositionalAndOptions(argv: string[]): ParsedInput {
-  const inputArgs = [...argv]
-
-  if (inputArgs[0] && aliasCommands.has(inputArgs[0])) {
-    inputArgs.shift()
+function parseProvider(value: string, flag: string): ProviderId {
+  if (!providerIds.includes(value as ProviderId)) {
+    throw new UsageError(`Unknown provider '${value}' for ${flag}`)
   }
+  return value as ProviderId
+}
 
-  const options: CliOptions = { trust: false }
+function parseRunLikeArgs(tokens: string[]): ParsedCommand {
+  const globals = defaultGlobals()
+  const options: RunOptions = { trust: false, noFallback: false }
   const positional: string[] = []
 
-  for (let index = 0; index < inputArgs.length; index += 1) {
-    const token = inputArgs[index]
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
     if (!token) continue
 
     if (token === '--help' || token === '-h') {
-      printUsage()
+      globals.help = true
+      continue
     }
-
-    if (token === '--version' || token === '-v') {
-      process.stdout.write(`${readPackageVersion()}\n`)
-      process.exit(0)
+    if (token === '--version') {
+      globals.version = true
+      continue
     }
-
     if (token === '--json') {
-      options.output = 'json'
-      options.format = 'json'
+      globals.json = true
+      continue
+    }
+    if (token === '--plain') {
+      globals.plain = true
+      continue
+    }
+    if (token === '--no-color') {
+      globals.noColor = true
+      continue
+    }
+    if (token === '--no-input') {
+      globals.noInput = true
+      continue
+    }
+    if (token === '--quiet' || token === '-q') {
+      globals.quiet = true
+      continue
+    }
+    if (token === '--verbose' || token === '-v') {
+      globals.verbose = true
+      continue
+    }
+
+    if (token === '--provider' || token === '-p') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.provider = parseProvider(value, token)
+      index += 1
+      continue
+    }
+
+    if (token === '--model' || token === '-m') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.model = value
+      index += 1
+      continue
+    }
+
+    if (token === '--workspace' || token === '-w') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.workspace = value
+      index += 1
+      continue
+    }
+
+    if (token === '--mode') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.mode = value
+      index += 1
+      continue
+    }
+
+    if (token === '--timeout-ms') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --timeout-ms')
+      const parsed = Number(value)
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new UsageError('Invalid value for --timeout-ms')
+      }
+      options.timeoutMs = Math.floor(parsed)
+      index += 1
       continue
     }
 
@@ -93,76 +265,243 @@ function parsePositionalAndOptions(argv: string[]): ParsedInput {
       continue
     }
 
-    if (token === '--provider' || token === '-p') {
-      const value = inputArgs[index + 1]
-      if (!value) throw new Error(`Missing value for ${token}`)
-      if (!providerIds.includes(value as ProviderId)) {
-        throw new Error(`Unknown provider '${value}'`)
-      }
-      options.provider = value as ProviderId
-      index += 1
-      continue
-    }
-
-    if (token === '--model' || token === '-m') {
-      options.model = inputArgs[index + 1]
-      if (!options.model) throw new Error(`Missing value for ${token}`)
-      index += 1
-      continue
-    }
-
-    if (token === '--workspace' || token === '-w') {
-      options.workspace = inputArgs[index + 1]
-      if (!options.workspace) throw new Error(`Missing value for ${token}`)
-      index += 1
-      continue
-    }
-
-    if (token === '--mode') {
-      options.mode = inputArgs[index + 1]
-      if (!options.mode) throw new Error(`Missing value for ${token}`)
-      index += 1
-      continue
-    }
-
-    if (token === '--output') {
-      const value = inputArgs[index + 1]
-      if (value !== 'auto' && value !== 'pretty' && value !== 'json') {
-        throw new Error(`Invalid output mode '${value}'`)
-      }
-      options.output = value
-      index += 1
-      continue
-    }
-
-    if (token === '--format') {
-      options.format = inputArgs[index + 1]
-      if (!options.format) throw new Error('Missing value for --format')
-      index += 1
-      continue
-    }
-
-    if (token.startsWith('--format=')) {
-      options.format = token.slice('--format='.length)
+    if (token === '--no-fallback') {
+      options.noFallback = true
       continue
     }
 
     if (token.startsWith('-')) {
-      throw new Error(`Unknown option '${token}'`)
+      throw new UsageError(`Unknown option '${token}'`)
     }
 
     positional.push(token)
   }
 
+  if (globals.version) return { kind: 'version' }
+  if (globals.help) return { kind: 'help', topic: 'run' }
+
   const prompt = positional.join(' ').trim()
   if (!prompt) {
-    throw new Error('Prompt is required')
+    throw new UsageError('Prompt is required')
   }
 
   return {
+    kind: 'run',
     prompt,
+    globals,
     options,
   }
+}
+
+function parseProvidersArgs(tokens: string[]): ParsedCommand {
+  const globals = defaultGlobals()
+  let subcommand: 'list' | 'doctor' | undefined
+  let provider: ProviderId | undefined
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
+    if (!token) continue
+
+    if (token === '--help' || token === '-h') {
+      globals.help = true
+      continue
+    }
+    if (token === '--version') {
+      globals.version = true
+      continue
+    }
+    if (token === '--json') {
+      globals.json = true
+      continue
+    }
+    if (token === '--plain') {
+      globals.plain = true
+      continue
+    }
+    if (token === '--no-color') {
+      globals.noColor = true
+      continue
+    }
+    if (token === '--no-input') {
+      globals.noInput = true
+      continue
+    }
+    if (token === '--quiet' || token === '-q') {
+      globals.quiet = true
+      continue
+    }
+    if (token === '--verbose' || token === '-v') {
+      globals.verbose = true
+      continue
+    }
+
+    if (!subcommand && (token === 'list' || token === 'doctor')) {
+      subcommand = token
+      continue
+    }
+
+    if (token === '--provider') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --provider')
+      provider = parseProvider(value, '--provider')
+      index += 1
+      continue
+    }
+
+    throw new UsageError(`Unknown providers argument '${token}'`)
+  }
+
+  if (globals.version) return { kind: 'version' }
+  if (globals.help || !subcommand) return { kind: 'help', topic: 'providers' }
+
+  if (subcommand === 'list') {
+    return {
+      kind: 'providers-list',
+      globals,
+    }
+  }
+
+  return {
+    kind: 'providers-doctor',
+    provider,
+    globals,
+  }
+}
+
+function parseConfigArgs(tokens: string[]): ParsedCommand {
+  const globals = defaultGlobals()
+  let subcommand: 'get' | 'set' | 'init' | 'path' | undefined
+  const positional: string[] = []
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
+    if (!token) continue
+
+    if (token === '--help' || token === '-h') {
+      globals.help = true
+      continue
+    }
+    if (token === '--version') {
+      globals.version = true
+      continue
+    }
+    if (token === '--json') {
+      globals.json = true
+      continue
+    }
+    if (token === '--plain') {
+      globals.plain = true
+      continue
+    }
+    if (token === '--no-color') {
+      globals.noColor = true
+      continue
+    }
+    if (token === '--no-input') {
+      globals.noInput = true
+      continue
+    }
+    if (token === '--quiet' || token === '-q') {
+      globals.quiet = true
+      continue
+    }
+    if (token === '--verbose' || token === '-v') {
+      globals.verbose = true
+      continue
+    }
+
+    if (!subcommand && (token === 'get' || token === 'set' || token === 'init' || token === 'path')) {
+      subcommand = token
+      continue
+    }
+
+    positional.push(token)
+  }
+
+  if (globals.version) return { kind: 'version' }
+  if (globals.help || !subcommand) return { kind: 'help', topic: 'config' }
+
+  if (subcommand === 'get') {
+    if (positional[0] && !isConfigKey(positional[0])) {
+      throw new UsageError(`Unknown config key '${positional[0]}'`)
+    }
+
+    return {
+      kind: 'config-get',
+      key: positional[0],
+      globals,
+    }
+  }
+
+  if (subcommand === 'set') {
+    if (positional.length < 2) {
+      throw new UsageError('Usage: genie config set <key> <value>')
+    }
+
+    return {
+      kind: 'config-set',
+      key: positional[0],
+      value: positional.slice(1).join(' '),
+      globals,
+    }
+  }
+
+  if (subcommand === 'init') {
+    if (positional.length > 0) {
+      throw new UsageError('Usage: genie config init')
+    }
+
+    return {
+      kind: 'config-init',
+      globals,
+    }
+  }
+
+  if (positional.length > 0) {
+    throw new UsageError('Usage: genie config path [--json]')
+  }
+
+  return {
+    kind: 'config-path',
+    globals,
+  }
+}
+
+export function parseArgv(argv: string[]): ParsedCommand {
+  const tokens = [...argv]
+  if (tokens.length === 0) {
+    return {
+      kind: 'help',
+    }
+  }
+
+  const first = tokens[0]
+
+  if (first === '--help' || first === '-h') {
+    return { kind: 'help' }
+  }
+
+  if (first === '--version') {
+    return { kind: 'version' }
+  }
+
+  if (aliasCommands.has(first)) {
+    return parseRunLikeArgs(tokens.slice(1))
+  }
+
+  if (first === 'run') {
+    return parseRunLikeArgs(tokens.slice(1))
+  }
+
+  if (first === 'providers') {
+    return parseProvidersArgs(tokens.slice(1))
+  }
+
+  if (first === 'config') {
+    return parseConfigArgs(tokens.slice(1))
+  }
+
+  return parseRunLikeArgs(tokens)
 }
 
 function formatError(error: unknown): string {
@@ -183,53 +522,192 @@ function formatError(error: unknown): string {
   return String(error)
 }
 
-export async function runFromArgv(argv: string[]): Promise<ReturnType<typeof toResponseEnvelope>> {
-  const parsed = parsePositionalAndOptions(argv)
-  const config = await loadConfig()
-  const workspace = resolveWorkspacePath(parsed.options.workspace, config.workspace.last)
+function writeJson(value: unknown): void {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`)
+}
 
-  const parsedFormat = parsed.options.format ?? parseExplicitFormat(argv)
-  const runtime = resolveRuntimeState({
-    configOutput: config.output.default,
-    explicitOutput: parsed.options.output,
-    explicitFormat: parsedFormat,
-    argv,
-  })
-
-  const request: RunRequestInput = {
-    prompt: parsed.prompt,
-    provider: parsed.options.provider,
-    model: parsed.options.model,
-    workspace,
-    mode: parsed.options.mode,
-    trust: parsed.options.trust,
-    output: runtime.outputMode,
-  }
-
-  const result = await runRequest({
-    input: request,
-    config,
-  })
-
-  const envelope = toResponseEnvelope(result)
-  if (runtime.ttyAwareMode === 'json' || parsed.options.output === 'json') {
-    process.stdout.write(JSON.stringify(envelope, null, 2))
+function writeLine(line: string): void {
+  process.stdout.write(line)
+  if (!line.endsWith('\n')) {
     process.stdout.write('\n')
-  } else {
-    process.stdout.write(envelope.response)
-    if (!envelope.response.endsWith('\n')) {
-      process.stdout.write('\n')
-    }
+  }
+}
+
+function shouldUseJson(globals: GlobalOptions): boolean {
+  return globals.json && !globals.plain
+}
+
+function outputForConfigResult(globals: GlobalOptions, value: unknown): void {
+  if (shouldUseJson(globals)) {
+    writeJson(value)
+    return
   }
 
-  return envelope
+  if (typeof value === 'string') {
+    writeLine(value)
+    return
+  }
+
+  writeLine(JSON.stringify(value, null, 2))
+}
+
+async function executeCommand(parsed: ParsedCommand): Promise<void> {
+  if (parsed.kind === 'help') {
+    writeLine(usage(parsed.topic))
+    return
+  }
+
+  if (parsed.kind === 'version') {
+    writeLine(readPackageVersion())
+    return
+  }
+
+  if (parsed.kind === 'run') {
+    const explicitOutput: CliOutputMode | undefined = parsed.globals.json
+      ? 'json'
+      : parsed.globals.plain
+        ? 'plain'
+        : undefined
+
+    const config = await loadConfig({
+      flags: {
+        provider: parsed.options.provider,
+        model: parsed.options.model,
+        mode: parsed.options.mode,
+        workspace: parsed.options.workspace,
+        trust: parsed.options.trust,
+        timeoutMs: parsed.options.timeoutMs,
+        output: explicitOutput,
+      },
+    })
+
+    const workspace = resolveWorkspacePath(parsed.options.workspace, config.workspace.last)
+    const runtime = resolveRuntimeState({
+      configOutput: config.output.default,
+      explicitOutput,
+      explicitFormat: explicitOutput,
+    })
+
+    const request: RunRequestInput = {
+      prompt: parsed.prompt,
+      provider: parsed.options.provider,
+      model: parsed.options.model,
+      workspace,
+      mode: parsed.options.mode,
+      trust: parsed.options.trust,
+      output: runtime.outputMode,
+      timeoutMs: parsed.options.timeoutMs,
+      noFallback: parsed.options.noFallback,
+    }
+
+    const result = await runRequest({
+      input: request,
+      config,
+    })
+
+    const envelope = toResponseEnvelope(result)
+    if (runtime.ttyAwareMode === 'json') {
+      writeJson(envelope)
+    } else {
+      writeLine(envelope.response)
+    }
+
+    if (parsed.globals.verbose) {
+      process.stderr.write(
+        `[genie] provider=${result.provider} fallback=${String(result.fallbackUsed)} totalMs=${result.timings.totalMs}\n`,
+      )
+    }
+
+    return
+  }
+
+  if (parsed.kind === 'providers-list') {
+    const providers = await listProviders()
+    if (shouldUseJson(parsed.globals)) {
+      writeJson({ providers })
+      return
+    }
+    for (const provider of providers) {
+      writeLine(provider.id)
+    }
+    return
+  }
+
+  if (parsed.kind === 'providers-doctor') {
+    const report = await doctorProviders(parsed.provider)
+    if (shouldUseJson(parsed.globals)) {
+      writeJson({ providers: report })
+      return
+    }
+
+    for (const status of report) {
+      const line = [
+        status.provider,
+        status.available ? 'available' : 'missing',
+        status.authenticated ? 'authenticated' : 'unauthenticated',
+        `${status.latencyMs}ms`,
+      ].join(' | ')
+      writeLine(line)
+      if (status.hint && !parsed.globals.quiet) {
+        process.stderr.write(`hint (${status.provider}): ${status.hint}\n`)
+      }
+    }
+    return
+  }
+
+  if (parsed.kind === 'config-get') {
+    const value = await configGet(parsed.key)
+    outputForConfigResult(parsed.globals, value)
+    return
+  }
+
+  if (parsed.kind === 'config-set') {
+    const updated = await configSet(parsed.key, parsed.value)
+    if (shouldUseJson(parsed.globals)) {
+      writeJson(updated)
+      return
+    }
+    writeLine(`Set ${parsed.key}`)
+    return
+  }
+
+  if (parsed.kind === 'config-init') {
+    const created = await configInit()
+    if (shouldUseJson(parsed.globals)) {
+      writeJson(created)
+      return
+    }
+    writeLine('Initialized user config')
+    return
+  }
+
+  const paths = configPath()
+  outputForConfigResult(parsed.globals, paths)
+}
+
+export async function runFromArgv(argv: string[]): Promise<void> {
+  const parsed = parseArgv(argv)
+  await executeCommand(parsed)
 }
 
 export async function cli(argv: string[] = process.argv.slice(2)): Promise<void> {
   try {
     await runFromArgv(argv)
   } catch (error) {
-    process.stderr.write(`${formatError(error)}\n`)
-    process.exitCode = 1
+    const code = getExitCode(error)
+    const message = formatError(error)
+    const wantsJson = argv.includes('--json') && !argv.includes('--plain')
+
+    if (wantsJson) {
+      writeJson(
+        toErrorEnvelope({
+          code: String(code),
+          message,
+        }),
+      )
+    }
+
+    process.stderr.write(`${message}\n`)
+    process.exitCode = code
   }
 }

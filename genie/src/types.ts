@@ -4,10 +4,10 @@ export const providerIds = ['claude', 'codex', 'cursor-agent', 'gemini'] as cons
 
 export type ProviderId = (typeof providerIds)[number]
 
-export const cliOutputModeSchema = z.enum(['auto', 'pretty', 'json'])
+export const cliOutputModeSchema = z.enum(['auto', 'pretty', 'json', 'plain'])
 export type CliOutputMode = z.infer<typeof cliOutputModeSchema>
 
-export type RawOutput = 'json' | 'pretty' | 'toon' | 'yaml' | 'md' | string
+export type CliFormat = 'json' | 'pretty' | 'plain'
 
 export type RequestInput = {
   prompt: string
@@ -17,12 +17,15 @@ export type RequestInput = {
   mode?: string
   trust?: boolean
   output?: CliOutputMode
+  timeoutMs?: number
+  noFallback?: boolean
 }
 
 export type ProviderInvocation = {
   command: string
   args: string[]
   cwd?: string
+  timeoutMs?: number
 }
 
 export type CommandResult = {
@@ -34,8 +37,19 @@ export type CommandResult = {
 export type CommandRunner = (invocation: ProviderInvocation) => Promise<CommandResult>
 
 export type ProviderCheckResult =
-  | { ok: true }
-  | { ok: false; reason: string; hint?: string; code?: number }
+  | {
+      ok: true
+      details?: string
+    }
+  | {
+      ok: false
+      reason: string
+      hint?: string
+      code?: number
+      details?: string
+      authFailure?: boolean
+      timeout?: boolean
+    }
 
 export type ProviderParseResult = {
   text: string
@@ -50,13 +64,20 @@ export type NormalizedRequest = {
   mode: string
   trust: boolean
   output: CliOutputMode
+  timeoutMs: number
+  noFallback: boolean
 }
+
+export type ProviderFailureStage = 'availability' | 'auth' | 'execution'
 
 export type ProviderFailureReason = {
   provider: ProviderId
-  stage: 'availability' | 'auth' | 'execution'
+  stage: ProviderFailureStage
   reason: string
   hint?: string
+  durationMs?: number
+  authFailure?: boolean
+  timeout?: boolean
 }
 
 export type GenieRunResult = {
@@ -68,10 +89,37 @@ export type GenieRunResult = {
   response: string
   raw: CommandResult
   fallbackUsed: boolean
+  timings: {
+    totalMs: number
+    attempts: Array<{
+      provider: ProviderId
+      stage: ProviderFailureStage | 'success'
+      durationMs: number
+      ok: boolean
+      reason?: string
+    }>
+  }
 }
 
-export type GenieResponse = Omit<GenieRunResult, 'fallbackUsed' | 'raw'> & {
+export type GenieResponseEnvelope = {
+  provider: ProviderId | null
+  model: string | null
+  response: string
   fallbackUsed: boolean
+  timings: {
+    totalMs: number
+    attempts: Array<{
+      provider: ProviderId
+      stage: ProviderFailureStage | 'success'
+      durationMs: number
+      ok: boolean
+      reason?: string
+    }>
+  }
+  error: {
+    code: string
+    message: string
+  } | null
 }
 
 export interface ProviderAdapter {

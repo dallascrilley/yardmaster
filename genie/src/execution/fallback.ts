@@ -1,4 +1,4 @@
-import { AggregatedProviderError } from '../errors.js'
+import { AggregatedProviderError, RuntimeProviderError, TimeoutError } from '../errors.js'
 import {
   type CommandRunner,
   type ProviderAdapter,
@@ -29,22 +29,51 @@ export async function executeWithFallback(params: {
   runner: CommandRunner
 }): Promise<FallbackResult> {
   const failures: ProviderFailureReason[] = []
+  const attempts: GenieRunResult['timings']['attempts'] = []
+  const requestStartedAt = Date.now()
 
   for (const providerId of params.order) {
     const provider = params.providers.find((entry) => entry.id === providerId)
     if (!provider) {
       failures.push(toFailureReasonForMissingProvider(providerId))
+      attempts.push({
+        provider: providerId,
+        stage: 'availability',
+        durationMs: 0,
+        ok: false,
+        reason: `Unknown provider '${providerId}' in configured fallback list`,
+      })
       continue
     }
 
+    const preflightStartedAt = Date.now()
     const preflightFailures = await runPreflight(provider, params.runner)
     if (preflightFailures.length > 0) {
-      failures.push(...preflightFailures)
+      const durationMs = Date.now() - preflightStartedAt
+      failures.push(...preflightFailures.map((failure) => ({ ...failure, durationMs })))
+      attempts.push(
+        ...preflightFailures.map((failure) => ({
+          provider: provider.id,
+          stage: failure.stage,
+          durationMs,
+          ok: false,
+          reason: failure.reason,
+        })),
+      )
       continue
     }
 
+    const executionStartedAt = Date.now()
     try {
       const parsed = await provider.execute(params.request, params.runner)
+      const durationMs = Date.now() - executionStartedAt
+      attempts.push({
+        provider: provider.id,
+        stage: 'success',
+        durationMs,
+        ok: true,
+      })
+
       return {
         provider,
         result: {
@@ -56,15 +85,39 @@ export async function executeWithFallback(params: {
           response: parsed.text,
           raw: parsed.raw,
           fallbackUsed: provider.id !== params.order[0],
+          timings: {
+            totalMs: Date.now() - requestStartedAt,
+            attempts,
+          },
         },
       }
     } catch (error) {
+      const durationMs = Date.now() - executionStartedAt
+      const reason = error instanceof Error ? error.message : String(error)
+      const timeout = /timed out|\(124\)/i.test(reason)
       failures.push({
         provider: provider.id,
         stage: 'execution',
-        reason: error instanceof Error ? error.message : String(error),
+        reason,
+        durationMs,
+        timeout,
+      })
+      attempts.push({
+        provider: provider.id,
+        stage: 'execution',
+        durationMs,
+        ok: false,
+        reason,
       })
     }
+  }
+
+  if (failures.length > 0 && failures.every((item) => item.authFailure)) {
+    throw new RuntimeProviderError(new AggregatedProviderError(failures).message)
+  }
+
+  if (failures.some((item) => item.timeout)) {
+    throw new TimeoutError(new AggregatedProviderError(failures).message)
   }
 
   throw new AggregatedProviderError(failures)

@@ -6,29 +6,27 @@ import { resolveWorkspacePath } from '../src/runtime/workspace.js'
 describe('runtime tty and workspace', () => {
   it('parses explicit format flags', () => {
     expect(parseExplicitFormat(['--format', 'json'])).toBe('json')
-    expect(parseExplicitFormat(['--format=json'])).toBe('json')
+    expect(parseExplicitFormat(['--format=plain'])).toBe('plain')
     expect(parseExplicitFormat(['--json'])).toBe('json')
-    expect(parseExplicitFormat(['--output', 'pretty'])).toBeUndefined()
+    expect(parseExplicitFormat(['--plain'])).toBe('plain')
   })
 
   it('resolves output mode by runtime settings', () => {
-    expect(resolveOutputMode({ agent: true, outputMode: 'auto' })).toBe('json')
-    expect(resolveOutputMode({ agent: true, outputMode: 'pretty' })).toBe('pretty')
-    expect(resolveOutputMode({ agent: true, outputMode: 'auto', explicitFormat: 'json' })).toBe('json')
-    expect(resolveOutputMode({ agent: false, outputMode: 'auto' })).toBe('pretty')
-    expect(resolveOutputMode({ agent: false, outputMode: 'json' })).toBe('json')
+    expect(resolveOutputMode({ interactive: false, outputMode: 'auto' })).toBe('json')
+    expect(resolveOutputMode({ interactive: true, outputMode: 'pretty' })).toBe('pretty')
+    expect(resolveOutputMode({ interactive: true, outputMode: 'plain' })).toBe('plain')
+    expect(resolveOutputMode({ interactive: true, outputMode: 'auto', explicitFormat: 'json' })).toBe('json')
   })
 
   it('builds runtime state from explicit command format', () => {
     const state = resolveRuntimeState({
       configOutput: 'auto',
-      explicitOutput: undefined,
-      explicitFormat: undefined,
-      argv: ['--format', 'json'],
+      explicitOutput: 'json',
+      explicitFormat: 'json',
+      argv: ['--json'],
     })
 
-    expect(state.outputMode).toBe('auto')
-    expect(state.explicitFormat).toBe('json')
+    expect(state.outputMode).toBe('json')
     expect(state.ttyAwareMode).toBe('json')
   })
 

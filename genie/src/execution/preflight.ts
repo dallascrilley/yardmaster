@@ -19,6 +19,8 @@ export function formatFailureReason(
     stage,
     reason: check.reason,
     hint: check.hint,
+    authFailure: stage === 'auth' || check.authFailure,
+    timeout: check.timeout,
   }
 }
 

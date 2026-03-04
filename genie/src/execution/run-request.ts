@@ -1,4 +1,4 @@
-import { type CommandRunner, type NormalizedRequest, type GenieRunResult, type ProviderId } from '../types.js'
+import { type CommandRunner, type NormalizedRequest, type GenieRunResult, type ProviderId, type GenieResponseEnvelope } from '../types.js'
 import { resolveProviderOrder, normalizeRequest, type NormalizedPromptRequest } from './normalize.js'
 import { executeWithFallback } from './fallback.js'
 import { providerAdapters } from '../providers/registry.js'
@@ -13,7 +13,9 @@ export type RunRequestInput = {
   workspace?: string
   mode?: string
   trust?: boolean
-  output?: 'auto' | 'pretty' | 'json'
+  output?: 'auto' | 'pretty' | 'json' | 'plain'
+  timeoutMs?: number
+  noFallback?: boolean
 }
 
 export async function runRequest(params: {
@@ -23,7 +25,7 @@ export async function runRequest(params: {
 }): Promise<GenieRunResult> {
   const runner = params.runner ?? runCommand
   const request: NormalizedRequest = normalizeRequest(params.input, params.config)
-  const { order } = resolveProviderOrder(params.config, request.provider)
+  const { order } = resolveProviderOrder(params.config, request.provider, request.noFallback)
 
   const result = await executeWithFallback({
     providers: providerAdapters,
@@ -58,6 +60,9 @@ export async function runRequest(params: {
       trust: {
         default: request.trust,
       },
+      runtime: {
+        timeoutMs: request.timeoutMs,
+      },
       _meta: current._meta,
     }
   })
@@ -69,15 +74,28 @@ export async function runRequest(params: {
   }
 }
 
-export function toResponseEnvelope(result: GenieRunResult) {
+export function toResponseEnvelope(result: GenieRunResult): GenieResponseEnvelope {
   return {
     provider: result.provider,
-    model: result.model,
-    mode: result.mode,
-    workspace: result.workspace,
-    trust: result.trust,
+    model: result.model ?? null,
     response: result.response,
     fallbackUsed: result.fallbackUsed,
+    timings: result.timings,
+    error: null,
+  }
+}
+
+export function toErrorEnvelope(error: { code: string; message: string }, timings?: GenieRunResult['timings']): GenieResponseEnvelope {
+  return {
+    provider: null,
+    model: null,
+    response: '',
+    fallbackUsed: false,
+    timings: timings ?? {
+      totalMs: 0,
+      attempts: [],
+    },
+    error,
   }
 }
 
