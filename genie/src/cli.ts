@@ -19,6 +19,7 @@ import { resolveRuntimeState } from './runtime/tty.js'
 import {
   executeReviewCommand,
   formatReviewReport,
+  getReviewJsonSchema,
   parseReviewAgent,
   toReviewJsonEnvelope,
   type ReviewAgentId,
@@ -67,6 +68,7 @@ type ReviewOptions = {
   diffFile?: string
   staged: boolean
   base?: string
+  jsonSchema: boolean
 }
 
 type PresetsSetOptions = {
@@ -187,6 +189,7 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'update' | 'pr
     '  genie <prompt>',
     '  genie run [options] <prompt>',
     '  genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]',
+    '  genie review --json-schema',
     '  genie update [--json]',
     '  genie providers list [--json]',
     '  genie providers doctor [--provider <id>] [--json]',
@@ -238,6 +241,7 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'update' | 'pr
     '  --diff-file <path>',
     '  --staged',
     '  --base <ref>',
+    '  --json-schema',
   ]
 
   const update = [
@@ -285,7 +289,7 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'update' | 'pr
 
 function parseReviewArgs(tokens: string[]): ParsedCommand {
   const globals = defaultGlobals()
-  const options: ReviewOptions = { all: false, staged: false }
+  const options: ReviewOptions = { all: false, staged: false, jsonSchema: false }
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
@@ -352,6 +356,10 @@ function parseReviewArgs(tokens: string[]): ParsedCommand {
       index += 1
       continue
     }
+    if (token === '--json-schema') {
+      options.jsonSchema = true
+      continue
+    }
     throw new UsageError(`Unknown review argument '${token}'`)
   }
 
@@ -363,6 +371,9 @@ function parseReviewArgs(tokens: string[]): ParsedCommand {
   }
   if (options.base && options.staged) {
     throw new UsageError('--base cannot be used with --staged')
+  }
+  if (options.jsonSchema && (options.all || options.agent || options.diffFile || options.staged || options.base)) {
+    throw new UsageError('--json-schema cannot be combined with review target or diff-source flags')
   }
 
   if (globals.version) return { kind: 'version' }
@@ -1198,6 +1209,11 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
   }
 
   if (parsed.kind === 'review') {
+    if (parsed.options.jsonSchema) {
+      writeJson(getReviewJsonSchema())
+      return
+    }
+
     const config = await loadConfig()
     const result = await executeReviewCommand({
       all: parsed.options.all,
