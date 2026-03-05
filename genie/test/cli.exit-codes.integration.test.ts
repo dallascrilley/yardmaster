@@ -56,4 +56,14 @@ describe('cli exit codes', () => {
     expect(badHelpResult.status).toBe(2)
     expect(badHelpResult.stderr).toContain("Unknown help topic 'gleep'")
   })
+
+  it('returns exit code 2 for invalid mode values before execution', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'run', '--mode', 'invalidmode', 'hello'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("Unknown mode 'invalidmode' for --mode")
+  })
 })

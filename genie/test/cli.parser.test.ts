@@ -38,6 +38,12 @@ describe('cli parser', () => {
     expect(parsed.options.timeoutMs).toBe(5000)
   })
 
+  it('rejects invalid mode values in run parsing', () => {
+    expect(() => parseArgv(['run', '--mode', 'invalidmode', 'hello'])).toThrow(
+      "Unknown mode 'invalidmode' for --mode",
+    )
+  })
+
   it('treats unknown single token as shorthand prompt', () => {
     const parsed = parseArgv(['gleep'])
     expect(parsed.kind).toBe('run')
