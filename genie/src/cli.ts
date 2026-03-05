@@ -65,6 +65,8 @@ type ReviewOptions = {
   all: boolean
   agent?: ReviewAgentId
   diffFile?: string
+  staged: boolean
+  base?: string
 }
 
 type PresetsSetOptions = {
@@ -184,7 +186,7 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'update' | 'pr
     'Usage:',
     '  genie <prompt>',
     '  genie run [options] <prompt>',
-    '  genie review [--all | --agent <id>] [--diff-file <path>] [--json]',
+    '  genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]',
     '  genie update [--json]',
     '  genie providers list [--json]',
     '  genie providers doctor [--provider <id>] [--json]',
@@ -230,10 +232,12 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'update' | 'pr
   ]
 
   const review = [
-    'Usage: genie review [--all | --agent <codex|claude|gemini|cursor>] [--diff-file <path>]',
+    'Usage: genie review [--all | --agent <codex|claude|gemini|cursor>] [--diff-file <path> | --staged | --base <ref>]',
     '  --all',
     '  --agent <id>',
     '  --diff-file <path>',
+    '  --staged',
+    '  --base <ref>',
   ]
 
   const update = [
@@ -281,7 +285,7 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'update' | 'pr
 
 function parseReviewArgs(tokens: string[]): ParsedCommand {
   const globals = defaultGlobals()
-  const options: ReviewOptions = { all: false }
+  const options: ReviewOptions = { all: false, staged: false }
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
@@ -337,7 +341,28 @@ function parseReviewArgs(tokens: string[]): ParsedCommand {
       index += 1
       continue
     }
+    if (token === '--staged') {
+      options.staged = true
+      continue
+    }
+    if (token === '--base') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --base')
+      options.base = value.trim()
+      index += 1
+      continue
+    }
     throw new UsageError(`Unknown review argument '${token}'`)
+  }
+
+  if (options.staged && options.diffFile) {
+    throw new UsageError('--staged cannot be used with --diff-file')
+  }
+  if (options.base && options.diffFile) {
+    throw new UsageError('--base cannot be used with --diff-file')
+  }
+  if (options.base && options.staged) {
+    throw new UsageError('--base cannot be used with --staged')
   }
 
   if (globals.version) return { kind: 'version' }
@@ -1178,6 +1203,8 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
       all: parsed.options.all,
       agent: parsed.options.agent,
       diffFile: parsed.options.diffFile,
+      staged: parsed.options.staged,
+      base: parsed.options.base,
       config,
     })
 

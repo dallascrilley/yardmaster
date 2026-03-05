@@ -83,6 +83,14 @@ describe('cli parser', () => {
     expect(parseArgv(['update']).kind).toBe('update')
 
     expect(parseArgv(['review', '--all']).kind).toBe('review')
+    const reviewStaged = parseArgv(['review', '--all', '--staged'])
+    expect(reviewStaged.kind).toBe('review')
+    if (reviewStaged.kind !== 'review') throw new Error('expected review')
+    expect(reviewStaged.options.staged).toBe(true)
+    const reviewBase = parseArgv(['review', '--all', '--base', 'origin/main'])
+    expect(reviewBase.kind).toBe('review')
+    if (reviewBase.kind !== 'review') throw new Error('expected review')
+    expect(reviewBase.options.base).toBe('origin/main')
     const reviewSingle = parseArgv(['review', '--agent', 'cursor'])
     expect(reviewSingle.kind).toBe('review')
     if (reviewSingle.kind !== 'review') throw new Error('expected review')
@@ -101,6 +109,18 @@ describe('cli parser', () => {
     expect(parseArgv(['presets', 'set', 'default', '--provider', 'codex']).kind).toBe('presets-set')
     expect(parseArgv(['presets', 'delete', 'default']).kind).toBe('presets-delete')
     expect(parseArgv(['presets', 'use', 'default']).kind).toBe('presets-use')
+  })
+
+  it('rejects conflicting explicit review diff-source flags', () => {
+    expect(() => parseArgv(['review', '--all', '--staged', '--diff-file', 'a.diff'])).toThrow(
+      '--staged cannot be used with --diff-file',
+    )
+    expect(() => parseArgv(['review', '--all', '--base', 'main', '--diff-file', 'a.diff'])).toThrow(
+      '--base cannot be used with --diff-file',
+    )
+    expect(() => parseArgv(['review', '--all', '--base', 'main', '--staged'])).toThrow(
+      '--base cannot be used with --staged',
+    )
   })
 
   it('returns help command with explicit topic', () => {
