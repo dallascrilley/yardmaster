@@ -222,4 +222,66 @@ describe('run-request integration', () => {
       process.env.HOME = originalHome
     }
   })
+
+  it('does not persist defaults when persistLastUsed is disabled', async () => {
+    const home = createTempHome()
+    homes.push(home)
+
+    const config: GenieConfig = {
+      ...defaultConfig,
+      provider: {
+        default: 'claude',
+        fallbackOrder: ['codex', 'cursor-agent', 'gemini'],
+      },
+      workspace: {
+        last: '/tmp/original-workspace',
+      },
+    }
+
+    const originalHome = process.env.HOME
+    process.env.HOME = home
+
+    try {
+      const result = await runRequest({
+        input: {
+          prompt: 'review style execution',
+          provider: 'codex',
+          noFallback: true,
+          output: 'plain',
+        },
+        config,
+        runner: runnerFromScenarios({
+          claude: {
+            available: { code: 0, stdout: 'claude/ok', stderr: '' },
+            auth: { code: 0, stdout: 'authed', stderr: '' },
+            execution: { code: 0, stdout: 'claude response', stderr: '' },
+          },
+          codex: {
+            available: { code: 0, stdout: 'codex/ok', stderr: '' },
+            auth: { code: 0, stdout: 'authed', stderr: '' },
+            execution: { code: 0, stdout: 'codex review', stderr: '' },
+          },
+          'cursor-agent': {
+            available: { code: 0, stdout: 'cursor/ok', stderr: '' },
+            auth: { code: 0, stdout: 'authed', stderr: '' },
+            execution: { code: 0, stdout: 'cursor response', stderr: '' },
+          },
+          gemini: {
+            available: { code: 0, stdout: 'gemini/ok', stderr: '' },
+            auth: { code: 0, stdout: 'authed', stderr: '' },
+            execution: { code: 0, stdout: 'gemini response', stderr: '' },
+          },
+        }),
+        persistLastUsed: false,
+      })
+
+      expect(result.provider).toBe('codex')
+
+      const saved = await loadConfig({ home })
+      expect(saved.provider.default).toBe('claude')
+      expect(saved.workspace.last).toBeUndefined()
+    } finally {
+      process.env.HOME = originalHome
+    }
+  })
 })

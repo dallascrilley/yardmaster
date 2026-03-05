@@ -67,6 +67,22 @@ describe('cli exit codes', () => {
     expect(result.stderr).toContain("Unknown mode 'invalidmode' for --mode")
   })
 
+  it('returns exit code 2 when review target flags are invalid', () => {
+    const conflict = spawnSync('bun', ['src/bin/genie.ts', 'review', '--all', '--agent', 'codex'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+    expect(conflict.status).toBe(2)
+    expect(conflict.stderr).toContain('--all cannot be used with --agent')
+
+    const missingTarget = spawnSync('bun', ['src/bin/genie.ts', 'review'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+    expect(missingTarget.status).toBe(2)
+    expect(missingTarget.stderr).toContain('A review target is required')
+  })
+
   it('returns exit code 2 for unknown root token when strict mode is enabled', () => {
     const result = spawnSync('bun', ['src/bin/genie.ts', 'gleep'], {
       cwd: new URL('..', import.meta.url).pathname,

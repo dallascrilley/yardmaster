@@ -80,6 +80,16 @@ describe('cli parser', () => {
   })
 
   it('parses providers and config command trees', () => {
+    expect(parseArgv(['review', '--all']).kind).toBe('review')
+    const reviewSingle = parseArgv(['review', '--agent', 'cursor'])
+    expect(reviewSingle.kind).toBe('review')
+    if (reviewSingle.kind !== 'review') throw new Error('expected review')
+    expect(reviewSingle.options.agent).toBe('cursor')
+    const reviewAlias = parseArgv(['review', '--agent', 'cursor-agent'])
+    expect(reviewAlias.kind).toBe('review')
+    if (reviewAlias.kind !== 'review') throw new Error('expected review')
+    expect(reviewAlias.options.agent).toBe('cursor')
+
     expect(parseArgv(['providers', 'list', '--json']).kind).toBe('providers-list')
     expect(parseArgv(['providers', 'doctor', '--provider', 'gemini']).kind).toBe('providers-doctor')
     expect(parseArgv(['config', 'get']).kind).toBe('config-get')
@@ -92,6 +102,11 @@ describe('cli parser', () => {
   })
 
   it('returns help command with explicit topic', () => {
+    const reviewHelp = parseArgv(['review', '--help'])
+    expect(reviewHelp.kind).toBe('help')
+    if (reviewHelp.kind !== 'help') throw new Error('expected help')
+    expect(reviewHelp.topic).toBe('review')
+
     const parsed = parseArgv(['providers', '--help'])
     expect(parsed.kind).toBe('help')
     if (parsed.kind !== 'help') throw new Error('expected help')

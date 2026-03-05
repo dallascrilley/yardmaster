@@ -16,6 +16,7 @@ import { loadConfig } from './config/store.js'
 import { modeIds, providerIds, type CliOutputMode, type ProviderFailureReason, type ProviderId, type ProviderPreset, type ProviderOutputFormat } from './types.js'
 import { resolveWorkspacePath } from './runtime/workspace.js'
 import { resolveRuntimeState } from './runtime/tty.js'
+import { executeReviewCommand, formatReviewReport, parseReviewAgent, type ReviewAgentId } from './review/command.js'
 import {
   runRequest,
   toErrorEnvelope,
@@ -53,6 +54,12 @@ type RunOptions = {
   mcp?: string[]
 }
 
+type ReviewOptions = {
+  all: boolean
+  agent?: ReviewAgentId
+  diffFile?: string
+}
+
 type PresetsSetOptions = {
   name: string
   provider?: ProviderId
@@ -69,7 +76,7 @@ type PresetsSetOptions = {
 }
 
 type ParsedCommand =
-  | { kind: 'help'; topic?: 'run' | 'providers' | 'config' | 'presets' }
+  | { kind: 'help'; topic?: 'run' | 'review' | 'providers' | 'config' | 'presets' }
   | { kind: 'version' }
   | {
       kind: 'run'
@@ -80,6 +87,11 @@ type ParsedCommand =
   | {
       kind: 'providers-list'
       globals: GlobalOptions
+    }
+  | {
+      kind: 'review'
+      globals: GlobalOptions
+      options: ReviewOptions
     }
   | {
       kind: 'providers-doctor'
@@ -156,11 +168,12 @@ function defaultGlobals(): GlobalOptions {
   }
 }
 
-function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config' | 'presets'): string {
+function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'providers' | 'config' | 'presets'): string {
   const root = [
     'Usage:',
     '  genie <prompt>',
     '  genie run [options] <prompt>',
+    '  genie review [--all | --agent <id>] [--diff-file <path>] [--json]',
     '  genie providers list [--json]',
     '  genie providers doctor [--provider <id>] [--json]',
     '  genie config get [key] [--json]',
@@ -204,6 +217,13 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config' | 
     '  --no-fallback',
   ]
 
+  const review = [
+    'Usage: genie review [--all | --agent <codex|claude|gemini|cursor>] [--diff-file <path>]',
+    '  --all',
+    '  --agent <id>',
+    '  --diff-file <path>',
+  ]
+
   const providers = [
     'Usage: genie providers <subcommand>',
     'Subcommands:',
@@ -232,10 +252,81 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config' | 
   ]
 
   if (topic === 'run') return run.join('\n')
+  if (topic === 'review') return review.join('\n')
   if (topic === 'providers') return providers.join('\n')
   if (topic === 'config') return config.join('\n')
   if (topic === 'presets') return presets.join('\n')
   return root.join('\n')
+}
+
+function parseReviewArgs(tokens: string[]): ParsedCommand {
+  const globals = defaultGlobals()
+  const options: ReviewOptions = { all: false }
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
+    if (!token) continue
+
+    if (token === '--help' || token === '-h') {
+      globals.help = true
+      continue
+    }
+    if (token === '--version') {
+      globals.version = true
+      continue
+    }
+    if (token === '--json') {
+      globals.json = true
+      continue
+    }
+    if (token === '--plain') {
+      globals.plain = true
+      continue
+    }
+    if (token === '--no-color') {
+      globals.noColor = true
+      continue
+    }
+    if (token === '--no-input') {
+      globals.noInput = true
+      continue
+    }
+    if (token === '--quiet' || token === '-q') {
+      globals.quiet = true
+      continue
+    }
+    if (token === '--verbose' || token === '-v') {
+      globals.verbose = true
+      continue
+    }
+    if (token === '--all') {
+      options.all = true
+      continue
+    }
+    if (token === '--agent') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --agent')
+      options.agent = parseReviewAgent(value)
+      index += 1
+      continue
+    }
+    if (token === '--diff-file') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --diff-file')
+      options.diffFile = value
+      index += 1
+      continue
+    }
+    throw new UsageError(`Unknown review argument '${token}'`)
+  }
+
+  if (globals.version) return { kind: 'version' }
+  if (globals.help) return { kind: 'help', topic: 'review' }
+  return {
+    kind: 'review',
+    globals,
+    options,
+  }
 }
 
 function parseProvider(value: string, flag: string): ProviderId {
@@ -821,7 +912,7 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return { kind: 'version' }
   }
 
-  const helpTopicSet = new Set(['run', 'providers', 'config', 'presets'])
+  const helpTopicSet = new Set(['run', 'review', 'providers', 'config', 'presets'])
   const globalFlagSet = new Set([
     '--help',
     '-h',
@@ -850,7 +941,7 @@ export function parseArgv(argv: string[]): ParsedCommand {
       if (positional.length > 2) {
         throw new UsageError(`Unknown help topic '${positional[2]}'`)
       }
-      return { kind: 'help', topic: topic as 'run' | 'providers' | 'config' | 'presets' }
+      return { kind: 'help', topic: topic as 'run' | 'review' | 'providers' | 'config' | 'presets' }
     }
     throw new UsageError(`Unknown help topic '${topic}'`)
   }
@@ -861,6 +952,9 @@ export function parseArgv(argv: string[]): ParsedCommand {
 
   if (first === 'run') {
     return parseRunLikeArgs(tokens.slice(1))
+  }
+  if (first === 'review') {
+    return parseReviewArgs(tokens.slice(1))
   }
 
   if (first === 'providers') {
@@ -1004,6 +1098,27 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
       )
     }
 
+    return
+  }
+
+  if (parsed.kind === 'review') {
+    const config = await loadConfig()
+    const result = await executeReviewCommand({
+      all: parsed.options.all,
+      agent: parsed.options.agent,
+      diffFile: parsed.options.diffFile,
+      config,
+    })
+
+    if (shouldUseJson(parsed.globals)) {
+      writeJson(result)
+    } else {
+      writeLine(formatReviewReport(result))
+    }
+
+    if (result.exitCode !== 0) {
+      process.exitCode = result.exitCode
+    }
     return
   }
 
