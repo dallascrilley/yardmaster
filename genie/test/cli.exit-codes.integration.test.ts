@@ -80,4 +80,18 @@ describe('cli exit codes', () => {
     expect(result.status).toBe(2)
     expect(result.stderr).toContain("Unknown command 'gleep'. Use 'genie help' for usage.")
   })
+
+  it('returns exit code 2 for unknown root token with leading global flags in strict mode', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', '--json', 'gleep'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GENIE_STRICT_COMMANDS: '1',
+      },
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("Unknown command 'gleep'. Use 'genie help' for usage.")
+  })
 })

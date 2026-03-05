@@ -875,8 +875,9 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return parseConfigArgs(tokens.slice(1))
   }
 
-  if (isStrictCommandsEnabled() && !first.startsWith('-')) {
-    throw new UsageError(`Unknown command '${first}'. Use 'genie help' for usage.`)
+  const strictToken = positional[0]
+  if (isStrictCommandsEnabled() && strictToken) {
+    throw new UsageError(`Unknown command '${strictToken}'. Use 'genie help' for usage.`)
   }
 
   return parseRunLikeArgs(tokens)
