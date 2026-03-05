@@ -20,6 +20,7 @@ Or use `npm link` / `pnpm link` after `bun run build`.
 ```bash
 genie <prompt>
 genie run [options] <prompt>
+genie review [--all | --agent <id>] [--diff-file <path>] [--json]
 genie providers list [--json]
 genie providers doctor [--provider <id>] [--json]
 genie config get [key] [--json]
@@ -60,6 +61,12 @@ genie presets use <name>
 - `--mcp <a,b,c>`
 - `--timeout-ms <n>`
 - `--no-fallback`
+
+## Review flags
+
+- `--all`
+- `--agent <codex|claude|gemini|cursor>`
+- `--diff-file <path>` (defaults to current `git diff`)
 
 ## I/O contract
 
@@ -157,6 +164,11 @@ genie run --json "what changed in src/"
 
 # provider diagnostics
 genie providers doctor --json
+
+# review with one or all coding agents
+genie review --agent codex
+genie review --all
+genie review --all --diff-file original-agents.diff
 
 # config workflows
 genie config init

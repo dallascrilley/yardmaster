@@ -28,8 +28,10 @@ export async function runRequest(params: {
   input: RunRequestInput
   config: GenieConfig
   runner?: CommandRunner
+  persistLastUsed?: boolean
 }): Promise<GenieRunResult> {
   const runner = params.runner ?? runCommand
+  const persistLastUsed = params.persistLastUsed ?? true
   const request: NormalizedRequest = normalizeRequest(params.input, params.config)
   const { order } = resolveProviderOrder(params.config, request.provider, request.noFallback)
 
@@ -40,39 +42,41 @@ export async function runRequest(params: {
     runner,
   })
 
-  await updateConfig((current) => {
-    const byProvider = {
-      ...current.model.byProvider,
-      ...(request.model && { [result.provider.id]: request.model }),
-    }
+  if (persistLastUsed) {
+    await updateConfig((current) => {
+      const byProvider = {
+        ...current.model.byProvider,
+        ...(request.model && { [result.provider.id]: request.model }),
+      }
 
-    return {
-      provider: {
-        ...current.provider,
-        default: result.provider.id,
-      },
-      model: {
-        byProvider,
-      },
-      mode: {
-        default: request.mode,
-      },
-      workspace: {
-        last: request.workspace,
-      },
-      output: {
-        default: request.output,
-      },
-      trust: {
-        default: request.trust,
-      },
-      runtime: {
-        timeoutMs: request.timeoutMs,
-      },
-      presets: current.presets,
-      _meta: current._meta,
-    }
-  })
+      return {
+        provider: {
+          ...current.provider,
+          default: result.provider.id,
+        },
+        model: {
+          byProvider,
+        },
+        mode: {
+          default: request.mode,
+        },
+        workspace: {
+          last: request.workspace,
+        },
+        output: {
+          default: request.output,
+        },
+        trust: {
+          default: request.trust,
+        },
+        runtime: {
+          timeoutMs: request.timeoutMs,
+        },
+        presets: current.presets,
+        _meta: current._meta,
+      }
+    })
+  }
 
   return {
     ...result.result,
