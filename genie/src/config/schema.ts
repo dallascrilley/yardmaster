@@ -2,6 +2,19 @@ import { z } from 'zod'
 import { cliOutputModeSchema, providerIds } from '../types.js'
 
 export const modelMapSchema = z.record(z.string(), z.string()).default({})
+export const providerOutputFormatSchema = z.enum(['text', 'json', 'stream-json'])
+export const presetSchema = z.object({
+  provider: z.enum(providerIds).optional(),
+  model: z.string().trim().min(1).optional(),
+  mode: z.string().trim().min(1).optional(),
+  trust: z.boolean().optional(),
+  yolo: z.boolean().optional(),
+  headless: z.boolean().optional(),
+  includeDirectories: z.array(z.string().trim().min(1)).default([]),
+  outputFormat: providerOutputFormatSchema.optional(),
+  extensions: z.array(z.string().trim().min(1)).default([]),
+  mcp: z.array(z.string().trim().min(1)).default([]),
+})
 
 export const genieConfigSchema = z.object({
   provider: z.object({
@@ -25,6 +38,10 @@ export const genieConfigSchema = z.object({
   }),
   runtime: z.object({
     timeoutMs: z.number().int().positive().max(300_000).default(30_000),
+  }),
+  presets: z.object({
+    default: z.string().trim().min(1).optional(),
+    named: z.record(z.string(), presetSchema).default({}),
   }),
   _meta: z
     .object({
@@ -60,6 +77,10 @@ export const defaultConfig: GenieConfig = {
   runtime: {
     timeoutMs: 30_000,
   },
+  presets: {
+    default: undefined,
+    named: {},
+  },
 }
 
 export function mergeConfig(base: GenieConfig, updates: Partial<GenieConfig>): GenieConfig {
@@ -91,6 +112,13 @@ export function mergeConfig(base: GenieConfig, updates: Partial<GenieConfig>): G
     },
     runtime: {
       timeoutMs: updates.runtime?.timeoutMs ?? base.runtime.timeoutMs,
+    },
+    presets: {
+      default: updates.presets?.default ?? base.presets.default,
+      named: {
+        ...(base.presets?.named ?? {}),
+        ...(updates.presets?.named ?? {}),
+      },
     },
     _meta: updates._meta ?? base._meta,
   }

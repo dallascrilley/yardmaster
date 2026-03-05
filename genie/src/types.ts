@@ -8,6 +8,20 @@ export const cliOutputModeSchema = z.enum(['auto', 'pretty', 'json', 'plain'])
 export type CliOutputMode = z.infer<typeof cliOutputModeSchema>
 
 export type CliFormat = 'json' | 'pretty' | 'plain'
+export type ProviderOutputFormat = 'text' | 'json' | 'stream-json'
+
+export type ProviderPreset = {
+  provider?: ProviderId
+  model?: string
+  mode?: string
+  trust?: boolean
+  yolo?: boolean
+  headless?: boolean
+  includeDirectories?: string[]
+  outputFormat?: ProviderOutputFormat
+  extensions?: string[]
+  mcp?: string[]
+}
 
 export type RequestInput = {
   prompt: string
@@ -19,6 +33,12 @@ export type RequestInput = {
   output?: CliOutputMode
   timeoutMs?: number
   noFallback?: boolean
+  yolo?: boolean
+  includeDirectories?: string[]
+  outputFormat?: ProviderOutputFormat
+  headless?: boolean
+  extensions?: string[]
+  mcp?: string[]
 }
 
 export type ProviderInvocation = {
@@ -66,6 +86,12 @@ export type NormalizedRequest = {
   output: CliOutputMode
   timeoutMs: number
   noFallback: boolean
+  yolo: boolean
+  includeDirectories: string[]
+  outputFormat: ProviderOutputFormat
+  headless: boolean
+  extensions: string[]
+  mcp: string[]
 }
 
 export type ProviderFailureStage = 'availability' | 'auth' | 'execution'

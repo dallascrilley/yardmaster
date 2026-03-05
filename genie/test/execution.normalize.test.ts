@@ -17,6 +17,10 @@ describe('request normalization', () => {
     expect(request.workspace).toBe('/tmp/last-workspace')
     expect(request.mode).toBe('default')
     expect(request.output).toBe('auto')
+    expect(request.headless).toBe(true)
+    expect(request.outputFormat).toBe('text')
+    expect(request.yolo).toBe(false)
+    expect(request.includeDirectories).toEqual([])
   })
 
   it('resolves explicit and fallback provider order', () => {

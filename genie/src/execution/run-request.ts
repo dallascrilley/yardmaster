@@ -16,6 +16,12 @@ export type RunRequestInput = {
   output?: 'auto' | 'pretty' | 'json' | 'plain'
   timeoutMs?: number
   noFallback?: boolean
+  yolo?: boolean
+  includeDirectories?: string[]
+  outputFormat?: 'text' | 'json' | 'stream-json'
+  headless?: boolean
+  extensions?: string[]
+  mcp?: string[]
 }
 
 export async function runRequest(params: {
@@ -63,6 +69,7 @@ export async function runRequest(params: {
       runtime: {
         timeoutMs: request.timeoutMs,
       },
+      presets: current.presets,
       _meta: current._meta,
     }
   })

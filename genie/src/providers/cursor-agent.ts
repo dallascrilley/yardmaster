@@ -1,20 +1,10 @@
 import { createProviderAdapter, extractResponseText } from './base.js'
 import { type NormalizedRequest } from '../types.js'
+import { applyCursorMappedArgs } from './mapped-args.js'
 
 function buildInvocation(request: NormalizedRequest) {
-  const args = ['chat', '--prompt', request.prompt]
-
-  if (request.model) {
-    args.push('--model', request.model)
-  }
-
-  if (request.mode && request.mode !== 'default') {
-    args.push('--mode', request.mode)
-  }
-
-  if (request.trust) {
-    args.push('--trust')
-  }
+  const args = [request.prompt]
+  applyCursorMappedArgs(args, request)
 
   return {
     command: 'cursor-agent',

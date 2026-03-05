@@ -13,7 +13,7 @@ import {
   isConfigKey,
 } from './config/commands.js'
 import { loadConfig } from './config/store.js'
-import { providerIds, type CliOutputMode, type ProviderFailureReason, type ProviderId } from './types.js'
+import { providerIds, type CliOutputMode, type ProviderFailureReason, type ProviderId, type ProviderPreset, type ProviderOutputFormat } from './types.js'
 import { resolveWorkspacePath } from './runtime/workspace.js'
 import { resolveRuntimeState } from './runtime/tty.js'
 import {
@@ -23,6 +23,7 @@ import {
   type RunRequestInput,
 } from './execution/run-request.js'
 import { doctorProviders, listProviders } from './providers/doctor.js'
+import { deletePreset, getPreset, listPresets, setPreset, usePreset } from './presets/commands.js'
 
 type GlobalOptions = {
   help: boolean
@@ -40,13 +41,35 @@ type RunOptions = {
   model?: string
   workspace?: string
   mode?: string
-  trust: boolean
+  trust?: boolean
   timeoutMs?: number
   noFallback: boolean
+  preset?: string
+  yolo?: boolean
+  includeDirectories?: string[]
+  outputFormat?: ProviderOutputFormat
+  headless?: boolean
+  extensions?: string[]
+  mcp?: string[]
+}
+
+type PresetsSetOptions = {
+  name: string
+  provider?: ProviderId
+  model?: string
+  mode?: string
+  trust?: boolean
+  yolo?: boolean
+  outputFormat?: ProviderOutputFormat
+  includeDirectories?: string[]
+  headless?: boolean
+  extensions?: string[]
+  mcp?: string[]
+  setDefault: boolean
 }
 
 type ParsedCommand =
-  | { kind: 'help'; topic?: 'run' | 'providers' | 'config' }
+  | { kind: 'help'; topic?: 'run' | 'providers' | 'config' | 'presets' }
   | { kind: 'version' }
   | {
       kind: 'run'
@@ -82,6 +105,30 @@ type ParsedCommand =
       kind: 'config-path'
       globals: GlobalOptions
     }
+  | {
+      kind: 'presets-list'
+      globals: GlobalOptions
+    }
+  | {
+      kind: 'presets-get'
+      globals: GlobalOptions
+      name: string
+    }
+  | {
+      kind: 'presets-set'
+      globals: GlobalOptions
+      options: PresetsSetOptions
+    }
+  | {
+      kind: 'presets-delete'
+      globals: GlobalOptions
+      name: string
+    }
+  | {
+      kind: 'presets-use'
+      globals: GlobalOptions
+      name: string
+    }
 
 const aliasCommands = new Set(['wish', 'rub'])
 
@@ -109,7 +156,7 @@ function defaultGlobals(): GlobalOptions {
   }
 }
 
-function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config'): string {
+function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config' | 'presets'): string {
   const root = [
     'Usage:',
     '  genie <prompt>',
@@ -120,6 +167,11 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config'): 
     '  genie config set <key> <value>',
     '  genie config init',
     '  genie config path [--json]',
+    '  genie presets list [--json]',
+    '  genie presets get <name> [--json]',
+    '  genie presets set <name> [options]',
+    '  genie presets delete <name>',
+    '  genie presets use <name>',
     '',
     'Global flags:',
     '  -h, --help',
@@ -141,6 +193,13 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config'): 
     '  -w, --workspace <path>',
     '  --mode <name>',
     '  --trust',
+    '  --preset <name>',
+    '  --yolo',
+    '  --include-directories <a,b,c>',
+    '  --output-format <text|json|stream-json>',
+    '  --print',
+    '  --extensions <a,b,c>',
+    '  --mcp <a,b,c>',
     '  --timeout-ms <n>',
     '  --no-fallback',
   ]
@@ -161,9 +220,21 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'providers' | 'config'): 
     '  path [--json]',
   ]
 
+  const presets = [
+    'Usage: genie presets <subcommand>',
+    'Subcommands:',
+    '  list [--json]',
+    '  get <name> [--json]',
+    '  set <name> [--provider <id>] [--model <name>] [--mode <name>] [--trust] [--yolo] [--print]',
+    '      [--include-directories <a,b,c>] [--output-format <text|json|stream-json>] [--extensions <a,b,c>] [--mcp <a,b,c>] [--default]',
+    '  delete <name>',
+    '  use <name>',
+  ]
+
   if (topic === 'run') return run.join('\n')
   if (topic === 'providers') return providers.join('\n')
   if (topic === 'config') return config.join('\n')
+  if (topic === 'presets') return presets.join('\n')
   return root.join('\n')
 }
 
@@ -174,9 +245,44 @@ function parseProvider(value: string, flag: string): ProviderId {
   return value as ProviderId
 }
 
+function parseOutputFormat(value: string, flag: string): ProviderOutputFormat {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'text' || normalized === 'json' || normalized === 'stream-json') {
+    return normalized
+  }
+  throw new UsageError(`Unknown output format '${value}' for ${flag}`)
+}
+
+function parseListValue(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function mergeRunOptionsWithPreset(options: RunOptions, preset?: ProviderPreset): RunOptions {
+  if (!preset) {
+    return options
+  }
+
+  return {
+    ...options,
+    provider: options.provider ?? preset.provider,
+    model: options.model ?? preset.model,
+    mode: options.mode ?? preset.mode,
+    trust: options.trust ?? preset.trust,
+    yolo: options.yolo ?? preset.yolo,
+    outputFormat: options.outputFormat ?? preset.outputFormat,
+    includeDirectories: options.includeDirectories ?? preset.includeDirectories,
+    headless: options.headless ?? preset.headless,
+    extensions: options.extensions ?? preset.extensions,
+    mcp: options.mcp ?? preset.mcp,
+  }
+}
+
 function parseRunLikeArgs(tokens: string[]): ParsedCommand {
   const globals = defaultGlobals()
-  const options: RunOptions = { trust: false, noFallback: false }
+  const options: RunOptions = { noFallback: false }
   const positional: string[] = []
 
   for (let index = 0; index < tokens.length; index += 1) {
@@ -248,6 +354,46 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
       continue
     }
 
+    if (token === '--preset') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --preset')
+      options.preset = value.trim()
+      index += 1
+      continue
+    }
+
+    if (token === '--output-format') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --output-format')
+      options.outputFormat = parseOutputFormat(value, '--output-format')
+      index += 1
+      continue
+    }
+
+    if (token === '--include-directories') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --include-directories')
+      options.includeDirectories = [...(options.includeDirectories ?? []), ...parseListValue(value)]
+      index += 1
+      continue
+    }
+
+    if (token === '--extensions') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --extensions')
+      options.extensions = [...(options.extensions ?? []), ...parseListValue(value)]
+      index += 1
+      continue
+    }
+
+    if (token === '--mcp') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --mcp')
+      options.mcp = [...(options.mcp ?? []), ...parseListValue(value)]
+      index += 1
+      continue
+    }
+
     if (token === '--timeout-ms') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError('Missing value for --timeout-ms')
@@ -262,6 +408,16 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
 
     if (token === '--trust') {
       options.trust = true
+      continue
+    }
+
+    if (token === '--yolo') {
+      options.yolo = true
+      continue
+    }
+
+    if (token === '--print') {
+      options.headless = true
       continue
     }
 
@@ -365,6 +521,172 @@ function parseProvidersArgs(tokens: string[]): ParsedCommand {
     kind: 'providers-doctor',
     provider,
     globals,
+  }
+}
+
+function parsePresetsArgs(tokens: string[]): ParsedCommand {
+  const globals = defaultGlobals()
+  let subcommand: 'list' | 'get' | 'set' | 'delete' | 'use' | undefined
+  const positional: string[] = []
+  const setOptions: Omit<PresetsSetOptions, 'name'> = { setDefault: false }
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
+    if (!token) continue
+
+    if (token === '--help' || token === '-h') {
+      globals.help = true
+      continue
+    }
+    if (token === '--version') {
+      globals.version = true
+      continue
+    }
+    if (token === '--json') {
+      globals.json = true
+      continue
+    }
+    if (token === '--plain') {
+      globals.plain = true
+      continue
+    }
+    if (token === '--no-color') {
+      globals.noColor = true
+      continue
+    }
+    if (token === '--no-input') {
+      globals.noInput = true
+      continue
+    }
+    if (token === '--quiet' || token === '-q') {
+      globals.quiet = true
+      continue
+    }
+    if (token === '--verbose' || token === '-v') {
+      globals.verbose = true
+      continue
+    }
+
+    if (!subcommand && (token === 'list' || token === 'get' || token === 'set' || token === 'delete' || token === 'use')) {
+      subcommand = token
+      continue
+    }
+
+    if (token === '--provider') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --provider')
+      setOptions.provider = parseProvider(value, '--provider')
+      index += 1
+      continue
+    }
+    if (token === '--model') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --model')
+      setOptions.model = value
+      index += 1
+      continue
+    }
+    if (token === '--mode') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --mode')
+      setOptions.mode = value
+      index += 1
+      continue
+    }
+    if (token === '--output-format') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --output-format')
+      setOptions.outputFormat = parseOutputFormat(value, '--output-format')
+      index += 1
+      continue
+    }
+    if (token === '--include-directories') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --include-directories')
+      setOptions.includeDirectories = [...(setOptions.includeDirectories ?? []), ...parseListValue(value)]
+      index += 1
+      continue
+    }
+    if (token === '--extensions') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --extensions')
+      setOptions.extensions = [...(setOptions.extensions ?? []), ...parseListValue(value)]
+      index += 1
+      continue
+    }
+    if (token === '--mcp') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --mcp')
+      setOptions.mcp = [...(setOptions.mcp ?? []), ...parseListValue(value)]
+      index += 1
+      continue
+    }
+    if (token === '--trust') {
+      setOptions.trust = true
+      continue
+    }
+    if (token === '--yolo') {
+      setOptions.yolo = true
+      continue
+    }
+    if (token === '--print') {
+      setOptions.headless = true
+      continue
+    }
+    if (token === '--default') {
+      setOptions.setDefault = true
+      continue
+    }
+
+    positional.push(token)
+  }
+
+  if (globals.version) return { kind: 'version' }
+  if (globals.help || !subcommand) return { kind: 'help', topic: 'presets' }
+
+  if (subcommand === 'list') {
+    return {
+      kind: 'presets-list',
+      globals,
+    }
+  }
+
+  const name = positional[0]?.trim()
+  if (!name) {
+    throw new UsageError(`Usage: genie presets ${subcommand} <name>`)
+  }
+
+  if (subcommand === 'get') {
+    return {
+      kind: 'presets-get',
+      globals,
+      name,
+    }
+  }
+
+  if (subcommand === 'delete') {
+    return {
+      kind: 'presets-delete',
+      globals,
+      name,
+    }
+  }
+
+  if (subcommand === 'use') {
+    return {
+      kind: 'presets-use',
+      globals,
+      name,
+    }
+  }
+
+  return {
+    kind: 'presets-set',
+    globals,
+    options: {
+      name,
+      ...setOptions,
+    },
   }
 }
 
@@ -497,6 +819,10 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return parseProvidersArgs(tokens.slice(1))
   }
 
+  if (first === 'presets') {
+    return parsePresetsArgs(tokens.slice(1))
+  }
+
   if (first === 'config') {
     return parseConfigArgs(tokens.slice(1))
   }
@@ -571,17 +897,18 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
 
     const config = await loadConfig({
       flags: {
-        provider: parsed.options.provider,
-        model: parsed.options.model,
-        mode: parsed.options.mode,
-        workspace: parsed.options.workspace,
-        trust: parsed.options.trust,
-        timeoutMs: parsed.options.timeoutMs,
         output: explicitOutput,
       },
     })
 
-    const workspace = resolveWorkspacePath(parsed.options.workspace, config.workspace.last)
+    const presetName = parsed.options.preset ?? config.presets.default
+    const preset = presetName ? config.presets.named[presetName] : undefined
+    if (presetName && !preset) {
+      throw new UsageError(`Unknown preset '${presetName}'`)
+    }
+    const effectiveOptions = mergeRunOptionsWithPreset(parsed.options, preset)
+
+    const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
     const runtime = resolveRuntimeState({
       configOutput: config.output.default,
       explicitOutput,
@@ -590,14 +917,20 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
 
     const request: RunRequestInput = {
       prompt: parsed.prompt,
-      provider: parsed.options.provider,
-      model: parsed.options.model,
+      provider: effectiveOptions.provider,
+      model: effectiveOptions.model,
       workspace,
-      mode: parsed.options.mode,
-      trust: parsed.options.trust,
+      mode: effectiveOptions.mode,
+      trust: effectiveOptions.trust,
       output: runtime.outputMode,
-      timeoutMs: parsed.options.timeoutMs,
-      noFallback: parsed.options.noFallback,
+      timeoutMs: effectiveOptions.timeoutMs,
+      noFallback: effectiveOptions.noFallback,
+      yolo: effectiveOptions.yolo,
+      includeDirectories: effectiveOptions.includeDirectories,
+      outputFormat: effectiveOptions.outputFormat,
+      headless: effectiveOptions.headless,
+      extensions: effectiveOptions.extensions,
+      mcp: effectiveOptions.mcp,
     }
 
     const result = await runRequest({
@@ -678,6 +1011,53 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
       return
     }
     writeLine('Initialized user config')
+    return
+  }
+
+  if (parsed.kind === 'presets-list') {
+    const value = await listPresets()
+    outputForConfigResult(parsed.globals, value)
+    return
+  }
+
+  if (parsed.kind === 'presets-get') {
+    const value = await getPreset(parsed.name)
+    outputForConfigResult(parsed.globals, value)
+    return
+  }
+
+  if (parsed.kind === 'presets-set') {
+    const result = await setPreset(
+      parsed.options.name,
+      {
+        provider: parsed.options.provider,
+        model: parsed.options.model,
+        mode: parsed.options.mode,
+        trust: parsed.options.trust,
+        yolo: parsed.options.yolo,
+        outputFormat: parsed.options.outputFormat,
+        includeDirectories: parsed.options.includeDirectories,
+        headless: parsed.options.headless,
+        extensions: parsed.options.extensions,
+        mcp: parsed.options.mcp,
+      },
+      {
+        setDefault: parsed.options.setDefault,
+      },
+    )
+    outputForConfigResult(parsed.globals, result)
+    return
+  }
+
+  if (parsed.kind === 'presets-delete') {
+    const result = await deletePreset(parsed.name)
+    outputForConfigResult(parsed.globals, result)
+    return
+  }
+
+  if (parsed.kind === 'presets-use') {
+    const result = await usePreset(parsed.name)
+    outputForConfigResult(parsed.globals, result)
     return
   }
 

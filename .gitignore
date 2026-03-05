@@ -1,0 +1,7 @@
+# Generated and local artifacts
+dist/
+/genie/dist/
+package-lock.json
+/genie/package-lock.json
+
+.todos/

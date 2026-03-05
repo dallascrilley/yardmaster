@@ -1,20 +1,10 @@
 import { createProviderAdapter, extractResponseText } from './base.js'
 import { type NormalizedRequest } from '../types.js'
+import { applyGeminiMappedArgs } from './mapped-args.js'
 
 function buildInvocation(request: NormalizedRequest) {
-  const args = ['chat', request.prompt]
-
-  if (request.model) {
-    args.push('--model', request.model)
-  }
-
-  if (request.mode && request.mode !== 'default') {
-    args.push('--mode', request.mode)
-  }
-
-  if (request.trust) {
-    args.push('--trust')
-  }
+  const args: string[] = []
+  applyGeminiMappedArgs(args, request)
 
   return {
     command: 'gemini',
@@ -36,4 +26,41 @@ export const geminiAdapter = createProviderAdapter({
   binary: 'gemini',
   buildInvocation,
   parse,
+  availabilityCheck: async (runner) => {
+    const result = await runner({
+      command: 'which',
+      args: ['gemini'],
+      timeoutMs: 1_500,
+    })
+
+    if (result.code === 0) {
+      return {
+        ok: true,
+        details: result.stdout.trim() || 'gemini found on PATH',
+      }
+    }
+
+    return {
+      ok: false,
+      reason: 'gemini is not available on PATH',
+      hint: result.stderr || result.stdout || 'Install Gemini CLI and ensure gemini is on PATH.',
+      timeout: result.code === 124,
+    }
+  },
+  authCheck: async () => {
+    const apiKey = process.env.GEMINI_API_KEY?.trim()
+    if (apiKey) {
+      return {
+        ok: true,
+        details: 'Authenticated via GEMINI_API_KEY',
+      }
+    }
+
+    return {
+      ok: false,
+      reason: 'gemini authentication not configured',
+      hint: 'Set GEMINI_API_KEY and retry.',
+      authFailure: true,
+    }
+  },
 })
