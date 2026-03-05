@@ -91,6 +91,24 @@ describe('cli exit codes', () => {
     })
     expect(missingTarget.status).toBe(2)
     expect(missingTarget.stderr).toContain('A review target is required')
+
+    const stagedDiffFileConflict = spawnSync(
+      'bun',
+      ['src/bin/genie.ts', 'review', '--all', '--staged', '--diff-file', 'x.diff'],
+      {
+        cwd: new URL('..', import.meta.url).pathname,
+        encoding: 'utf8',
+      },
+    )
+    expect(stagedDiffFileConflict.status).toBe(2)
+    expect(stagedDiffFileConflict.stderr).toContain('--staged cannot be used with --diff-file')
+
+    const baseStagedConflict = spawnSync('bun', ['src/bin/genie.ts', 'review', '--all', '--base', 'main', '--staged'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+    expect(baseStagedConflict.status).toBe(2)
+    expect(baseStagedConflict.stderr).toContain('--base cannot be used with --staged')
   })
 
   it('returns exit code 2 for unknown root token when strict mode is enabled', () => {

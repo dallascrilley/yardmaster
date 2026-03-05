@@ -20,7 +20,7 @@ Or use `npm link` / `pnpm link` after `bun run build`.
 ```bash
 genie <prompt>
 genie run [options] <prompt>
-genie review [--all | --agent <id>] [--diff-file <path>] [--json]
+genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]
 genie update [--json]
 genie providers list [--json]
 genie providers doctor [--provider <id>] [--json]
@@ -68,6 +68,8 @@ genie presets use <name>
 - `--all`
 - `--agent <codex|claude|gemini|cursor>`
 - `--diff-file <path>` (defaults to current `git diff`)
+- `--staged` (review staged/index changes only)
+- `--base <ref>` (review committed branch diff against explicit base, e.g. `origin/main`)
 
 ## Update
 
@@ -184,6 +186,8 @@ genie providers doctor --json
 genie review --agent codex
 genie review --all
 genie review --all --diff-file original-agents.diff
+genie review --all --staged
+genie review --all --base origin/main
 
 # config workflows
 genie config init
