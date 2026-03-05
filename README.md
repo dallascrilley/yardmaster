@@ -172,3 +172,5 @@ bun run typecheck
 bun run test
 bun run build
 ```
+
+Release checklist: `docs/release-checklist.md`
