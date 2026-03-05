@@ -9,6 +9,7 @@ import { type ProviderId } from '../types.js'
 export const reviewAgentIds = ['codex', 'claude', 'gemini', 'cursor'] as const
 export type ReviewAgentId = (typeof reviewAgentIds)[number]
 const REVIEW_TIMEOUT_MS = 120_000
+const GIT_MAX_BUFFER_BYTES = 20 * 1024 * 1024
 
 export type ReviewDiffStats = {
   files: number
@@ -134,33 +135,89 @@ function buildReviewPrompt(diffText: string): string {
   ].join('\n')
 }
 
-function loadDiff(diffFile?: string): { source: string; text: string } {
-  if (diffFile) {
+type GitReadFn = (args: string[]) => string
+type FileReadFn = (path: string, encoding: BufferEncoding) => string
+
+function defaultGitRead(args: string[]): string {
+  return execFileSync('git', args, {
+    encoding: 'utf8',
+    maxBuffer: GIT_MAX_BUFFER_BYTES,
+  })
+}
+
+function defaultFileRead(path: string, encoding: BufferEncoding): string {
+  return readFileSync(path, encoding)
+}
+
+function tryGitRead(gitRead: GitReadFn, args: string[]): string | null {
+  try {
+    return gitRead(args)
+  } catch {
+    return null
+  }
+}
+
+function buildBaseRefCandidates(gitRead: GitReadFn): string[] {
+  const candidates: string[] = []
+  const originHead = tryGitRead(gitRead, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])?.trim()
+  if (originHead) {
+    candidates.push(originHead)
+  }
+  candidates.push('origin/main', 'origin/master', 'main', 'master')
+  return [...new Set(candidates)]
+}
+
+export function resolveReviewDiffSource(params?: {
+  diffFile?: string
+  gitRead?: GitReadFn
+  fileRead?: FileReadFn
+}): { source: string; text: string } {
+  const gitRead = params?.gitRead ?? defaultGitRead
+  const fileRead = params?.fileRead ?? defaultFileRead
+
+  if (params?.diffFile) {
     try {
-      const text = readFileSync(diffFile, 'utf8')
-      return { source: `file:${diffFile}`, text }
+      const text = fileRead(params.diffFile, 'utf8')
+      return { source: `file:${params.diffFile}`, text }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      throw new UsageError(`Unable to read --diff-file '${diffFile}': ${reason}`)
+      throw new UsageError(`Unable to read --diff-file '${params.diffFile}': ${reason}`)
     }
   }
 
-  try {
-    const text = execFileSync('git', ['diff', '--no-color'], {
-      encoding: 'utf8',
-      maxBuffer: 20 * 1024 * 1024,
-    })
-    return { source: 'git diff', text }
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    throw new UsageError(`Failed to read git diff: ${reason}`)
+  const dirtyOrStaged = tryGitRead(gitRead, ['diff', '--no-color', 'HEAD'])
+  if (dirtyOrStaged === null) {
+    throw new UsageError('Failed to read git diff from repository context.')
+  }
+  if (dirtyOrStaged.trim()) {
+    return { source: 'git diff HEAD', text: dirtyOrStaged }
+  }
+
+  for (const baseRef of buildBaseRefCandidates(gitRead)) {
+    const mergeBase = tryGitRead(gitRead, ['merge-base', 'HEAD', baseRef])?.trim()
+    if (!mergeBase) continue
+
+    const branchDiff = tryGitRead(gitRead, ['diff', '--no-color', `${mergeBase}...HEAD`])
+    if (branchDiff && branchDiff.trim()) {
+      return {
+        source: `git diff ${baseRef}...HEAD`,
+        text: branchDiff,
+      }
+    }
+  }
+
+  return {
+    source: 'git diff HEAD',
+    text: dirtyOrStaged,
   }
 }
 
 function ensureNonEmptyDiff(text: string): string {
   const normalized = text.trim()
   if (!normalized) {
-    throw new UsageError('No changes to review. Provide --diff-file <path> or create a working-tree diff.')
+    throw new UsageError(
+      'No changes to review. Provide --diff-file <path>, create local changes, or switch to a branch with commits.',
+    )
   }
   return text
 }
@@ -212,7 +269,7 @@ async function runReviewForAgent(params: {
 
 export async function executeReviewCommand(params: ExecuteReviewCommandParams): Promise<ReviewExecutionResult> {
   const agents = resolveReviewTargets(params.all, params.agent)
-  const diff = loadDiff(params.diffFile)
+  const diff = resolveReviewDiffSource({ diffFile: params.diffFile })
   const diffText = ensureNonEmptyDiff(diff.text)
   const prompt = buildReviewPrompt(diffText)
   const runner = params.requestRunner ?? ((requestParams: { input: RunRequestInput; config: GenieConfig }) =>

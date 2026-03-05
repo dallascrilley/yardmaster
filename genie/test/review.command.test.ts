@@ -10,6 +10,7 @@ import {
   executeReviewCommand,
   formatReviewReport,
   parseUnifiedDiffStats,
+  resolveReviewDiffSource,
   resolveReviewTargets,
 } from '../src/review/command.js'
 
@@ -104,5 +105,43 @@ describe('review command', () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
     }
+  })
+
+  it('falls back to committed branch diff when git diff HEAD is empty', () => {
+    const calls: string[] = []
+    const result = resolveReviewDiffSource({
+      gitRead: (args) => {
+        calls.push(args.join(' '))
+        const cmd = args.join(' ')
+        if (cmd === 'diff --no-color HEAD') return ''
+        if (cmd === 'symbolic-ref --short refs/remotes/origin/HEAD') return 'origin/main\n'
+        if (cmd === 'merge-base HEAD origin/main') return 'abc123\n'
+        if (cmd === 'diff --no-color abc123...HEAD') {
+          return ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const x = 1'].join('\n')
+        }
+        return ''
+      },
+    })
+
+    expect(result.source).toBe('git diff origin/main...HEAD')
+    expect(result.text).toContain('diff --git')
+    expect(calls[0]).toBe('diff --no-color HEAD')
+  })
+
+  it('prefers local dirty/staged diff before branch diff', () => {
+    const calls: string[] = []
+    const result = resolveReviewDiffSource({
+      gitRead: (args) => {
+        calls.push(args.join(' '))
+        if (args.join(' ') === 'diff --no-color HEAD') {
+          return ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const x = 2'].join('\n')
+        }
+        return ''
+      },
+    })
+
+    expect(result.source).toBe('git diff HEAD')
+    expect(result.text).toContain('diff --git')
+    expect(calls).toEqual(['diff --no-color HEAD'])
   })
 })
