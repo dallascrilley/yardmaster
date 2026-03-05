@@ -807,6 +807,38 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return { kind: 'version' }
   }
 
+  const helpTopicSet = new Set(['run', 'providers', 'config', 'presets'])
+  const globalFlagSet = new Set([
+    '--json',
+    '--plain',
+    '--no-color',
+    '--no-input',
+    '--quiet',
+    '-q',
+    '--verbose',
+    '-v',
+    '--version',
+  ])
+  const positional: string[] = []
+  for (const token of tokens) {
+    if (globalFlagSet.has(token)) continue
+    positional.push(token)
+  }
+
+  if (positional[0] === 'help') {
+    const topic = positional[1]
+    if (!topic) {
+      return { kind: 'help' }
+    }
+    if (helpTopicSet.has(topic)) {
+      if (positional.length > 2) {
+        throw new UsageError(`Unknown help topic '${positional[2]}'`)
+      }
+      return { kind: 'help', topic: topic as 'run' | 'providers' | 'config' | 'presets' }
+    }
+    throw new UsageError(`Unknown help topic '${topic}'`)
+  }
+
   if (aliasCommands.has(first)) {
     return parseRunLikeArgs(tokens.slice(1))
   }

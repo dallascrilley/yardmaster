@@ -27,6 +27,8 @@ const defaultCommandError: CommandResult = {
 }
 
 const DEFAULT_EXECUTION_TIMEOUT_MS = 30_000
+const DEFAULT_AVAILABILITY_TIMEOUT_MS = 3_000
+const RETRY_AVAILABILITY_TIMEOUT_MS = 6_000
 
 function isCommandNotFound(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT'
@@ -116,13 +118,21 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
 
 function createDefaultAvailabilityCheck(binary: string, invocation?: ProviderInvocation) {
   return async (runner: CommandRunner): Promise<ProviderCheckResult> => {
-    const result = await runner(
+    const baseInvocation =
       invocation ?? {
         command: binary,
         args: ['--version'],
-        timeoutMs: 3_000,
-      },
-    )
+        timeoutMs: DEFAULT_AVAILABILITY_TIMEOUT_MS,
+      }
+    let result = await runner(baseInvocation)
+
+    // Retry once with a longer timeout when the first probe times out.
+    if (isLikelyTimeout(result)) {
+      result = await runner({
+        ...baseInvocation,
+        timeoutMs: RETRY_AVAILABILITY_TIMEOUT_MS,
+      })
+    }
 
     if (result.code !== 0) {
       return {

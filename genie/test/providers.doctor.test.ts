@@ -23,4 +23,34 @@ describe('providers doctor', () => {
 
     spy.mockRestore()
   })
+
+  it('retries timed-out availability check with longer timeout', async () => {
+    const spy = vi
+      .spyOn(base, 'runCommand')
+      .mockResolvedValueOnce({
+        code: 124,
+        stdout: '',
+        stderr: 'Timed out after 3000ms',
+      })
+      .mockResolvedValueOnce({
+        code: 0,
+        stdout: 'codex-cli 0.110.0',
+        stderr: '',
+      })
+      .mockResolvedValueOnce({
+        code: 0,
+        stdout: 'logged in',
+        stderr: '',
+      })
+
+    const report = await doctorProviders('codex')
+    expect(report[0]?.available).toBe(true)
+    expect(report[0]?.authenticated).toBe(true)
+
+    const invocations = spy.mock.calls.map(([invocation]) => invocation)
+    expect(invocations[0]?.timeoutMs).toBe(3_000)
+    expect(invocations[1]?.timeoutMs).toBe(6_000)
+
+    spy.mockRestore()
+  })
 })
