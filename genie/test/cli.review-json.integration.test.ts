@@ -60,4 +60,25 @@ describe('cli review json integration', () => {
       rmSync(tempHome, { recursive: true, force: true })
     }
   })
+
+  it('emits review json schema from spawned CLI execution', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'review', '--json-schema'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      title: 'Genie Review Result',
+      type: 'object',
+    })
+    expect(parsed.properties.kind.const).toBe('review_result')
+    expect(parsed.properties.version.const).toBe(1)
+    expect(parsed.properties.exitCode.enum).toEqual([0, 1])
+    expect(parsed.required).toContain('results')
+  })
 })
