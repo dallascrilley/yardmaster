@@ -39,4 +39,31 @@ describe('cli exit codes', () => {
     expect(result.status).toBe(2)
     expect(result.stderr).toContain("Unknown option '--unknown'")
   })
+
+  it('supports explicit help command and rejects invalid help topic', () => {
+    const helpResult = spawnSync('bun', ['src/bin/genie.ts', 'help', 'run'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+    expect(helpResult.status).toBe(0)
+    expect(helpResult.stdout).toContain('Usage: genie run [options] <prompt>')
+    expect(helpResult.stderr).toBe('')
+
+    const badHelpResult = spawnSync('bun', ['src/bin/genie.ts', 'help', 'gleep'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+    expect(badHelpResult.status).toBe(2)
+    expect(badHelpResult.stderr).toContain("Unknown help topic 'gleep'")
+  })
+
+  it('returns exit code 2 for invalid mode values before execution', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'run', '--mode', 'invalidmode', 'hello'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("Unknown mode 'invalidmode' for --mode")
+  })
 })

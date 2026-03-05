@@ -38,6 +38,19 @@ describe('cli parser', () => {
     expect(parsed.options.timeoutMs).toBe(5000)
   })
 
+  it('rejects invalid mode values in run parsing', () => {
+    expect(() => parseArgv(['run', '--mode', 'invalidmode', 'hello'])).toThrow(
+      "Unknown mode 'invalidmode' for --mode",
+    )
+  })
+
+  it('treats unknown single token as shorthand prompt', () => {
+    const parsed = parseArgv(['gleep'])
+    expect(parsed.kind).toBe('run')
+    if (parsed.kind !== 'run') throw new Error('expected run')
+    expect(parsed.prompt).toBe('gleep')
+  })
+
   it('parses providers and config command trees', () => {
     expect(parseArgv(['providers', 'list', '--json']).kind).toBe('providers-list')
     expect(parseArgv(['providers', 'doctor', '--provider', 'gemini']).kind).toBe('providers-doctor')
@@ -60,5 +73,24 @@ describe('cli parser', () => {
     expect(presetsHelp.kind).toBe('help')
     if (presetsHelp.kind !== 'help') throw new Error('expected help')
     expect(presetsHelp.topic).toBe('presets')
+  })
+
+  it('parses explicit help command variants at root', () => {
+    const rootHelp = parseArgv(['help'])
+    expect(rootHelp.kind).toBe('help')
+
+    const runHelp = parseArgv(['help', 'run'])
+    expect(runHelp.kind).toBe('help')
+    if (runHelp.kind !== 'help') throw new Error('expected help')
+    expect(runHelp.topic).toBe('run')
+
+    const jsonHelp = parseArgv(['--json', 'help'])
+    expect(jsonHelp.kind).toBe('help')
+
+    const dashHelp = parseArgv(['-h'])
+    expect(dashHelp.kind).toBe('help')
+
+    const commandHelpFlag = parseArgv(['help', '--help'])
+    expect(commandHelpFlag.kind).toBe('help')
   })
 })

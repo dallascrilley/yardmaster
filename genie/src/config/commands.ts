@@ -1,5 +1,5 @@
 import { UsageError } from '../errors.js'
-import { providerIds, type ProviderId } from '../types.js'
+import { modeIds, providerIds, type ProviderId } from '../types.js'
 import { defaultConfig, genieConfigSchema, type GenieConfig } from './schema.js'
 import { initUserConfig, loadConfig, resolveProjectConfigPath, resolveUserConfigPath, updateConfig } from './store.js'
 
@@ -59,6 +59,9 @@ function parseValueByKey(key: ConfigKey, value: string): unknown {
     }
     case 'mode.default':
       if (!value.trim()) throw new UsageError('mode.default cannot be empty')
+      if (!modeIds.includes(value.trim() as (typeof modeIds)[number])) {
+        throw new UsageError(`mode.default must be one of: ${modeIds.join(', ')}`)
+      }
       return value.trim()
     case 'workspace.last':
       if (!value.trim()) throw new UsageError('workspace.last cannot be empty')

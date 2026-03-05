@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { type NormalizedRequest, providerIds, type ProviderId, type CliOutputMode } from '../types.js'
+import { modeIds, type NormalizedRequest, providerIds, type ProviderId, type CliOutputMode } from '../types.js'
 import type { GenieConfig } from '../config/schema.js'
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -10,7 +10,7 @@ export const requestSchema = z.object({
   provider: z.enum(providerIds).optional(),
   model: z.string().trim().optional(),
   workspace: z.string().trim().min(1),
-  mode: z.string().trim().min(1).default('default'),
+  mode: z.enum(modeIds).default('default'),
   trust: z.boolean().default(false),
   output: z.enum(['auto', 'pretty', 'json', 'plain']).default('auto'),
   timeoutMs: z.number().int().positive().max(300_000).default(DEFAULT_TIMEOUT_MS),

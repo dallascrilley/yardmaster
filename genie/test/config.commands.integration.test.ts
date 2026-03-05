@@ -34,4 +34,17 @@ describe('config commands', () => {
     const path = configPath()
     expect(path.user).toContain('.config/genie/config.json')
   })
+
+  it('rejects invalid mode.default values', async () => {
+    const home = join(tmpdir(), `genie-config-${randomUUID()}`)
+    mkdirSync(home, { recursive: true })
+    homes.push(home)
+    process.env.HOME = home
+
+    await configInit()
+
+    await expect(configSet('mode.default', 'invalidmode')).rejects.toThrow(
+      'mode.default must be one of: default, read-only, danger-full-access, ask, plan, freeform',
+    )
+  })
 })
