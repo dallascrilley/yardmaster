@@ -75,13 +75,16 @@ describe('review command', () => {
       expect(result.agents).toEqual(['codex', 'claude', 'gemini', 'cursor'])
       expect(seenProviders).toEqual(['codex', 'claude', 'gemini', 'cursor-agent'])
       expect(seenTimeouts).toEqual([120000, 120000, 120000, 120000])
+      expect(result.cwd.length).toBeGreaterThan(0)
       expect(result.summary).toEqual({ total: 4, succeeded: 3, failed: 1 })
       expect(result.exitCode).toBe(1)
       expect(result.results[2]).toMatchObject({
         agent: 'gemini',
         status: 'error',
       })
+      expect(result.results[0]?.responseChars).toBeGreaterThan(0)
       expect(formatReviewReport(result)).toContain('summary: success=3/4 failed=1')
+      expect(formatReviewReport(result)).toContain('provider=codex')
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
     }

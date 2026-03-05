@@ -20,8 +20,10 @@ export type ReviewDiffStats = {
 export type ReviewProviderResult = {
   agent: ReviewAgentId
   provider: ProviderId
+  model: string | null
   status: 'ok' | 'error'
   latencyMs: number
+  responseChars: number
   review: string
 }
 
@@ -29,6 +31,11 @@ export type ReviewExecutionResult = {
   mode: 'single' | 'all'
   agents: ReviewAgentId[]
   source: string
+  cwd: string
+  git: {
+    branch: string | null
+    head: string | null
+  }
   diff: ReviewDiffStats
   results: ReviewProviderResult[]
   summary: {
@@ -44,7 +51,10 @@ export type ExecuteReviewCommandParams = {
   agent?: ReviewAgentId
   diffFile?: string
   config: GenieConfig
-  requestRunner?: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{ response: string }>
+  requestRunner?: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{
+    response: string
+    model?: string
+  }>
 }
 
 export function parseReviewAgent(value: string): ReviewAgentId {
@@ -103,13 +113,18 @@ export function formatReviewReport(result: ReviewExecutionResult): string {
   const lines: string[] = [
     `mode: ${result.mode}`,
     `targets: ${result.agents.join(', ')}`,
+    `cwd: ${result.cwd}`,
+    `branch: ${result.git.branch ?? 'unknown'}`,
+    `head: ${result.git.head ?? 'unknown'}`,
     `source: ${result.source}`,
     `diff: files=${result.diff.files} additions=${result.diff.additions} deletions=${result.diff.deletions}`,
     '',
   ]
 
   for (const providerResult of result.results) {
-    lines.push(`=== ${providerResult.agent} | ${providerResult.status} | ${providerResult.latencyMs}ms ===`)
+    lines.push(
+      `=== ${providerResult.agent} | provider=${providerResult.provider} model=${providerResult.model ?? 'unknown'} | ${providerResult.status} | ${providerResult.latencyMs}ms | chars=${providerResult.responseChars} ===`,
+    )
     lines.push(providerResult.review.trim() || '(no output)')
     lines.push('')
   }
@@ -155,6 +170,12 @@ function tryGitRead(gitRead: GitReadFn, args: string[]): string | null {
   } catch {
     return null
   }
+}
+
+function resolveGitContext(gitRead: GitReadFn): { branch: string | null; head: string | null } {
+  const branch = tryGitRead(gitRead, ['rev-parse', '--abbrev-ref', 'HEAD'])?.trim() || null
+  const head = tryGitRead(gitRead, ['rev-parse', '--short', 'HEAD'])?.trim() || null
+  return { branch, head }
 }
 
 function buildBaseRefCandidates(gitRead: GitReadFn): string[] {
@@ -233,7 +254,7 @@ async function runReviewForAgent(params: {
   agent: ReviewAgentId
   prompt: string
   config: GenieConfig
-  requestRunner: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{ response: string }>
+  requestRunner: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{ response: string; model?: string }>
 }): Promise<ReviewProviderResult> {
   const startedAt = Date.now()
   const provider = mapAgentToProvider(params.agent)
@@ -252,17 +273,22 @@ async function runReviewForAgent(params: {
     return {
       agent: params.agent,
       provider,
+      model: result.model ?? null,
       status: 'ok',
       latencyMs: Date.now() - startedAt,
+      responseChars: result.response.length,
       review: result.response,
     }
   } catch (error) {
+    const message = formatProviderError(error)
     return {
       agent: params.agent,
       provider,
+      model: null,
       status: 'error',
       latencyMs: Date.now() - startedAt,
-      review: formatProviderError(error),
+      responseChars: message.length,
+      review: message,
     }
   }
 }
@@ -272,6 +298,7 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
   const diff = resolveReviewDiffSource({ diffFile: params.diffFile })
   const diffText = ensureNonEmptyDiff(diff.text)
   const prompt = buildReviewPrompt(diffText)
+  const git = resolveGitContext(defaultGitRead)
   const runner = params.requestRunner ?? ((requestParams: { input: RunRequestInput; config: GenieConfig }) =>
     runRequest({
       ...requestParams,
@@ -294,6 +321,8 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
     mode: params.all ? 'all' : 'single',
     agents,
     source: diff.source,
+    cwd: process.cwd(),
+    git,
     diff: parseUnifiedDiffStats(diffText),
     results,
     summary: {
