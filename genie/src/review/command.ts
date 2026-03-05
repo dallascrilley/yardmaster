@@ -8,6 +8,7 @@ import { type ProviderId } from '../types.js'
 
 export const reviewAgentIds = ['codex', 'claude', 'gemini', 'cursor'] as const
 export type ReviewAgentId = (typeof reviewAgentIds)[number]
+const REVIEW_TIMEOUT_MS = 120_000
 
 export type ReviewDiffStats = {
   files: number
@@ -186,6 +187,7 @@ async function runReviewForAgent(params: {
         provider,
         noFallback: true,
         output: 'plain',
+        timeoutMs: REVIEW_TIMEOUT_MS,
       },
       config: params.config,
     })

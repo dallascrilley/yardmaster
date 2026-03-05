@@ -17,6 +17,7 @@ import { modeIds, providerIds, type CliOutputMode, type ProviderFailureReason, t
 import { resolveWorkspacePath } from './runtime/workspace.js'
 import { resolveRuntimeState } from './runtime/tty.js'
 import { executeReviewCommand, formatReviewReport, parseReviewAgent, type ReviewAgentId } from './review/command.js'
+import { formatUpdateResult, runUpdateCommand } from './update/command.js'
 import {
   runRequest,
   toErrorEnvelope,
@@ -76,7 +77,7 @@ type PresetsSetOptions = {
 }
 
 type ParsedCommand =
-  | { kind: 'help'; topic?: 'run' | 'review' | 'providers' | 'config' | 'presets' }
+  | { kind: 'help'; topic?: 'run' | 'review' | 'update' | 'providers' | 'config' | 'presets' }
   | { kind: 'version' }
   | {
       kind: 'run'
@@ -92,6 +93,10 @@ type ParsedCommand =
       kind: 'review'
       globals: GlobalOptions
       options: ReviewOptions
+    }
+  | {
+      kind: 'update'
+      globals: GlobalOptions
     }
   | {
       kind: 'providers-doctor'
@@ -168,12 +173,13 @@ function defaultGlobals(): GlobalOptions {
   }
 }
 
-function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'providers' | 'config' | 'presets'): string {
+function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'update' | 'providers' | 'config' | 'presets'): string {
   const root = [
     'Usage:',
     '  genie <prompt>',
     '  genie run [options] <prompt>',
     '  genie review [--all | --agent <id>] [--diff-file <path>] [--json]',
+    '  genie update [--json]',
     '  genie providers list [--json]',
     '  genie providers doctor [--provider <id>] [--json]',
     '  genie config get [key] [--json]',
@@ -224,6 +230,13 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'providers' | 
     '  --diff-file <path>',
   ]
 
+  const update = [
+    'Usage: genie update [--json]',
+    'Runs local refresh steps:',
+    '  1) bun run build',
+    '  2) bun link',
+  ]
+
   const providers = [
     'Usage: genie providers <subcommand>',
     'Subcommands:',
@@ -253,6 +266,7 @@ function usage(topic?: ParsedCommand['kind'] | 'run' | 'review' | 'providers' | 
 
   if (topic === 'run') return run.join('\n')
   if (topic === 'review') return review.join('\n')
+  if (topic === 'update') return update.join('\n')
   if (topic === 'providers') return providers.join('\n')
   if (topic === 'config') return config.join('\n')
   if (topic === 'presets') return presets.join('\n')
@@ -326,6 +340,54 @@ function parseReviewArgs(tokens: string[]): ParsedCommand {
     kind: 'review',
     globals,
     options,
+  }
+}
+
+function parseUpdateArgs(tokens: string[]): ParsedCommand {
+  const globals = defaultGlobals()
+
+  for (const token of tokens) {
+    if (!token) continue
+    if (token === '--help' || token === '-h') {
+      globals.help = true
+      continue
+    }
+    if (token === '--version') {
+      globals.version = true
+      continue
+    }
+    if (token === '--json') {
+      globals.json = true
+      continue
+    }
+    if (token === '--plain') {
+      globals.plain = true
+      continue
+    }
+    if (token === '--no-color') {
+      globals.noColor = true
+      continue
+    }
+    if (token === '--no-input') {
+      globals.noInput = true
+      continue
+    }
+    if (token === '--quiet' || token === '-q') {
+      globals.quiet = true
+      continue
+    }
+    if (token === '--verbose' || token === '-v') {
+      globals.verbose = true
+      continue
+    }
+    throw new UsageError(`Unknown update argument '${token}'`)
+  }
+
+  if (globals.version) return { kind: 'version' }
+  if (globals.help) return { kind: 'help', topic: 'update' }
+  return {
+    kind: 'update',
+    globals,
   }
 }
 
@@ -912,7 +974,7 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return { kind: 'version' }
   }
 
-  const helpTopicSet = new Set(['run', 'review', 'providers', 'config', 'presets'])
+  const helpTopicSet = new Set(['run', 'review', 'update', 'providers', 'config', 'presets'])
   const globalFlagSet = new Set([
     '--help',
     '-h',
@@ -941,7 +1003,7 @@ export function parseArgv(argv: string[]): ParsedCommand {
       if (positional.length > 2) {
         throw new UsageError(`Unknown help topic '${positional[2]}'`)
       }
-      return { kind: 'help', topic: topic as 'run' | 'review' | 'providers' | 'config' | 'presets' }
+      return { kind: 'help', topic: topic as 'run' | 'review' | 'update' | 'providers' | 'config' | 'presets' }
     }
     throw new UsageError(`Unknown help topic '${topic}'`)
   }
@@ -955,6 +1017,9 @@ export function parseArgv(argv: string[]): ParsedCommand {
   }
   if (first === 'review') {
     return parseReviewArgs(tokens.slice(1))
+  }
+  if (first === 'update') {
+    return parseUpdateArgs(tokens.slice(1))
   }
 
   if (first === 'providers') {
@@ -1118,6 +1183,16 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
 
     if (result.exitCode !== 0) {
       process.exitCode = result.exitCode
+    }
+    return
+  }
+
+  if (parsed.kind === 'update') {
+    const result = runUpdateCommand()
+    if (shouldUseJson(parsed.globals)) {
+      writeJson(result)
+    } else {
+      writeLine(formatUpdateResult(result))
     }
     return
   }
