@@ -12,6 +12,8 @@ import {
   parseUnifiedDiffStats,
   resolveReviewDiffSource,
   resolveReviewTargets,
+  toReviewJsonEnvelope,
+  type ReviewExecutionResult,
 } from '../src/review/command.js'
 
 describe('review command', () => {
@@ -202,5 +204,93 @@ describe('review command', () => {
         },
       }),
     ).toThrow('Failed to resolve base branch diff candidates:')
+  })
+
+  it('builds stable review json envelope for machine consumers', () => {
+    const execution: ReviewExecutionResult = {
+      mode: 'all',
+      agents: ['codex', 'claude'],
+      source: 'git diff main...HEAD',
+      cwd: '/tmp/genie',
+      git: {
+        branch: 'feature/review-json',
+        head: 'abc1234',
+      },
+      diff: {
+        files: 1,
+        additions: 2,
+        deletions: 1,
+      },
+      results: [
+        {
+          agent: 'codex',
+          provider: 'codex',
+          model: 'gpt-5',
+          status: 'ok',
+          latencyMs: 101,
+          responseChars: 11,
+          review: 'Looks good.',
+        },
+        {
+          agent: 'claude',
+          provider: 'claude',
+          model: null,
+          status: 'error',
+          latencyMs: 88,
+          responseChars: 14,
+          review: 'command failed',
+        },
+      ],
+      summary: {
+        total: 2,
+        succeeded: 1,
+        failed: 1,
+      },
+      exitCode: 1,
+    }
+
+    expect(toReviewJsonEnvelope(execution)).toEqual({
+      kind: 'review_result',
+      version: 1,
+      mode: 'all',
+      targets: ['codex', 'claude'],
+      source: 'git diff main...HEAD',
+      cwd: '/tmp/genie',
+      git: {
+        branch: 'feature/review-json',
+        head: 'abc1234',
+      },
+      diff: {
+        files: 1,
+        additions: 2,
+        deletions: 1,
+      },
+      summary: {
+        total: 2,
+        succeeded: 1,
+        failed: 1,
+      },
+      results: [
+        {
+          agent: 'codex',
+          provider: 'codex',
+          model: 'gpt-5',
+          status: 'ok',
+          latencyMs: 101,
+          responseChars: 11,
+          review: 'Looks good.',
+        },
+        {
+          agent: 'claude',
+          provider: 'claude',
+          model: null,
+          status: 'error',
+          latencyMs: 88,
+          responseChars: 14,
+          review: 'command failed',
+        },
+      ],
+      exitCode: 1,
+    })
   })
 })
