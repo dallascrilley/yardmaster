@@ -16,7 +16,13 @@ import { loadConfig } from './config/store.js'
 import { modeIds, providerIds, type CliOutputMode, type ProviderFailureReason, type ProviderId, type ProviderPreset, type ProviderOutputFormat } from './types.js'
 import { resolveWorkspacePath } from './runtime/workspace.js'
 import { resolveRuntimeState } from './runtime/tty.js'
-import { executeReviewCommand, formatReviewReport, parseReviewAgent, type ReviewAgentId } from './review/command.js'
+import {
+  executeReviewCommand,
+  formatReviewReport,
+  parseReviewAgent,
+  toReviewJsonEnvelope,
+  type ReviewAgentId,
+} from './review/command.js'
 import { formatUpdateResult, runUpdateCommand } from './update/command.js'
 import {
   runRequest,
@@ -1176,7 +1182,7 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
     })
 
     if (shouldUseJson(parsed.globals)) {
-      writeJson(result)
+      writeJson(toReviewJsonEnvelope(result))
     } else {
       writeLine(formatReviewReport(result))
     }

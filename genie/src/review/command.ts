@@ -46,6 +46,35 @@ export type ReviewExecutionResult = {
   exitCode: 0 | 1
 }
 
+export type ReviewJsonEnvelope = {
+  kind: 'review_result'
+  version: 1
+  mode: 'single' | 'all'
+  targets: ReviewAgentId[]
+  source: string
+  cwd: string
+  git: {
+    branch: string | null
+    head: string | null
+  }
+  diff: ReviewDiffStats
+  summary: {
+    total: number
+    succeeded: number
+    failed: number
+  }
+  results: Array<{
+    agent: ReviewAgentId
+    provider: ProviderId
+    model: string | null
+    status: 'ok' | 'error'
+    latencyMs: number
+    responseChars: number
+    review: string
+  }>
+  exitCode: 0 | 1
+}
+
 export type ExecuteReviewCommandParams = {
   all: boolean
   agent?: ReviewAgentId
@@ -131,6 +160,41 @@ export function formatReviewReport(result: ReviewExecutionResult): string {
 
   lines.push(`summary: success=${result.summary.succeeded}/${result.summary.total} failed=${result.summary.failed}`)
   return lines.join('\n')
+}
+
+export function toReviewJsonEnvelope(result: ReviewExecutionResult): ReviewJsonEnvelope {
+  return {
+    kind: 'review_result',
+    version: 1,
+    mode: result.mode,
+    targets: [...result.agents],
+    source: result.source,
+    cwd: result.cwd,
+    git: {
+      branch: result.git.branch,
+      head: result.git.head,
+    },
+    diff: {
+      files: result.diff.files,
+      additions: result.diff.additions,
+      deletions: result.diff.deletions,
+    },
+    summary: {
+      total: result.summary.total,
+      succeeded: result.summary.succeeded,
+      failed: result.summary.failed,
+    },
+    results: result.results.map((item) => ({
+      agent: item.agent,
+      provider: item.provider,
+      model: item.model,
+      status: item.status,
+      latencyMs: item.latencyMs,
+      responseChars: item.responseChars,
+      review: item.review,
+    })),
+    exitCode: result.exitCode,
+  }
 }
 
 function mapAgentToProvider(agent: ReviewAgentId): ProviderId {
