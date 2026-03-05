@@ -17,7 +17,7 @@ describe('cli review json integration', () => {
 
     try {
       const result = spawnSync(
-        process.execPath,
+        'bun',
         ['src/bin/genie.ts', 'review', '--agent', 'codex', '--diff-file', tempDiff, '--json'],
         {
           cwd: new URL('..', import.meta.url).pathname,
