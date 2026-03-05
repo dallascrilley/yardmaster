@@ -67,6 +67,16 @@ describe('cli exit codes', () => {
     expect(result.stderr).toContain("Unknown mode 'invalidmode' for --mode")
   })
 
+  it('returns exit code 2 for invalid update arguments', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'update', '--nope'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("Unknown update argument '--nope'")
+  })
+
   it('returns exit code 2 when review target flags are invalid', () => {
     const conflict = spawnSync('bun', ['src/bin/genie.ts', 'review', '--all', '--agent', 'codex'], {
       cwd: new URL('..', import.meta.url).pathname,

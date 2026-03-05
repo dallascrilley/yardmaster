@@ -21,6 +21,7 @@ Or use `npm link` / `pnpm link` after `bun run build`.
 genie <prompt>
 genie run [options] <prompt>
 genie review [--all | --agent <id>] [--diff-file <path>] [--json]
+genie update [--json]
 genie providers list [--json]
 genie providers doctor [--provider <id>] [--json]
 genie config get [key] [--json]
@@ -67,6 +68,17 @@ genie presets use <name>
 - `--all`
 - `--agent <codex|claude|gemini|cursor>`
 - `--diff-file <path>` (defaults to current `git diff`)
+
+## Update
+
+Refreshes your local `genie` install in one command by running:
+
+1. `bun run build`
+2. `bun link`
+
+```bash
+genie update
+```
 
 ## I/O contract
 
