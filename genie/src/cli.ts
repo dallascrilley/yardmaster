@@ -261,6 +261,12 @@ function parseMode(value: string, flag: string): (typeof modeIds)[number] {
   return normalized as (typeof modeIds)[number]
 }
 
+function isStrictCommandsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.GENIE_STRICT_COMMANDS?.trim().toLowerCase()
+  if (!value) return false
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on'
+}
+
 function parseListValue(value: string): string[] {
   return value
     .split(',')
@@ -867,6 +873,10 @@ export function parseArgv(argv: string[]): ParsedCommand {
 
   if (first === 'config') {
     return parseConfigArgs(tokens.slice(1))
+  }
+
+  if (isStrictCommandsEnabled() && !first.startsWith('-')) {
+    throw new UsageError(`Unknown command '${first}'. Use 'genie help' for usage.`)
   }
 
   return parseRunLikeArgs(tokens)
