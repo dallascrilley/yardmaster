@@ -88,6 +88,7 @@ Review output includes run context and per-agent metadata (`cwd`, `branch`, `hea
 - stderr: diagnostics, warnings, and errors only.
 - `--json`: stable envelope:
   - `provider`, `model`, `response`, `fallbackUsed`, `timings`, `error`
+  - `genie review --json`: `kind`, `version`, `mode`, `targets`, `source`, `cwd`, `git`, `diff`, `summary`, `results`, `exitCode`
 - `--plain`: response text only.
 
 ## Exit codes
