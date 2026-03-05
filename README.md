@@ -80,6 +80,8 @@ Refreshes your local `genie` install in one command by running:
 genie update
 ```
 
+Review output includes run context and per-agent metadata (`cwd`, `branch`, `head`, diff source, provider, model, latency, response chars).
+
 ## I/O contract
 
 - stdout: response payload or machine output only.
