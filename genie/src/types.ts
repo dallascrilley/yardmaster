@@ -1,8 +1,10 @@
 import { z } from 'zod'
 
 export const providerIds = ['claude', 'codex', 'cursor-agent', 'gemini'] as const
+export const modeIds = ['default', 'read-only', 'danger-full-access', 'ask', 'plan', 'freeform'] as const
 
 export type ProviderId = (typeof providerIds)[number]
+export type ModeId = (typeof modeIds)[number]
 
 export const cliOutputModeSchema = z.enum(['auto', 'pretty', 'json', 'plain'])
 export type CliOutputMode = z.infer<typeof cliOutputModeSchema>

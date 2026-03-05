@@ -130,6 +130,8 @@ Use `genie providers doctor` for availability/auth diagnostics and `genie provid
 ```bash
 # legacy shorthand still works
 genie "explain recursion in one sentence"
+# single-token input is also treated as prompt text (legacy compatibility)
+genie gleep
 
 # explicit run command
 genie run -p gemini -m gemini-2.0-flash "summarize this"

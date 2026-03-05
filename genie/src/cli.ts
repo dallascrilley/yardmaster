@@ -13,7 +13,7 @@ import {
   isConfigKey,
 } from './config/commands.js'
 import { loadConfig } from './config/store.js'
-import { providerIds, type CliOutputMode, type ProviderFailureReason, type ProviderId, type ProviderPreset, type ProviderOutputFormat } from './types.js'
+import { modeIds, providerIds, type CliOutputMode, type ProviderFailureReason, type ProviderId, type ProviderPreset, type ProviderOutputFormat } from './types.js'
 import { resolveWorkspacePath } from './runtime/workspace.js'
 import { resolveRuntimeState } from './runtime/tty.js'
 import {
@@ -253,6 +253,14 @@ function parseOutputFormat(value: string, flag: string): ProviderOutputFormat {
   throw new UsageError(`Unknown output format '${value}' for ${flag}`)
 }
 
+function parseMode(value: string, flag: string): (typeof modeIds)[number] {
+  const normalized = value.trim()
+  if (!modeIds.includes(normalized as (typeof modeIds)[number])) {
+    throw new UsageError(`Unknown mode '${value}' for ${flag}. Expected one of: ${modeIds.join(', ')}`)
+  }
+  return normalized as (typeof modeIds)[number]
+}
+
 function parseListValue(value: string): string[] {
   return value
     .split(',')
@@ -349,7 +357,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
     if (token === '--mode') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError(`Missing value for ${token}`)
-      options.mode = value
+      options.mode = parseMode(value, token)
       index += 1
       continue
     }
@@ -589,7 +597,7 @@ function parsePresetsArgs(tokens: string[]): ParsedCommand {
     if (token === '--mode') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError('Missing value for --mode')
-      setOptions.mode = value
+      setOptions.mode = parseMode(value, '--mode')
       index += 1
       continue
     }
@@ -805,6 +813,40 @@ export function parseArgv(argv: string[]): ParsedCommand {
 
   if (first === '--version') {
     return { kind: 'version' }
+  }
+
+  const helpTopicSet = new Set(['run', 'providers', 'config', 'presets'])
+  const globalFlagSet = new Set([
+    '--help',
+    '-h',
+    '--json',
+    '--plain',
+    '--no-color',
+    '--no-input',
+    '--quiet',
+    '-q',
+    '--verbose',
+    '-v',
+    '--version',
+  ])
+  const positional: string[] = []
+  for (const token of tokens) {
+    if (globalFlagSet.has(token)) continue
+    positional.push(token)
+  }
+
+  if (positional[0] === 'help') {
+    const topic = positional[1]
+    if (!topic) {
+      return { kind: 'help' }
+    }
+    if (helpTopicSet.has(topic)) {
+      if (positional.length > 2) {
+        throw new UsageError(`Unknown help topic '${positional[2]}'`)
+      }
+      return { kind: 'help', topic: topic as 'run' | 'providers' | 'config' | 'presets' }
+    }
+    throw new UsageError(`Unknown help topic '${topic}'`)
   }
 
   if (aliasCommands.has(first)) {
