@@ -11,10 +11,30 @@ describe('cli parser', () => {
   })
 
   it('parses explicit run invocation with run flags', () => {
-    const parsed = parseArgv(['run', '-p', 'codex', '--timeout-ms', '5000', 'hello'])
+    const parsed = parseArgv([
+      'run',
+      '-p',
+      'codex',
+      '--preset',
+      'fast',
+      '--yolo',
+      '--include-directories',
+      'a,b',
+      '--output-format',
+      'json',
+      '--print',
+      '--timeout-ms',
+      '5000',
+      'hello',
+    ])
     expect(parsed.kind).toBe('run')
     if (parsed.kind !== 'run') throw new Error('expected run')
     expect(parsed.options.provider).toBe('codex')
+    expect(parsed.options.preset).toBe('fast')
+    expect(parsed.options.yolo).toBe(true)
+    expect(parsed.options.includeDirectories).toEqual(['a', 'b'])
+    expect(parsed.options.outputFormat).toBe('json')
+    expect(parsed.options.headless).toBe(true)
     expect(parsed.options.timeoutMs).toBe(5000)
   })
 
@@ -23,6 +43,11 @@ describe('cli parser', () => {
     expect(parseArgv(['providers', 'doctor', '--provider', 'gemini']).kind).toBe('providers-doctor')
     expect(parseArgv(['config', 'get']).kind).toBe('config-get')
     expect(parseArgv(['config', 'set', 'mode.default', 'fast']).kind).toBe('config-set')
+    expect(parseArgv(['presets', 'list']).kind).toBe('presets-list')
+    expect(parseArgv(['presets', 'get', 'default']).kind).toBe('presets-get')
+    expect(parseArgv(['presets', 'set', 'default', '--provider', 'codex']).kind).toBe('presets-set')
+    expect(parseArgv(['presets', 'delete', 'default']).kind).toBe('presets-delete')
+    expect(parseArgv(['presets', 'use', 'default']).kind).toBe('presets-use')
   })
 
   it('returns help command with explicit topic', () => {
@@ -30,5 +55,10 @@ describe('cli parser', () => {
     expect(parsed.kind).toBe('help')
     if (parsed.kind !== 'help') throw new Error('expected help')
     expect(parsed.topic).toBe('providers')
+
+    const presetsHelp = parseArgv(['presets', '--help'])
+    expect(presetsHelp.kind).toBe('help')
+    if (presetsHelp.kind !== 'help') throw new Error('expected help')
+    expect(presetsHelp.topic).toBe('presets')
   })
 })

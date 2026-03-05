@@ -9,7 +9,15 @@ const request: NormalizedRequest = {
   workspace: '/tmp',
   mode: 'default',
   trust: false,
+  yolo: false,
+  includeDirectories: [],
+  outputFormat: 'text',
+  headless: true,
+  extensions: [],
+  mcp: [],
   output: 'auto',
+  timeoutMs: 10_000,
+  noFallback: false,
 }
 
 describe('fallback execution', () => {

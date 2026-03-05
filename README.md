@@ -26,6 +26,11 @@ genie config get [key] [--json]
 genie config set <key> <value>
 genie config init
 genie config path [--json]
+genie presets list [--json]
+genie presets get <name> [--json]
+genie presets set <name> [options]
+genie presets delete <name>
+genie presets use <name>
 ```
 
 ## Global flags
@@ -46,6 +51,13 @@ genie config path [--json]
 - `-w, --workspace <path>`
 - `--mode <name>`
 - `--trust`
+- `--preset <name>`
+- `--yolo`
+- `--include-directories <a,b,c>`
+- `--output-format <text|json|stream-json>`
+- `--print`
+- `--extensions <a,b,c>`
+- `--mcp <a,b,c>`
 - `--timeout-ms <n>`
 - `--no-fallback`
 
@@ -85,6 +97,22 @@ Supported env vars:
 - `GENIE_TRUST`
 - `GENIE_TIMEOUT_MS`
 - `GENIE_OUTPUT`
+
+## Presets
+
+Use presets to preconfigure provider-specific execution flags so users do not have to remember each provider's syntax.
+
+```bash
+# create/update a preset
+genie presets set headless-codex --provider codex --yolo --include-directories src,docs --output-format json --print --default
+
+# inspect and list presets
+genie presets get headless-codex
+genie presets list --json
+
+# run with preset
+genie run --preset headless-codex "summarize open todos"
+```
 
 ## Providers
 

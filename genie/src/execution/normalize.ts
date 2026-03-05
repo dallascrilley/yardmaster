@@ -15,6 +15,12 @@ export const requestSchema = z.object({
   output: z.enum(['auto', 'pretty', 'json', 'plain']).default('auto'),
   timeoutMs: z.number().int().positive().max(300_000).default(DEFAULT_TIMEOUT_MS),
   noFallback: z.boolean().default(false),
+  yolo: z.boolean().default(false),
+  includeDirectories: z.array(z.string().trim().min(1)).default([]),
+  outputFormat: z.enum(['text', 'json', 'stream-json']).default('text'),
+  headless: z.boolean().default(true),
+  extensions: z.array(z.string().trim().min(1)).default([]),
+  mcp: z.array(z.string().trim().min(1)).default([]),
 })
 
 export type NormalizedPromptRequest = z.infer<typeof requestSchema>
@@ -30,6 +36,12 @@ export function normalizeRequest(
     output?: CliOutputMode
     timeoutMs?: number
     noFallback?: boolean
+    yolo?: boolean
+    includeDirectories?: string[]
+    outputFormat?: 'text' | 'json' | 'stream-json'
+    headless?: boolean
+    extensions?: string[]
+    mcp?: string[]
   },
   config: GenieConfig,
 ): NormalizedRequest {
@@ -43,6 +55,12 @@ export function normalizeRequest(
     output: input.output || config.output.default,
     timeoutMs: input.timeoutMs ?? config.runtime.timeoutMs,
     noFallback: input.noFallback ?? false,
+    yolo: input.yolo ?? false,
+    includeDirectories: input.includeDirectories ?? [],
+    outputFormat: input.outputFormat ?? 'text',
+    headless: input.headless ?? true,
+    extensions: input.extensions ?? [],
+    mcp: input.mcp ?? [],
   })
 
   return parsed
