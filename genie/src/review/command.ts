@@ -79,6 +79,8 @@ export type ExecuteReviewCommandParams = {
   all: boolean
   agent?: ReviewAgentId
   diffFile?: string
+  staged?: boolean
+  base?: string
   config: GenieConfig
   requestRunner?: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{
     response: string
@@ -310,6 +312,8 @@ function loadHeadDiffWithUnbornFallback(gitRead: GitReadFn): { source: string; t
 
 export function resolveReviewDiffSource(params?: {
   diffFile?: string
+  staged?: boolean
+  base?: string
   gitRead?: GitReadFn
   fileRead?: FileReadFn
 }): { source: string; text: string } {
@@ -323,6 +327,39 @@ export function resolveReviewDiffSource(params?: {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       throw new UsageError(`Unable to read --diff-file '${params.diffFile}': ${reason}`)
+    }
+  }
+
+  if (params?.staged) {
+    const stagedDiff = safeGitRead(gitRead, ['diff', '--no-color', '--cached'])
+    if (!stagedDiff.ok) {
+      throw new UsageError(`Failed to read git diff --cached: ${stagedDiff.error}`)
+    }
+    return {
+      source: 'git diff --cached',
+      text: stagedDiff.text,
+    }
+  }
+
+  if (params?.base) {
+    const mergeBaseResult = safeGitRead(gitRead, ['merge-base', 'HEAD', params.base])
+    if (!mergeBaseResult.ok) {
+      throw new UsageError(`Failed to resolve --base '${params.base}': ${mergeBaseResult.error}`)
+    }
+
+    const mergeBase = mergeBaseResult.text.trim()
+    if (!mergeBase) {
+      throw new UsageError(`Failed to resolve --base '${params.base}': empty merge-base`)
+    }
+
+    const baseDiff = safeGitRead(gitRead, ['diff', '--no-color', `${mergeBase}...HEAD`])
+    if (!baseDiff.ok) {
+      throw new UsageError(`Failed to read diff for --base '${params.base}': ${baseDiff.error}`)
+    }
+
+    return {
+      source: `git diff ${params.base}...HEAD`,
+      text: baseDiff.text,
     }
   }
 
@@ -429,7 +466,11 @@ async function runReviewForAgent(params: {
 
 export async function executeReviewCommand(params: ExecuteReviewCommandParams): Promise<ReviewExecutionResult> {
   const agents = resolveReviewTargets(params.all, params.agent)
-  const diff = resolveReviewDiffSource({ diffFile: params.diffFile })
+  const diff = resolveReviewDiffSource({
+    diffFile: params.diffFile,
+    staged: params.staged,
+    base: params.base,
+  })
   const diffText = ensureNonEmptyDiff(diff.text)
   const prompt = buildReviewPrompt(diffText)
   const git = resolveGitContext(defaultGitRead)

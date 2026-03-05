@@ -171,6 +171,56 @@ describe('review command', () => {
     expect(result.text).toContain('diff --git')
   })
 
+  it('uses staged-only diff source when --staged is selected', () => {
+    const calls: string[] = []
+    const result = resolveReviewDiffSource({
+      staged: true,
+      gitRead: (args) => {
+        const cmd = args.join(' ')
+        calls.push(cmd)
+        if (cmd === 'diff --no-color --cached') {
+          return ['diff --git a/staged.ts b/staged.ts', '--- a/staged.ts', '+++ b/staged.ts', '+const s = 1'].join('\n')
+        }
+        return ''
+      },
+    })
+
+    expect(result.source).toBe('git diff --cached')
+    expect(result.text).toContain('diff --git')
+    expect(calls).toEqual(['diff --no-color --cached'])
+  })
+
+  it('uses explicit merge-base ref when --base is provided', () => {
+    const calls: string[] = []
+    const result = resolveReviewDiffSource({
+      base: 'origin/main',
+      gitRead: (args) => {
+        const cmd = args.join(' ')
+        calls.push(cmd)
+        if (cmd === 'merge-base HEAD origin/main') return 'abc123\n'
+        if (cmd === 'diff --no-color abc123...HEAD') {
+          return ['diff --git a/base.ts b/base.ts', '--- a/base.ts', '+++ b/base.ts', '+const base = 1'].join('\n')
+        }
+        return ''
+      },
+    })
+
+    expect(result.source).toBe('git diff origin/main...HEAD')
+    expect(result.text).toContain('diff --git')
+    expect(calls).toEqual(['merge-base HEAD origin/main', 'diff --no-color abc123...HEAD'])
+  })
+
+  it('surfaces actionable diagnostics when --base merge-base fails', () => {
+    expect(() =>
+      resolveReviewDiffSource({
+        base: 'origin/main',
+        gitRead: () => {
+          throw new Error('fatal: no merge base')
+        },
+      }),
+    ).toThrow("Failed to resolve --base 'origin/main'")
+  })
+
   it('tries later base candidates when an earlier merge-base check fails', () => {
     const calls: string[] = []
     const result = resolveReviewDiffSource({
