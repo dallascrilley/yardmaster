@@ -164,28 +164,84 @@ function defaultFileRead(path: string, encoding: BufferEncoding): string {
   return readFileSync(path, encoding)
 }
 
-function tryGitRead(gitRead: GitReadFn, args: string[]): string | null {
+type GitReadResult =
+  | { ok: true; text: string }
+  | { ok: false; error: string }
+
+function safeGitRead(gitRead: GitReadFn, args: string[]): GitReadResult {
   try {
-    return gitRead(args)
-  } catch {
-    return null
+    return { ok: true, text: gitRead(args) }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: reason }
   }
 }
 
 function resolveGitContext(gitRead: GitReadFn): { branch: string | null; head: string | null } {
-  const branch = tryGitRead(gitRead, ['rev-parse', '--abbrev-ref', 'HEAD'])?.trim() || null
-  const head = tryGitRead(gitRead, ['rev-parse', '--short', 'HEAD'])?.trim() || null
+  const branchResult = safeGitRead(gitRead, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  const headResult = safeGitRead(gitRead, ['rev-parse', '--short', 'HEAD'])
+  const branch = branchResult.ok ? branchResult.text.trim() || null : null
+  const head = headResult.ok ? headResult.text.trim() || null : null
   return { branch, head }
 }
 
 function buildBaseRefCandidates(gitRead: GitReadFn): string[] {
   const candidates: string[] = []
-  const originHead = tryGitRead(gitRead, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])?.trim()
-  if (originHead) {
-    candidates.push(originHead)
+  const upstream = safeGitRead(gitRead, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])
+  if (upstream.ok && upstream.text.trim()) {
+    candidates.push(upstream.text.trim())
   }
-  candidates.push('origin/main', 'origin/master', 'main', 'master')
+
+  candidates.push('main', 'master', 'origin/main', 'origin/master')
+
+  const originHead = safeGitRead(gitRead, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
+  if (originHead.ok && originHead.text.trim()) {
+    candidates.push(originHead.text.trim())
+  }
+
   return [...new Set(candidates)]
+}
+
+function isUnbornHeadError(message: string): boolean {
+  return /unknown revision or path not in the working tree|bad revision 'HEAD'|ambiguous argument 'HEAD'|not a valid object name HEAD/i.test(
+    message,
+  )
+}
+
+function loadHeadDiffWithUnbornFallback(gitRead: GitReadFn): { source: string; text: string } {
+  const againstHead = safeGitRead(gitRead, ['diff', '--no-color', 'HEAD'])
+  if (againstHead.ok) {
+    return { source: 'git diff HEAD', text: againstHead.text }
+  }
+
+  if (!isUnbornHeadError(againstHead.error)) {
+    throw new UsageError(`Failed to read git diff HEAD: ${againstHead.error}`)
+  }
+
+  const cached = safeGitRead(gitRead, ['diff', '--no-color', '--cached'])
+  const working = safeGitRead(gitRead, ['diff', '--no-color'])
+
+  const parts: string[] = []
+  if (cached.ok && cached.text.trim()) parts.push(cached.text)
+  if (working.ok && working.text.trim()) parts.push(working.text)
+
+  if (parts.length > 0) {
+    return {
+      source: 'git diff --cached + git diff',
+      text: parts.join('\n'),
+    }
+  }
+
+  if (!cached.ok && !working.ok) {
+    throw new UsageError(
+      `Failed to read git diff for repository without commits. cached: ${cached.error}. working: ${working.error}`,
+    )
+  }
+
+  return {
+    source: 'git diff --cached + git diff',
+    text: '',
+  }
 }
 
 export function resolveReviewDiffSource(params?: {
@@ -206,31 +262,45 @@ export function resolveReviewDiffSource(params?: {
     }
   }
 
-  const dirtyOrStaged = tryGitRead(gitRead, ['diff', '--no-color', 'HEAD'])
-  if (dirtyOrStaged === null) {
-    throw new UsageError('Failed to read git diff from repository context.')
-  }
-  if (dirtyOrStaged.trim()) {
-    return { source: 'git diff HEAD', text: dirtyOrStaged }
+  const dirtyOrStaged = loadHeadDiffWithUnbornFallback(gitRead)
+  if (dirtyOrStaged.text.trim()) {
+    return dirtyOrStaged
   }
 
+  const candidateErrors: string[] = []
+  let successfulCandidateReads = 0
   for (const baseRef of buildBaseRefCandidates(gitRead)) {
-    const mergeBase = tryGitRead(gitRead, ['merge-base', 'HEAD', baseRef])?.trim()
+    const mergeBaseResult = safeGitRead(gitRead, ['merge-base', 'HEAD', baseRef])
+    if (!mergeBaseResult.ok) {
+      candidateErrors.push(`${baseRef}: ${mergeBaseResult.error}`)
+      continue
+    }
+
+    const mergeBase = mergeBaseResult.text.trim()
     if (!mergeBase) continue
 
-    const branchDiff = tryGitRead(gitRead, ['diff', '--no-color', `${mergeBase}...HEAD`])
-    if (branchDiff && branchDiff.trim()) {
+    const branchDiffResult = safeGitRead(gitRead, ['diff', '--no-color', `${mergeBase}...HEAD`])
+    if (!branchDiffResult.ok) {
+      candidateErrors.push(`${baseRef}: ${branchDiffResult.error}`)
+      continue
+    }
+    successfulCandidateReads += 1
+
+    if (branchDiffResult.text.trim()) {
       return {
         source: `git diff ${baseRef}...HEAD`,
-        text: branchDiff,
+        text: branchDiffResult.text,
       }
     }
   }
 
-  return {
-    source: 'git diff HEAD',
-    text: dirtyOrStaged,
+  if (successfulCandidateReads === 0 && candidateErrors.length > 0) {
+    throw new UsageError(
+      `Failed to resolve base branch diff candidates:\n- ${candidateErrors.slice(0, 4).join('\n- ')}`,
+    )
   }
+
+  return dirtyOrStaged
 }
 
 function ensureNonEmptyDiff(text: string): string {
