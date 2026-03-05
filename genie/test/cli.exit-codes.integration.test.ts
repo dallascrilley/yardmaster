@@ -109,6 +109,13 @@ describe('cli exit codes', () => {
     })
     expect(baseStagedConflict.status).toBe(2)
     expect(baseStagedConflict.stderr).toContain('--base cannot be used with --staged')
+
+    const schemaConflict = spawnSync('bun', ['src/bin/genie.ts', 'review', '--json-schema', '--all'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+    expect(schemaConflict.status).toBe(2)
+    expect(schemaConflict.stderr).toContain('--json-schema cannot be combined with review target or diff-source flags')
   })
 
   it('returns exit code 2 for unknown root token when strict mode is enabled', () => {
