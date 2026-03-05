@@ -51,6 +51,20 @@ describe('cli parser', () => {
     expect(parsed.prompt).toBe('gleep')
   })
 
+  it('rejects unknown root command when strict mode is enabled', () => {
+    const previous = process.env.GENIE_STRICT_COMMANDS
+    process.env.GENIE_STRICT_COMMANDS = '1'
+    try {
+      expect(() => parseArgv(['gleep'])).toThrow("Unknown command 'gleep'. Use 'genie help' for usage.")
+    } finally {
+      if (previous === undefined) {
+        delete process.env.GENIE_STRICT_COMMANDS
+      } else {
+        process.env.GENIE_STRICT_COMMANDS = previous
+      }
+    }
+  })
+
   it('parses providers and config command trees', () => {
     expect(parseArgv(['providers', 'list', '--json']).kind).toBe('providers-list')
     expect(parseArgv(['providers', 'doctor', '--provider', 'gemini']).kind).toBe('providers-doctor')

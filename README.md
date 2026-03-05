@@ -97,6 +97,19 @@ Supported env vars:
 - `GENIE_TRUST`
 - `GENIE_TIMEOUT_MS`
 - `GENIE_OUTPUT`
+- `GENIE_STRICT_COMMANDS`
+
+### Strict command mode
+
+Set `GENIE_STRICT_COMMANDS=1` to disable legacy shorthand fallback for unknown root tokens.
+
+```bash
+# default behavior: shorthand prompt text
+genie gleep
+
+# strict behavior: usage error (exit 2)
+GENIE_STRICT_COMMANDS=1 genie gleep
+```
 
 ## Presets
 

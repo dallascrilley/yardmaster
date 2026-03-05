@@ -66,4 +66,18 @@ describe('cli exit codes', () => {
     expect(result.status).toBe(2)
     expect(result.stderr).toContain("Unknown mode 'invalidmode' for --mode")
   })
+
+  it('returns exit code 2 for unknown root token when strict mode is enabled', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'gleep'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GENIE_STRICT_COMMANDS: '1',
+      },
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("Unknown command 'gleep'. Use 'genie help' for usage.")
+  })
 })
