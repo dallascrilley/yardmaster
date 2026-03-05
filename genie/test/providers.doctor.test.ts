@@ -53,4 +53,29 @@ describe('providers doctor', () => {
 
     spy.mockRestore()
   })
+
+  it('returns unavailable when availability probe times out twice', async () => {
+    const spy = vi
+      .spyOn(base, 'runCommand')
+      .mockResolvedValueOnce({
+        code: 124,
+        stdout: '',
+        stderr: 'Timed out after 3000ms',
+      })
+      .mockResolvedValueOnce({
+        code: 124,
+        stdout: '',
+        stderr: 'Timed out after 6000ms',
+      })
+
+    const report = await doctorProviders('codex')
+    expect(report[0]?.available).toBe(false)
+    expect(report[0]?.authenticated).toBe(false)
+
+    const invocations = spy.mock.calls.map(([invocation]) => invocation)
+    expect(invocations[0]?.timeoutMs).toBe(3_000)
+    expect(invocations[1]?.timeoutMs).toBe(6_000)
+
+    spy.mockRestore()
+  })
 })

@@ -817,6 +817,8 @@ export function parseArgv(argv: string[]): ParsedCommand {
 
   const helpTopicSet = new Set(['run', 'providers', 'config', 'presets'])
   const globalFlagSet = new Set([
+    '--help',
+    '-h',
     '--json',
     '--plain',
     '--no-color',

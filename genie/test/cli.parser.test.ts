@@ -86,5 +86,11 @@ describe('cli parser', () => {
 
     const jsonHelp = parseArgv(['--json', 'help'])
     expect(jsonHelp.kind).toBe('help')
+
+    const dashHelp = parseArgv(['-h'])
+    expect(dashHelp.kind).toBe('help')
+
+    const commandHelpFlag = parseArgv(['help', '--help'])
+    expect(commandHelpFlag.kind).toBe('help')
   })
 })
