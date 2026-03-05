@@ -12,6 +12,7 @@ import {
   parseUnifiedDiffStats,
   resolveReviewDiffSource,
   resolveReviewTargets,
+  getReviewJsonSchema,
   toReviewJsonEnvelope,
   type ReviewExecutionResult,
 } from '../src/review/command.js'
@@ -342,5 +343,13 @@ describe('review command', () => {
       ],
       exitCode: 1,
     })
+  })
+
+  it('exposes a stable json schema for review envelope consumers', () => {
+    const schema = getReviewJsonSchema()
+    expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema')
+    expect(schema.title).toBe('Genie Review Result')
+    expect(schema.type).toBe('object')
+    expect((schema.properties as Record<string, unknown>).kind).toEqual({ const: 'review_result' })
   })
 })

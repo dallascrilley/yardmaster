@@ -75,6 +75,8 @@ export type ReviewJsonEnvelope = {
   exitCode: 0 | 1
 }
 
+export type ReviewJsonSchema = Record<string, unknown>
+
 export type ExecuteReviewCommandParams = {
   all: boolean
   agent?: ReviewAgentId
@@ -196,6 +198,75 @@ export function toReviewJsonEnvelope(result: ReviewExecutionResult): ReviewJsonE
       review: item.review,
     })),
     exitCode: result.exitCode,
+  }
+}
+
+export function getReviewJsonSchema(): ReviewJsonSchema {
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    $id: 'https://genie-cli.dev/schemas/review-result-v1.json',
+    title: 'Genie Review Result',
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind', 'version', 'mode', 'targets', 'source', 'cwd', 'git', 'diff', 'summary', 'results', 'exitCode'],
+    properties: {
+      kind: { const: 'review_result' },
+      version: { const: 1 },
+      mode: { enum: ['single', 'all'] },
+      targets: {
+        type: 'array',
+        items: { enum: [...reviewAgentIds] },
+      },
+      source: { type: 'string' },
+      cwd: { type: 'string' },
+      git: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['branch', 'head'],
+        properties: {
+          branch: { type: ['string', 'null'] },
+          head: { type: ['string', 'null'] },
+        },
+      },
+      diff: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['files', 'additions', 'deletions'],
+        properties: {
+          files: { type: 'number' },
+          additions: { type: 'number' },
+          deletions: { type: 'number' },
+        },
+      },
+      summary: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['total', 'succeeded', 'failed'],
+        properties: {
+          total: { type: 'number' },
+          succeeded: { type: 'number' },
+          failed: { type: 'number' },
+        },
+      },
+      results: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['agent', 'provider', 'model', 'status', 'latencyMs', 'responseChars', 'review'],
+          properties: {
+            agent: { enum: [...reviewAgentIds] },
+            provider: { enum: ['claude', 'codex', 'cursor-agent', 'gemini'] },
+            model: { type: ['string', 'null'] },
+            status: { enum: ['ok', 'error'] },
+            latencyMs: { type: 'number' },
+            responseChars: { type: 'number' },
+            review: { type: 'string' },
+          },
+        },
+      },
+      exitCode: { enum: [0, 1] },
+    },
   }
 }
 

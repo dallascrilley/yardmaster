@@ -91,6 +91,10 @@ describe('cli parser', () => {
     expect(reviewBase.kind).toBe('review')
     if (reviewBase.kind !== 'review') throw new Error('expected review')
     expect(reviewBase.options.base).toBe('origin/main')
+    const reviewJsonSchema = parseArgv(['review', '--json-schema'])
+    expect(reviewJsonSchema.kind).toBe('review')
+    if (reviewJsonSchema.kind !== 'review') throw new Error('expected review')
+    expect(reviewJsonSchema.options.jsonSchema).toBe(true)
     const reviewSingle = parseArgv(['review', '--agent', 'cursor'])
     expect(reviewSingle.kind).toBe('review')
     if (reviewSingle.kind !== 'review') throw new Error('expected review')
@@ -120,6 +124,9 @@ describe('cli parser', () => {
     )
     expect(() => parseArgv(['review', '--all', '--base', 'main', '--staged'])).toThrow(
       '--base cannot be used with --staged',
+    )
+    expect(() => parseArgv(['review', '--json-schema', '--all'])).toThrow(
+      '--json-schema cannot be combined with review target or diff-source flags',
     )
   })
 
