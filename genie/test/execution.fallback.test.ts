@@ -75,4 +75,35 @@ describe('fallback execution', () => {
       }),
     ).rejects.toBeInstanceOf(AggregatedProviderError)
   })
+
+  it('preserves auth-only failures as aggregated auth errors', async () => {
+    const providers: ProviderAdapter[] = [
+      {
+        id: 'claude',
+        isAvailable: async () => ({ ok: true }),
+        isAuthenticated: async () => ({ ok: false, reason: 'login required', hint: 'run claude login', authFailure: true }),
+        buildInvocation: () => ({ command: 'claude', args: [] }),
+        execute: async () => ({ text: '', raw: { code: 1, stdout: '', stderr: '' } }),
+        parse: ({ stdout }) => ({ text: stdout, raw: { code: 0, stdout, stderr: '' } }),
+      },
+    ]
+
+    await expect(
+      executeWithFallback({
+        providers,
+        order: ['claude'],
+        request,
+        runner: async () => ({ code: 0, stdout: '', stderr: '' }),
+      }),
+    ).rejects.toMatchObject({
+      name: 'AggregatedProviderError',
+      reasons: [
+        expect.objectContaining({
+          provider: 'claude',
+          stage: 'auth',
+          authFailure: true,
+        }),
+      ],
+    })
+  })
 })
