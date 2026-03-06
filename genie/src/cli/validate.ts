@@ -2,10 +2,11 @@ import { modeIds, providerIds, type ProviderId, type ProviderOutputFormat } from
 import { UsageError } from '../errors.js'
 
 export function parseProvider(value: string, flag: string): ProviderId {
-  if (!providerIds.includes(value as ProviderId)) {
+  const normalized = value.trim().toLowerCase()
+  if (!providerIds.includes(normalized as ProviderId)) {
     throw new UsageError(`Unknown provider '${value}' for ${flag}`)
   }
-  return value as ProviderId
+  return normalized as ProviderId
 }
 
 export function parseOutputFormat(value: string, flag: string): ProviderOutputFormat {
@@ -17,7 +18,7 @@ export function parseOutputFormat(value: string, flag: string): ProviderOutputFo
 }
 
 export function parseMode(value: string, flag: string): (typeof modeIds)[number] {
-  const normalized = value.trim()
+  const normalized = value.trim().toLowerCase()
   if (!modeIds.includes(normalized as (typeof modeIds)[number])) {
     throw new UsageError(`Unknown mode '${value}' for ${flag}. Expected one of: ${modeIds.join(', ')}`)
   }
