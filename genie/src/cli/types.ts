@@ -12,6 +12,13 @@ export type GlobalOptions = {
   noInput: boolean
 }
 
+export type MutationSafetyOptions = {
+  dryRun: boolean
+  force: boolean
+}
+
+export type CompletionShell = 'bash' | 'zsh' | 'fish'
+
 export type RunOptions = {
   provider?: ProviderId
   model?: string
@@ -27,6 +34,8 @@ export type RunOptions = {
   headless?: boolean
   extensions?: string[]
   mcp?: string[]
+  promptFile?: string
+  inputFile?: string
 }
 
 type CommitSharedOptions = Pick<
@@ -62,20 +71,25 @@ export type PresetsSetOptions = {
   setDefault: boolean
 }
 
-export type HelpTopic = 'run' | 'commit' | 'debug' | 'review' | 'update' | 'providers' | 'config' | 'presets'
+export type HelpTopic = 'run' | 'commit' | 'debug' | 'review' | 'update' | 'providers' | 'config' | 'presets' | 'completion'
 
 export type ParsedCommand =
   | { kind: 'help'; topic?: HelpTopic }
   | { kind: 'version' }
   | {
       kind: 'run'
-      prompt: string
+      prompt?: string
       globals: GlobalOptions
       options: RunOptions
     }
   | {
       kind: 'providers-list'
       globals: GlobalOptions
+    }
+  | {
+      kind: 'completion'
+      globals: GlobalOptions
+      shell: CompletionShell
     }
   | {
       kind: 'review'
@@ -95,6 +109,7 @@ export type ParsedCommand =
   | {
       kind: 'update'
       globals: GlobalOptions
+      safety: MutationSafetyOptions
     }
   | {
       kind: 'providers-doctor'
@@ -111,10 +126,12 @@ export type ParsedCommand =
       key: string
       value: string
       globals: GlobalOptions
+      safety: MutationSafetyOptions
     }
   | {
       kind: 'config-init'
       globals: GlobalOptions
+      safety: MutationSafetyOptions
     }
   | {
       kind: 'config-path'
@@ -133,14 +150,17 @@ export type ParsedCommand =
       kind: 'presets-set'
       globals: GlobalOptions
       options: PresetsSetOptions
+      safety: MutationSafetyOptions
     }
   | {
       kind: 'presets-delete'
       globals: GlobalOptions
       name: string
+      safety: MutationSafetyOptions
     }
   | {
       kind: 'presets-use'
       globals: GlobalOptions
       name: string
+      safety: MutationSafetyOptions
     }

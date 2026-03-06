@@ -36,13 +36,16 @@ describe('cli review json integration', () => {
       expect(parsed).toMatchObject({
         kind: 'review_result',
         version: 1,
+        ok: expect.any(Boolean),
         mode: 'single',
         targets: ['codex'],
         source: `file:${tempDiff}`,
+        error: null,
       })
       expect(Object.keys(parsed)).toEqual([
         'kind',
         'version',
+        'ok',
         'mode',
         'targets',
         'source',
@@ -52,6 +55,7 @@ describe('cli review json integration', () => {
         'summary',
         'results',
         'exitCode',
+        'error',
       ])
       expect(Array.isArray(parsed.results)).toBe(true)
       expect(parsed.results.length).toBe(1)
@@ -78,7 +82,9 @@ describe('cli review json integration', () => {
     })
     expect(parsed.properties.kind.const).toBe('review_result')
     expect(parsed.properties.version.const).toBe(1)
+    expect(parsed.properties.ok.type).toBe('boolean')
     expect(parsed.properties.exitCode.enum).toEqual([0, 1])
+    expect(parsed.properties.error.type).toBe('null')
     expect(parsed.required).toContain('results')
   })
 })

@@ -51,6 +51,64 @@ function normalizePreset(input: PresetSetInput): ProviderPreset {
   }
 }
 
+function applySetPreset(
+  current: Awaited<ReturnType<typeof loadConfig>>,
+  name: string,
+  input: PresetSetInput,
+  options?: { setDefault?: boolean },
+): { config: Awaited<ReturnType<typeof loadConfig>>; replaced: boolean } {
+  const key = validatePresetName(name)
+  const normalized = normalizePreset(input)
+  const currentPreset = current.presets.named[key] ?? {}
+
+  return {
+    replaced: Boolean(current.presets.named[key]),
+    config: {
+      ...current,
+      presets: {
+        default: options?.setDefault ? key : current.presets.default,
+        named: {
+          ...current.presets.named,
+          [key]: {
+            ...currentPreset,
+            ...normalized,
+          },
+        },
+      },
+    },
+  }
+}
+
+function applyDeletePreset(current: Awaited<ReturnType<typeof loadConfig>>, name: string): Awaited<ReturnType<typeof loadConfig>> {
+  const key = validatePresetName(name)
+  if (!current.presets.named[key]) {
+    throw new UsageError(`Unknown preset '${key}'`)
+  }
+  const named = { ...current.presets.named }
+  delete named[key]
+  return {
+    ...current,
+    presets: {
+      default: current.presets.default === key ? undefined : current.presets.default,
+      named,
+    },
+  }
+}
+
+function applyUsePreset(current: Awaited<ReturnType<typeof loadConfig>>, name: string): Awaited<ReturnType<typeof loadConfig>> {
+  const key = validatePresetName(name)
+  if (!current.presets.named[key]) {
+    throw new UsageError(`Unknown preset '${key}'`)
+  }
+  return {
+    ...current,
+    presets: {
+      ...current.presets,
+      default: key,
+    },
+  }
+}
+
 export async function listPresets(): Promise<{ default?: string; named: Record<string, ProviderPreset> }> {
   const config = await loadConfig()
   return {
@@ -73,50 +131,55 @@ export async function setPreset(
   name: string,
   input: PresetSetInput,
   options?: { setDefault?: boolean },
-): Promise<{ name: string; preset: ProviderPreset; default?: string }> {
+): Promise<{ name: string; preset: ProviderPreset; default?: string; replaced: boolean }> {
   const key = validatePresetName(name)
-  const normalized = normalizePreset(input)
+  let replaced = false
   const updated = await updateConfig((current) => {
-    const currentPreset = current.presets.named[key] ?? {}
-    return {
-      ...current,
-      presets: {
-        default: options?.setDefault ? key : current.presets.default,
-        named: {
-          ...current.presets.named,
-          [key]: {
-            ...currentPreset,
-            ...normalized,
-          },
-        },
-      },
-    }
+    const applied = applySetPreset(current, key, input, options)
+    replaced = applied.replaced
+    return applied.config
   })
 
   return {
     name: key,
     preset: updated.presets.named[key],
     default: updated.presets.default,
+    replaced,
+  }
+}
+
+export async function previewSetPreset(
+  name: string,
+  input: PresetSetInput,
+  options?: { setDefault?: boolean },
+): Promise<{ name: string; preset: ProviderPreset; default?: string; replaced: boolean }> {
+  const key = validatePresetName(name)
+  const current = await loadConfig()
+  const preview = applySetPreset(current, key, input, options)
+  return {
+    name: key,
+    preset: preview.config.presets.named[key],
+    default: preview.config.presets.default,
+    replaced: preview.replaced,
   }
 }
 
 export async function deletePreset(name: string): Promise<{ deleted: string; default?: string }> {
   const key = validatePresetName(name)
   const updated = await updateConfig((current) => {
-    if (!current.presets.named[key]) {
-      throw new UsageError(`Unknown preset '${key}'`)
-    }
-    const named = { ...current.presets.named }
-    delete named[key]
-    return {
-      ...current,
-      presets: {
-        default: current.presets.default === key ? undefined : current.presets.default,
-        named,
-      },
-    }
+    return applyDeletePreset(current, key)
   })
 
+  return {
+    deleted: key,
+    default: updated.presets.default,
+  }
+}
+
+export async function previewDeletePreset(name: string): Promise<{ deleted: string; default?: string }> {
+  const key = validatePresetName(name)
+  const current = await loadConfig()
+  const updated = applyDeletePreset(current, key)
   return {
     deleted: key,
     default: updated.presets.default,
@@ -126,18 +189,16 @@ export async function deletePreset(name: string): Promise<{ deleted: string; def
 export async function usePreset(name: string): Promise<{ default: string }> {
   const key = validatePresetName(name)
   const updated = await updateConfig((current) => {
-    if (!current.presets.named[key]) {
-      throw new UsageError(`Unknown preset '${key}'`)
-    }
-    return {
-      ...current,
-      presets: {
-        ...current.presets,
-        default: key,
-      },
-    }
+    return applyUsePreset(current, key)
   })
 
+  return {
+    default: updated.presets.default as string,
+  }
+}
+
+export async function previewUsePreset(name: string): Promise<{ default: string }> {
+  const updated = applyUsePreset(await loadConfig(), name)
   return {
     default: updated.presets.default as string,
   }
