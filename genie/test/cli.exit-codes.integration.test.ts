@@ -64,6 +64,17 @@ describe('cli exit codes', () => {
     expect(parsed.error.message).toContain('Run `genie help` for usage.')
   })
 
+  it('does not treat positional --json after -- as json mode', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'run', '--provider', 'nope', '--', '--json'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toContain("Unknown provider 'nope' for --provider")
+  })
+
   it('supports explicit help command and rejects invalid help topic', () => {
     const helpResult = spawnSync('bun', ['src/bin/genie.ts', 'help', 'run'], {
       cwd: new URL('..', import.meta.url).pathname,

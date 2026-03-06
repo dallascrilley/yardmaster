@@ -72,8 +72,12 @@ describe('presets commands', () => {
     expect(overwritePreview.replaced).toBe(true)
     expect((await getPreset('nightly')).provider).toBe('codex')
 
+    await setPreset('stable', { provider: 'codex' }, { setDefault: true })
+    expect((await listPresets()).default).toBe('stable')
+
     const usePreview = await previewUsePreset('nightly')
     expect(usePreview.default).toBe('nightly')
+    expect((await listPresets()).default).toBe('stable')
 
     const deletePreview = await previewDeletePreset('nightly')
     expect(deletePreview.deleted).toBe('nightly')

@@ -1,8 +1,9 @@
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -47,12 +48,12 @@ describe('cli machine-readable json integration', () => {
     writeMockClaudeBinary(binDir)
 
     const result = spawnSync('bun', ['src/bin/genie.ts', 'run', '--provider', 'claude', '--no-fallback', '--json', 'hello'], {
-      cwd: new URL('..', import.meta.url).pathname,
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
       encoding: 'utf8',
       env: {
         ...process.env,
         HOME: homeDir,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`,
       },
     })
 
@@ -76,11 +77,11 @@ describe('cli machine-readable json integration', () => {
     tempDirs.push(binDir, homeDir)
     writeMockClaudeBinary(binDir)
 
-    const cwd = new URL('..', import.meta.url).pathname
+    const cwd = fileURLToPath(new URL('..', import.meta.url))
     const env = {
       ...process.env,
       HOME: homeDir,
-      PATH: `${binDir}:${process.env.PATH ?? ''}`,
+      PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`,
     }
 
     const providersList = spawnSync('bun', ['src/bin/genie.ts', 'providers', 'list', '--json'], { cwd, encoding: 'utf8', env })

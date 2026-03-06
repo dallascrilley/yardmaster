@@ -429,6 +429,17 @@ function shouldWriteStatusOutput(globals: GlobalOptions): boolean {
   return !globals.quiet
 }
 
+function writeCancellation(globals: GlobalOptions, kind: string, message: string): void {
+  if (shouldUseJson(globals)) {
+    writeJson(toCliJsonSuccessEnvelope(kind, { cancelled: true }))
+    return
+  }
+
+  if (shouldWriteStatusOutput(globals)) {
+    writeLine(message)
+  }
+}
+
 function writeConfigValue(value: unknown): void {
   if (typeof value === 'string') {
     writeLine(value)
@@ -712,9 +723,7 @@ async function executeCommand(
       confirm: deps?.confirm,
     })
     if (decision === 'cancelled') {
-      if (shouldWriteStatusOutput(parsed.globals)) {
-        writeLine('Cancelled update.')
-      }
+      writeCancellation(parsed.globals, 'update_result', 'Cancelled update.')
       return
     }
 
@@ -820,9 +829,7 @@ async function executeCommand(
       confirm: deps?.confirm,
     })
     if (decision === 'cancelled') {
-      if (shouldWriteStatusOutput(parsed.globals)) {
-        writeLine('Cancelled config init.')
-      }
+      writeCancellation(parsed.globals, 'config_init', 'Cancelled config init.')
       return
     }
 
@@ -902,9 +909,7 @@ async function executeCommand(
       confirm: deps?.confirm,
     })
     if (decision === 'cancelled') {
-      if (shouldWriteStatusOutput(parsed.globals)) {
-        writeLine(`Cancelled preset update for ${parsed.options.name}.`)
-      }
+      writeCancellation(parsed.globals, 'presets_set', `Cancelled preset update for ${parsed.options.name}.`)
       return
     }
 
@@ -952,9 +957,7 @@ async function executeCommand(
       confirm: deps?.confirm,
     })
     if (decision === 'cancelled') {
-      if (shouldWriteStatusOutput(parsed.globals)) {
-        writeLine(`Cancelled preset deletion for ${parsed.name}.`)
-      }
+      writeCancellation(parsed.globals, 'presets_delete', `Cancelled preset deletion for ${parsed.name}.`)
       return
     }
 
@@ -1018,7 +1021,8 @@ export async function cli(argv: string[] = process.argv.slice(2)): Promise<void>
   } catch (error) {
     const code = getExitCode(error)
     const message = formatCliError(error)
-    const wantsJson = argv.includes('--json') && !argv.includes('--plain')
+    const optionArgs = argv.includes('--') ? argv.slice(0, argv.indexOf('--')) : argv
+    const wantsJson = optionArgs.includes('--json') && !optionArgs.includes('--plain')
 
     if (wantsJson) {
       writeJson(toCliJsonErrorEnvelope(code, { code: String(code), message }))
