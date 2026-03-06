@@ -27,6 +27,8 @@
 
 - 2026-03-06: Verified merged `genie` CLI behavior on `main` with passing typecheck, tests,
   build, root help, provider inventory JSON, review JSON schema, and provider doctor smoke.
-- 2026-03-06: Remaining release blockers are environmental rather than implementation gaps:
-  dirty worktrees, incomplete live-provider run/exit-code smoke coverage, and unauthenticated
-  `cursor-agent`.
+- 2026-03-06: Fresh-worktree release verification now requires `bun install --frozen-lockfile`
+  before typecheck/test/build; the release checklist was updated to encode that step explicitly.
+- 2026-03-06: Auth-only provider failures now preserve exit code `3` end-to-end; clean-worktree
+  release smoke verified `0/1/2/3/124` and moved `cursor-agent` to an optional-but-documented
+  release gate because workspace trust remains environment-local.
