@@ -6,6 +6,8 @@ describe('cli parser', () => {
   it('keeps parser command-kind behavior stable via table-driven cases', () => {
     const cases: Array<{ argv: string[]; kind: string; topic?: string }> = [
       { argv: ['run', 'hello'], kind: 'run' },
+      { argv: ['commit'], kind: 'commit' },
+      { argv: ['commit', '--apply'], kind: 'commit' },
       { argv: ['debug', '--provider', 'codex'], kind: 'debug' },
       { argv: ['wish', 'hello'], kind: 'run' },
       { argv: ['rub', 'hello'], kind: 'run' },
@@ -16,6 +18,7 @@ describe('cli parser', () => {
       { argv: ['presets', 'set', 'nightly', '--mode', 'default'], kind: 'presets-set' },
       { argv: ['presets', 'use', 'nightly'], kind: 'presets-use' },
       { argv: ['review', '--json-schema'], kind: 'review' },
+      { argv: ['help', 'commit'], kind: 'help', topic: 'commit' },
       { argv: ['help', 'debug'], kind: 'help', topic: 'debug' },
       { argv: ['help', 'providers'], kind: 'help', topic: 'providers' },
       { argv: ['--version'], kind: 'version' },
@@ -57,10 +60,16 @@ describe('cli parser', () => {
       },
       { argv: ['run', '--timeout-ms', '0', 'hello'], message: 'Invalid value for --timeout-ms' },
       { argv: ['debug', '--timeout-ms', '0'], message: 'Invalid value for --timeout-ms' },
+      { argv: ['commit', '--timeout-ms', '0'], message: 'Invalid value for --timeout-ms' },
+      { argv: ['commit', '--json'], message: '--json is not supported for genie commit' },
       { argv: ['debug', '--json'], message: '--json is not supported for genie debug' },
       {
         argv: ['debug', 'TypeError'],
         message: "Unexpected positional argument 'TypeError'. Pipe terminal output into genie debug instead.",
+      },
+      {
+        argv: ['commit', 'extra'],
+        message: "Unexpected positional argument 'extra'. genie commit reads staged git changes directly.",
       },
       { argv: ['providers', 'doctor', '--provider'], message: 'Missing value for --provider' },
       { argv: ['config', 'set', 'mode.default'], message: 'Usage: genie config set <key> <value>' },
@@ -151,6 +160,12 @@ describe('cli parser', () => {
 
   it('parses providers and config command trees', () => {
     expect(parseArgv(['update']).kind).toBe('update')
+    expect(parseArgv(['commit']).kind).toBe('commit')
+    const commitApply = parseArgv(['commit', '--apply', '--provider', 'gemini'])
+    expect(commitApply.kind).toBe('commit')
+    if (commitApply.kind !== 'commit') throw new Error('expected commit')
+    expect(commitApply.options.apply).toBe(true)
+    expect(commitApply.options.provider).toBe('gemini')
     expect(parseArgv(['debug']).kind).toBe('debug')
     const debugProvider = parseArgv(['debug', '--provider', 'gemini'])
     expect(debugProvider.kind).toBe('debug')
@@ -227,6 +242,14 @@ describe('cli parser', () => {
     expect(presetsHelp.topic).toBe('presets')
   })
 
+  it('keeps commit dispatch anchored to the first argv token', () => {
+    const parsed = parseArgv(['--json', 'commit'])
+    expect(parsed.kind).toBe('run')
+    if (parsed.kind !== 'run') throw new Error('expected run')
+    expect(parsed.globals.json).toBe(true)
+    expect(parsed.prompt).toBe('commit')
+  })
+
   it('parses explicit help command variants at root', () => {
     const rootHelp = parseArgv(['help'])
     expect(rootHelp.kind).toBe('help')
@@ -235,6 +258,11 @@ describe('cli parser', () => {
     expect(runHelp.kind).toBe('help')
     if (runHelp.kind !== 'help') throw new Error('expected help')
     expect(runHelp.topic).toBe('run')
+
+    const commitHelp = parseArgv(['help', 'commit'])
+    expect(commitHelp.kind).toBe('help')
+    if (commitHelp.kind !== 'help') throw new Error('expected help')
+    expect(commitHelp.topic).toBe('commit')
 
     const debugHelp = parseArgv(['help', 'debug'])
     expect(debugHelp.kind).toBe('help')

@@ -29,6 +29,15 @@ export type RunOptions = {
   mcp?: string[]
 }
 
+type CommitSharedOptions = Pick<
+  RunOptions,
+  'provider' | 'model' | 'workspace' | 'mode' | 'trust' | 'timeoutMs' | 'noFallback' | 'preset' | 'yolo'
+>
+
+export type CommitOptions = CommitSharedOptions & {
+  apply: boolean
+}
+
 export type ReviewOptions = {
   all: boolean
   agent?: ReviewAgentId
@@ -53,7 +62,7 @@ export type PresetsSetOptions = {
   setDefault: boolean
 }
 
-export type HelpTopic = 'run' | 'debug' | 'review' | 'update' | 'providers' | 'config' | 'presets'
+export type HelpTopic = 'run' | 'commit' | 'debug' | 'review' | 'update' | 'providers' | 'config' | 'presets'
 
 export type ParsedCommand =
   | { kind: 'help'; topic?: HelpTopic }
@@ -72,6 +81,11 @@ export type ParsedCommand =
       kind: 'review'
       globals: GlobalOptions
       options: ReviewOptions
+    }
+  | {
+      kind: 'commit'
+      globals: GlobalOptions
+      options: CommitOptions
     }
   | {
       kind: 'debug'
