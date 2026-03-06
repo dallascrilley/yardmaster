@@ -20,6 +20,7 @@ Or use `npm link` / `pnpm link` after `bun run build`.
 ```bash
 genie <prompt>
 genie run [options] <prompt>
+genie commit [options]
 genie debug [options]
 genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]
 genie review --json-schema
@@ -81,6 +82,15 @@ genie presets use <name>
 ```bash
 npm test 2>&1 | genie debug
 cat error.log | genie debug --provider claude --no-fallback
+```
+
+## Commit
+
+`genie commit` reads `git diff --staged`, generates a Conventional Commits message, and prints it to stdout for review. Add `--apply` to run `git commit -m "<message>"` against the staged changes immediately.
+
+```bash
+genie commit
+genie commit --apply --provider claude --no-fallback
 ```
 
 ## Update
@@ -187,6 +197,12 @@ genie run -p gemini -m gemini-2.0-flash "summarize this"
 
 # diagnose piped terminal output
 npm test 2>&1 | genie debug
+
+# generate a conventional commit message from staged changes
+genie commit
+
+# generate and apply the commit directly
+genie commit --apply
 
 # disable fallback for strict provider execution
 genie run --provider codex --no-fallback "generate release notes"
