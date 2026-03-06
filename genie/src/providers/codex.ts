@@ -5,6 +5,11 @@ import { join } from 'node:path'
 import { type CommandResult, type NormalizedRequest } from '../types.js'
 import { applyCodexMappedArgs } from './mapped-args.js'
 
+function resolveHomeDirectory(): string {
+  const envHome = process.env.HOME?.trim()
+  return envHome && envHome.length > 0 ? envHome : homedir()
+}
+
 function buildInvocation(request: NormalizedRequest) {
   const args = ['exec', request.prompt]
   applyCodexMappedArgs(args, request)
@@ -25,7 +30,7 @@ function parse(result: CommandResult) {
 }
 
 function hasCodexAuthToken(): boolean {
-  const authPath = join(homedir(), '.codex', 'auth.json')
+  const authPath = join(resolveHomeDirectory(), '.codex', 'auth.json')
   if (!existsSync(authPath)) {
     return false
   }

@@ -66,7 +66,7 @@ describe('fallback execution', () => {
       },
     ]
 
-    await expect(() =>
+    await expect(
       executeWithFallback({
         providers,
         order: ['claude'],
