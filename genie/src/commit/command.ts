@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { RuntimeProviderError, UsageError } from '../errors.js'
 
 const GIT_MAX_BUFFER_BYTES = 20 * 1024 * 1024
+const CONVENTIONAL_HEADER_RE = /^[a-z]+(?:\([^)]+\))?!?:\s.+$/
 
 export type GitReadFn = (args: string[]) => string
 export type GitExecFn = (args: string[]) => void
@@ -80,14 +81,25 @@ export function normalizeCommitMessage(raw: string): string {
     throw new UsageError('Provider returned an empty commit message.')
   }
 
-  return withoutFence
+  const firstLine = withoutFence.split(/\r?\n/, 1)[0]?.trim() ?? ''
+  if (!CONVENTIONAL_HEADER_RE.test(firstLine)) {
+    throw new UsageError('Provider returned a non-Conventional-Commit message.')
+  }
+
+  return firstLine
 }
 
 export function applyCommitMessage(message: string, gitExec: GitExecFn = defaultGitExec): void {
   try {
     gitExec(['commit', '-m', message])
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
+    const stderr = typeof error === 'object' && error !== null && 'stderr' in error ? error.stderr : undefined
+    const reason =
+      typeof stderr === 'string' && stderr.trim()
+        ? stderr.trim()
+        : error instanceof Error
+          ? error.message
+          : String(error)
     throw new RuntimeProviderError(`Failed to create git commit: ${reason}`)
   }
 }

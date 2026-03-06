@@ -52,7 +52,7 @@ As a fast-moving developer, I want the CLI to generate the commit message and au
 
 ### Contract & Operational Requirements *(mandatory for runtime or CLI changes)*
 
-- **CR-001**: New subcommand `commit` will be added to the CLI schema. Stdout will contain the commit message or an error if no files are staged.
+- **CR-001**: New subcommand `commit` will be added to the CLI schema. Successful commit messages are written to stdout, while errors such as "no files staged" and provider failures are written to stderr.
 - **CR-002**: Exit code 0 for success. Exit code 1 if no files are staged or the provider fails.
 - **CR-003**: No provider execution change. Leverages the standard fallback chain and timeout logic.
 - **CR-004**: Add unit tests for the prompt generation and integration tests validating the `--apply` flag behavior against a mock git repository.
