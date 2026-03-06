@@ -18,6 +18,8 @@ Use this checklist before cutting a release tag for `genie`.
   - `genie run --json "test prompt"`
   - `genie providers list --json`
   - `genie providers doctor --json`
+- [ ] JSON envelopes and schema output remain backward compatible, or the release
+  explicitly documents an approved breaking change.
 - [ ] Plain mode returns response text only:
   - `genie run --plain "test prompt"`
 - [ ] Output channel contract holds:
