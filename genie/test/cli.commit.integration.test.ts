@@ -141,4 +141,40 @@ describe('cli commit integration', () => {
     expect(execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: repoDir, encoding: 'utf8' }).trim()).toBe('')
     expect(readFileSync(join(repoDir, 'src/example.ts'), 'utf8')).toContain('value = 2')
   })
+
+  it('uses --workspace for both staged diff lookup and commit application', () => {
+    const shellRepoDir = createTempDir('genie-commit-shell-repo')
+    const targetRepoDir = createTempDir('genie-commit-target-repo')
+    const binDir = createTempDir('genie-commit-bin')
+    const homeDir = createTempDir('genie-commit-home')
+    tempDirs.push(shellRepoDir, targetRepoDir, binDir, homeDir)
+    initGitRepo(shellRepoDir)
+    initGitRepo(targetRepoDir)
+    writeMockClaudeBinary(binDir)
+    stageFile(targetRepoDir, 'src/target.ts', 'export const scoped = true\n')
+
+    const cliPath = new URL('../src/bin/genie.ts', import.meta.url).pathname
+    const result = spawnSync(
+      'bun',
+      [cliPath, 'commit', '--apply', '--workspace', targetRepoDir, '--provider', 'claude', '--no-fallback'],
+      {
+        cwd: shellRepoDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      },
+    )
+
+    expect(result.status).toBe(0)
+    expect(execFileSync('git', ['rev-list', '--count', '--all'], { cwd: shellRepoDir, encoding: 'utf8' }).trim()).toBe('0')
+    expect(execFileSync('git', ['log', '-1', '--pretty=%s'], { cwd: targetRepoDir, encoding: 'utf8' }).trim()).toBe(
+      'feat(cli): add generated commit command',
+    )
+    expect(
+      execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: targetRepoDir, encoding: 'utf8' }).trim(),
+    ).toBe('')
+  })
 })

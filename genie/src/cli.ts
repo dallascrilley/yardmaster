@@ -23,7 +23,14 @@ import {
 } from './review/command.js'
 import { formatUpdateResult, runUpdateCommand } from './update/command.js'
 import { buildDebugPrompt, readDebugInput } from './debug/command.js'
-import { applyCommitMessage, buildCommitPrompt, normalizeCommitMessage, readStagedDiff } from './commit/command.js'
+import {
+  applyCommitMessage,
+  buildCommitPrompt,
+  createGitExec,
+  createGitRead,
+  normalizeCommitMessage,
+  readStagedDiff,
+} from './commit/command.js'
 import {
   runRequest,
   toErrorEnvelope,
@@ -349,7 +356,9 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
 
     const effectiveOptions = mergeRunOptionsWithPreset(parsed.options, preset)
     const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
-    const diff = readStagedDiff()
+    const gitRead = createGitRead({ cwd: workspace })
+    const gitExec = createGitExec({ cwd: workspace })
+    const diff = readStagedDiff(gitRead)
     const result = await runRequest({
       input: {
         prompt: buildCommitPrompt(diff),
@@ -371,7 +380,7 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
 
     const message = normalizeCommitMessage(result.response)
     if (parsed.options.apply) {
-      applyCommitMessage(message)
+      applyCommitMessage(message, gitExec)
     }
 
     writeLine(message)
