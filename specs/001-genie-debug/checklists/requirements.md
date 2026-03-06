@@ -32,4 +32,5 @@
 ## Notes
 
 - Validated in one pass against the specification quality criteria.
+- Contract notes updated after implementation review so the spec now reflects shipped `--input-file` and `--json` behavior.
 - No clarification blockers remain; the spec is ready for `/speckit.plan`.
