@@ -27,8 +27,11 @@ export function parseMode(value: string, flag: string): (typeof modeIds)[number]
 
 export function isStrictCommandsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const value = env.GENIE_STRICT_COMMANDS?.trim().toLowerCase()
-  if (!value) return false
-  return value === '1' || value === 'true' || value === 'yes' || value === 'on'
+  if (!value) return true
+  if (value === '0' || value === 'false' || value === 'no' || value === 'off') {
+    return false
+  }
+  return true
 }
 
 export function parseListValue(value: string): string[] {

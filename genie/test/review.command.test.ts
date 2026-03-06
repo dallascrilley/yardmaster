@@ -354,6 +354,7 @@ describe('review command', () => {
     expect(toReviewJsonEnvelope(execution)).toEqual({
       kind: 'review_result',
       version: 1,
+      ok: false,
       mode: 'all',
       targets: ['codex', 'claude'],
       source: 'git diff main...HEAD',
@@ -393,6 +394,7 @@ describe('review command', () => {
         },
       ],
       exitCode: 1,
+      error: null,
     })
   })
 

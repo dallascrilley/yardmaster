@@ -1,7 +1,9 @@
+import { existsSync } from 'node:fs'
+
 import { UsageError } from '../errors.js'
 import { modeIds, providerIds, type ProviderId } from '../types.js'
 import { defaultConfig, genieConfigSchema, type GenieConfig } from './schema.js'
-import { initUserConfig, loadConfig, resolveProjectConfigPath, resolveUserConfigPath, updateConfig } from './store.js'
+import { initUserConfig, loadConfig, loadUserConfig, resolveProjectConfigPath, resolveUserConfigPath, updateConfig } from './store.js'
 
 const configKeys = [
   'provider.default',
@@ -102,6 +104,27 @@ function getByPath(config: GenieConfig, key?: string): unknown {
   return current
 }
 
+function applyConfigValue(current: GenieConfig, key: ConfigKey, parsed: unknown): GenieConfig {
+  const next: GenieConfig = structuredClone(current)
+  const segments = key.split('.')
+  let target: Record<string, unknown> = next as unknown as Record<string, unknown>
+
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index]
+    if (!target[segment] || typeof target[segment] !== 'object') {
+      target[segment] = {}
+    }
+    target = target[segment] as Record<string, unknown>
+  }
+
+  target[segments[segments.length - 1]] = parsed
+
+  return genieConfigSchema.parse({
+    ...defaultConfig,
+    ...next,
+  })
+}
+
 export async function configGet(key?: string): Promise<unknown> {
   if (key && !isConfigKey(key)) {
     throw new UsageError(`Unknown config key '${key}'`)
@@ -118,31 +141,33 @@ export async function configSet(key: string, value: string): Promise<GenieConfig
   const parsed = parseValueByKey(key, value)
 
   const updated = await updateConfig((current) => {
-    const next: GenieConfig = structuredClone(current)
-    const segments = key.split('.')
-    let target: Record<string, unknown> = next as unknown as Record<string, unknown>
-
-    for (let index = 0; index < segments.length - 1; index += 1) {
-      const segment = segments[index]
-      if (!target[segment] || typeof target[segment] !== 'object') {
-        target[segment] = {}
-      }
-      target = target[segment] as Record<string, unknown>
-    }
-
-    target[segments[segments.length - 1]] = parsed
-
-    return genieConfigSchema.parse({
-      ...defaultConfig,
-      ...next,
-    })
+    return applyConfigValue(current, key, parsed)
   })
 
   return updated
 }
 
+export async function previewConfigSet(key: string, value: string): Promise<GenieConfig> {
+  if (!isConfigKey(key)) {
+    throw new UsageError(`Unknown config key '${key}'`)
+  }
+
+  const parsed = parseValueByKey(key, value)
+  const current = await loadUserConfig()
+  return applyConfigValue(current, key, parsed)
+}
+
 export async function configInit(): Promise<GenieConfig> {
   return initUserConfig()
+}
+
+export async function previewConfigInit(): Promise<{ path: string; exists: boolean; config: GenieConfig }> {
+  const path = resolveUserConfigPath()
+  return {
+    path,
+    exists: existsSync(path),
+    config: await loadUserConfig(),
+  }
 }
 
 export function configPath(): { user: string; project: string } {
