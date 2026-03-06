@@ -139,6 +139,31 @@ describe('review command', () => {
     }
   })
 
+  it('bypasses GitService diff resolution when --diff-file is provided', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'genie-review-diff-file-'))
+    const diffFile = join(tempDir, 'manual.diff')
+    writeFileSync(diffFile, ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const x = 1'].join('\n'), 'utf8')
+
+    const gitService: GitService = {
+      read: () => '',
+      resolveContext: () => ({ branch: null, head: null }),
+      resolveDiffSource: () => {
+        throw new Error('should not be called for --diff-file')
+      },
+    }
+
+    try {
+      const result = resolveReviewDiffSource({
+        diffFile,
+        gitService,
+      })
+      expect(result.source).toBe(`file:${diffFile}`)
+      expect(result.text).toContain('diff --git')
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
   it('falls back to committed branch diff when git diff HEAD is empty', () => {
     const calls: string[] = []
     const result = resolveReviewDiffSource({
