@@ -16,6 +16,7 @@ import {
   toReviewJsonEnvelope,
   type ReviewExecutionResult,
 } from '../src/review/command.js'
+import type { GitService } from '../src/review/git-service.js'
 
 describe('review command', () => {
   it('validates target selection', () => {
@@ -93,6 +94,31 @@ describe('review command', () => {
     }
   })
 
+  it('supports injecting a GitService for isolated review execution tests', async () => {
+    const gitService: GitService = {
+      read: () => '',
+      resolveContext: () => ({ branch: 'test-branch', head: 'abc1234' }),
+      resolveDiffSource: () => ({
+        source: 'git diff HEAD',
+        text: ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const isolated = true'].join('\n'),
+      }),
+    }
+
+    const result = await executeReviewCommand({
+      all: false,
+      agent: 'codex',
+      config: defaultConfig,
+      gitService,
+      requestRunner: async () => ({
+        response: 'ok',
+      }),
+    })
+
+    expect(result.source).toBe('git diff HEAD')
+    expect(result.git).toEqual({ branch: 'test-branch', head: 'abc1234' })
+    expect(result.summary).toEqual({ total: 1, succeeded: 1, failed: 0 })
+  })
+
   it('fails on empty diff file', async () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'genie-review-empty-'))
     const diffFile = join(tempDir, 'empty.diff')
@@ -108,6 +134,31 @@ describe('review command', () => {
           requestRunner: async () => ({ response: 'unused' }),
         }),
       ).rejects.toBeInstanceOf(UsageError)
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('bypasses GitService diff resolution when --diff-file is provided', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'genie-review-diff-file-'))
+    const diffFile = join(tempDir, 'manual.diff')
+    writeFileSync(diffFile, ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const x = 1'].join('\n'), 'utf8')
+
+    const gitService: GitService = {
+      read: () => '',
+      resolveContext: () => ({ branch: null, head: null }),
+      resolveDiffSource: () => {
+        throw new Error('should not be called for --diff-file')
+      },
+    }
+
+    try {
+      const result = resolveReviewDiffSource({
+        diffFile,
+        gitService,
+      })
+      expect(result.source).toBe(`file:${diffFile}`)
+      expect(result.text).toContain('diff --git')
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
     }

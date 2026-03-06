@@ -1,15 +1,14 @@
-import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 import { UsageError } from '../errors.js'
 import { type GenieConfig } from '../config/schema.js'
 import { runRequest, type RunRequestInput } from '../execution/run-request.js'
 import { type ProviderId } from '../types.js'
+import { createGitService, type GitReadFn, type GitService } from './git-service.js'
 
 export const reviewAgentIds = ['codex', 'claude', 'gemini', 'cursor'] as const
 export type ReviewAgentId = (typeof reviewAgentIds)[number]
 const REVIEW_TIMEOUT_MS = 120_000
-const GIT_MAX_BUFFER_BYTES = 20 * 1024 * 1024
 
 export type ReviewDiffStats = {
   files: number
@@ -88,6 +87,7 @@ export type ExecuteReviewCommandParams = {
     response: string
     model?: string
   }>
+  gitService?: GitService
 }
 
 export function parseReviewAgent(value: string): ReviewAgentId {
@@ -287,108 +287,21 @@ function buildReviewPrompt(diffText: string): string {
   ].join('\n')
 }
 
-type GitReadFn = (args: string[]) => string
 type FileReadFn = (path: string, encoding: BufferEncoding) => string
-
-function defaultGitRead(args: string[]): string {
-  return execFileSync('git', args, {
-    encoding: 'utf8',
-    maxBuffer: GIT_MAX_BUFFER_BYTES,
-  })
-}
 
 function defaultFileRead(path: string, encoding: BufferEncoding): string {
   return readFileSync(path, encoding)
-}
-
-type GitReadResult =
-  | { ok: true; text: string }
-  | { ok: false; error: string }
-
-function safeGitRead(gitRead: GitReadFn, args: string[]): GitReadResult {
-  try {
-    return { ok: true, text: gitRead(args) }
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    return { ok: false, error: reason }
-  }
-}
-
-function resolveGitContext(gitRead: GitReadFn): { branch: string | null; head: string | null } {
-  const branchResult = safeGitRead(gitRead, ['rev-parse', '--abbrev-ref', 'HEAD'])
-  const headResult = safeGitRead(gitRead, ['rev-parse', '--short', 'HEAD'])
-  const branch = branchResult.ok ? branchResult.text.trim() || null : null
-  const head = headResult.ok ? headResult.text.trim() || null : null
-  return { branch, head }
-}
-
-function buildBaseRefCandidates(gitRead: GitReadFn): string[] {
-  const candidates: string[] = []
-  const upstream = safeGitRead(gitRead, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])
-  if (upstream.ok && upstream.text.trim()) {
-    candidates.push(upstream.text.trim())
-  }
-
-  candidates.push('main', 'master', 'origin/main', 'origin/master')
-
-  const originHead = safeGitRead(gitRead, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
-  if (originHead.ok && originHead.text.trim()) {
-    candidates.push(originHead.text.trim())
-  }
-
-  return [...new Set(candidates)]
-}
-
-function isUnbornHeadError(message: string): boolean {
-  return /unknown revision or path not in the working tree|bad revision 'HEAD'|ambiguous argument 'HEAD'|not a valid object name HEAD/i.test(
-    message,
-  )
-}
-
-function loadHeadDiffWithUnbornFallback(gitRead: GitReadFn): { source: string; text: string } {
-  const againstHead = safeGitRead(gitRead, ['diff', '--no-color', 'HEAD'])
-  if (againstHead.ok) {
-    return { source: 'git diff HEAD', text: againstHead.text }
-  }
-
-  if (!isUnbornHeadError(againstHead.error)) {
-    throw new UsageError(`Failed to read git diff HEAD: ${againstHead.error}`)
-  }
-
-  const cached = safeGitRead(gitRead, ['diff', '--no-color', '--cached'])
-  const working = safeGitRead(gitRead, ['diff', '--no-color'])
-
-  const parts: string[] = []
-  if (cached.ok && cached.text.trim()) parts.push(cached.text)
-  if (working.ok && working.text.trim()) parts.push(working.text)
-
-  if (parts.length > 0) {
-    return {
-      source: 'git diff --cached + git diff',
-      text: parts.join('\n'),
-    }
-  }
-
-  if (!cached.ok && !working.ok) {
-    throw new UsageError(
-      `Failed to read git diff for repository without commits. cached: ${cached.error}. working: ${working.error}`,
-    )
-  }
-
-  return {
-    source: 'git diff --cached + git diff',
-    text: '',
-  }
 }
 
 export function resolveReviewDiffSource(params?: {
   diffFile?: string
   staged?: boolean
   base?: string
+  gitService?: GitService
   gitRead?: GitReadFn
   fileRead?: FileReadFn
 }): { source: string; text: string } {
-  const gitRead = params?.gitRead ?? defaultGitRead
+  const gitService = params?.gitService ?? createGitService({ gitRead: params?.gitRead })
   const fileRead = params?.fileRead ?? defaultFileRead
 
   if (params?.diffFile) {
@@ -402,77 +315,14 @@ export function resolveReviewDiffSource(params?: {
   }
 
   if (params?.staged) {
-    const stagedDiff = safeGitRead(gitRead, ['diff', '--no-color', '--cached'])
-    if (!stagedDiff.ok) {
-      throw new UsageError(`Failed to read git diff --cached: ${stagedDiff.error}`)
-    }
-    return {
-      source: 'git diff --cached',
-      text: stagedDiff.text,
-    }
+    return gitService.resolveDiffSource({ staged: true })
   }
 
   if (params?.base) {
-    const mergeBaseResult = safeGitRead(gitRead, ['merge-base', 'HEAD', params.base])
-    if (!mergeBaseResult.ok) {
-      throw new UsageError(`Failed to resolve --base '${params.base}': ${mergeBaseResult.error}`)
-    }
-
-    const mergeBase = mergeBaseResult.text.trim()
-    if (!mergeBase) {
-      throw new UsageError(`Failed to resolve --base '${params.base}': empty merge-base`)
-    }
-
-    const baseDiff = safeGitRead(gitRead, ['diff', '--no-color', `${mergeBase}...HEAD`])
-    if (!baseDiff.ok) {
-      throw new UsageError(`Failed to read diff for --base '${params.base}': ${baseDiff.error}`)
-    }
-
-    return {
-      source: `git diff ${params.base}...HEAD`,
-      text: baseDiff.text,
-    }
+    return gitService.resolveDiffSource({ base: params.base })
   }
 
-  const dirtyOrStaged = loadHeadDiffWithUnbornFallback(gitRead)
-  if (dirtyOrStaged.text.trim()) {
-    return dirtyOrStaged
-  }
-
-  const candidateErrors: string[] = []
-  let successfulCandidateReads = 0
-  for (const baseRef of buildBaseRefCandidates(gitRead)) {
-    const mergeBaseResult = safeGitRead(gitRead, ['merge-base', 'HEAD', baseRef])
-    if (!mergeBaseResult.ok) {
-      candidateErrors.push(`${baseRef}: ${mergeBaseResult.error}`)
-      continue
-    }
-
-    const mergeBase = mergeBaseResult.text.trim()
-    if (!mergeBase) continue
-
-    const branchDiffResult = safeGitRead(gitRead, ['diff', '--no-color', `${mergeBase}...HEAD`])
-    if (!branchDiffResult.ok) {
-      candidateErrors.push(`${baseRef}: ${branchDiffResult.error}`)
-      continue
-    }
-    successfulCandidateReads += 1
-
-    if (branchDiffResult.text.trim()) {
-      return {
-        source: `git diff ${baseRef}...HEAD`,
-        text: branchDiffResult.text,
-      }
-    }
-  }
-
-  if (successfulCandidateReads === 0 && candidateErrors.length > 0) {
-    throw new UsageError(
-      `Failed to resolve base branch diff candidates:\n- ${candidateErrors.slice(0, 4).join('\n- ')}`,
-    )
-  }
-
-  return dirtyOrStaged
+  return gitService.resolveDiffSource()
 }
 
 function ensureNonEmptyDiff(text: string): string {
@@ -537,14 +387,16 @@ async function runReviewForAgent(params: {
 
 export async function executeReviewCommand(params: ExecuteReviewCommandParams): Promise<ReviewExecutionResult> {
   const agents = resolveReviewTargets(params.all, params.agent)
+  const gitService = params.gitService ?? createGitService()
   const diff = resolveReviewDiffSource({
     diffFile: params.diffFile,
     staged: params.staged,
     base: params.base,
+    gitService,
   })
   const diffText = ensureNonEmptyDiff(diff.text)
   const prompt = buildReviewPrompt(diffText)
-  const git = resolveGitContext(defaultGitRead)
+  const git = gitService.resolveContext()
   const runner = params.requestRunner ?? ((requestParams: { input: RunRequestInput; config: GenieConfig }) =>
     runRequest({
       ...requestParams,
