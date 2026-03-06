@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { toCliJsonErrorEnvelope, toCliJsonSuccessEnvelope } from '../src/cli/json.js'
 import { toErrorEnvelope, toResponseEnvelope } from '../src/execution/run-request.js'
 
 describe('output contract', () => {
@@ -40,6 +41,30 @@ describe('output contract', () => {
       error: {
         code: '124',
         message: 'Timed out',
+      },
+    })
+  })
+
+  it('adds shared cli json metadata to success payloads', () => {
+    expect(toCliJsonSuccessEnvelope('providers_list', { providers: [{ id: 'codex' }] })).toEqual({
+      kind: 'providers_list',
+      version: 1,
+      ok: true,
+      providers: [{ id: 'codex' }],
+      exitCode: 0,
+      error: null,
+    })
+  })
+
+  it('builds shared cli json error envelopes', () => {
+    expect(toCliJsonErrorEnvelope(2, { code: '2', message: 'bad args' })).toEqual({
+      kind: 'error',
+      version: 1,
+      ok: false,
+      exitCode: 2,
+      error: {
+        code: '2',
+        message: 'bad args',
       },
     })
   })

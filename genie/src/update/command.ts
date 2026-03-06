@@ -8,6 +8,7 @@ type UpdateStep = 'build' | 'link'
 
 export type UpdateResult = {
   ok: boolean
+  dryRun?: boolean
   packageRoot: string
   steps: Array<{
     step: UpdateStep
@@ -41,6 +42,15 @@ export function resolveCliPackageRoot(moduleUrl: string = import.meta.url): stri
 }
 
 export function formatUpdateResult(result: UpdateResult): string {
+  if (result.dryRun) {
+    return [
+      'dryRun: true',
+      `packageRoot: ${result.packageRoot}`,
+      'plannedSteps:',
+      ...result.steps.map((step) => `- ${step.step}`),
+    ].join('\n')
+  }
+
   if (result.ok) {
     return [
       `updated: true`,
@@ -57,6 +67,19 @@ export function formatUpdateResult(result: UpdateResult): string {
     failed ? `failedStep: ${failed.step}` : 'failedStep: unknown',
     failed?.stderr ? `error: ${failed.stderr}` : 'error: update command failed',
   ].join('\n')
+}
+
+export function previewUpdateCommand(params?: { packageRoot?: string }): UpdateResult {
+  const packageRoot = params?.packageRoot ?? resolveCliPackageRoot()
+  return {
+    ok: true,
+    dryRun: true,
+    packageRoot,
+    steps: [
+      { step: 'build', ok: true, code: 0, stderr: '' },
+      { step: 'link', ok: true, code: 0, stderr: '' },
+    ],
+  }
 }
 
 export function runUpdateCommand(params?: { packageRoot?: string; runCommand?: RunCommandFn }): UpdateResult {

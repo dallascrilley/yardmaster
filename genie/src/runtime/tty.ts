@@ -7,8 +7,8 @@ export type RuntimeState = {
   colorEnabled: boolean
 }
 
-export function isInteractiveSession(): boolean {
-  return process.stdout.isTTY === true && process.stdin.isTTY === true && process.env.CI !== 'true'
+export function isInteractiveSession(forceNonInteractive = false): boolean {
+  return forceNonInteractive !== true && process.stdout.isTTY === true && process.stdin.isTTY === true && process.env.CI !== 'true'
 }
 
 export function parseExplicitFormat(argv: string[]): string | undefined {
@@ -43,8 +43,10 @@ export function resolveRuntimeState(params: {
   explicitOutput: CliOutputMode | undefined
   explicitFormat: string | undefined
   argv?: string[]
+  forceNonInteractive?: boolean
+  disableColor?: boolean
 }): RuntimeState {
-  const interactive = isInteractiveSession()
+  const interactive = isInteractiveSession(params.forceNonInteractive)
   const outputMode = params.explicitOutput ?? params.configOutput
   const parsedFormat = parseExplicitFormat(params.argv ?? process.argv.slice(2))
   const explicitFormat = params.explicitFormat ?? parsedFormat
@@ -57,6 +59,6 @@ export function resolveRuntimeState(params: {
       explicitFormat,
     }),
     interactive,
-    colorEnabled: process.env.NO_COLOR === undefined && process.env.TERM !== 'dumb',
+    colorEnabled: params.disableColor !== true && process.env.NO_COLOR === undefined && process.env.TERM !== 'dumb',
   }
 }

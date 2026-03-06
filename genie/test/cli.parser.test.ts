@@ -8,18 +8,25 @@ describe('cli parser', () => {
       { argv: ['run', 'hello'], kind: 'run' },
       { argv: ['commit'], kind: 'commit' },
       { argv: ['commit', '--apply'], kind: 'commit' },
+      { argv: ['run', '--prompt-file', 'prompt.txt'], kind: 'run' },
       { argv: ['debug', '--provider', 'codex'], kind: 'debug' },
+      { argv: ['debug', '--input-file', 'error.log'], kind: 'debug' },
       { argv: ['wish', 'hello'], kind: 'run' },
       { argv: ['rub', 'hello'], kind: 'run' },
       { argv: ['providers', 'list'], kind: 'providers-list' },
       { argv: ['providers', 'doctor', '--provider', 'codex'], kind: 'providers-doctor' },
+      { argv: ['completion', 'bash'], kind: 'completion' },
       { argv: ['config', 'path'], kind: 'config-path' },
       { argv: ['config', 'init'], kind: 'config-init' },
+      { argv: ['config', 'init', '--dry-run'], kind: 'config-init' },
       { argv: ['presets', 'set', 'nightly', '--mode', 'default'], kind: 'presets-set' },
+      { argv: ['presets', 'delete', 'nightly', '--force'], kind: 'presets-delete' },
       { argv: ['presets', 'use', 'nightly'], kind: 'presets-use' },
+      { argv: ['update', '--dry-run'], kind: 'update' },
       { argv: ['review', '--json-schema'], kind: 'review' },
       { argv: ['help', 'commit'], kind: 'help', topic: 'commit' },
       { argv: ['help', 'debug'], kind: 'help', topic: 'debug' },
+      { argv: ['help', 'completion'], kind: 'help', topic: 'completion' },
       { argv: ['help', 'providers'], kind: 'help', topic: 'providers' },
       { argv: ['--version'], kind: 'version' },
       { argv: ['--json', 'wish', 'hello'], kind: 'run' },
@@ -62,7 +69,6 @@ describe('cli parser', () => {
       { argv: ['debug', '--timeout-ms', '0'], message: 'Invalid value for --timeout-ms' },
       { argv: ['commit', '--timeout-ms', '0'], message: 'Invalid value for --timeout-ms' },
       { argv: ['commit', '--json'], message: '--json is not supported for genie commit' },
-      { argv: ['debug', '--json'], message: '--json is not supported for genie debug' },
       {
         argv: ['debug', 'TypeError'],
         message: "Unexpected positional argument 'TypeError'. Pipe terminal output into genie debug instead.",
@@ -73,7 +79,11 @@ describe('cli parser', () => {
       },
       { argv: ['providers', 'doctor', '--provider'], message: 'Missing value for --provider' },
       { argv: ['config', 'set', 'mode.default'], message: 'Usage: genie config set <key> <value>' },
+      { argv: ['run', '--prompt-file', 'prompt.txt', 'hello'], message: '--prompt-file cannot be used with positional prompt text' },
       { argv: ['presets', 'set'], message: 'Usage: genie presets set <name>' },
+      { argv: ['config', 'get', '--dry-run'], message: "Unknown config argument '--dry-run'" },
+      { argv: ['presets', 'list', '--dry-run'], message: "Unknown presets argument '--dry-run'" },
+      { argv: ['completion', 'powershell'], message: "Unknown completion argument 'powershell'" },
       { argv: ['help', 'unknown-topic'], message: "Unknown help topic 'unknown-topic'" },
     ]
 
@@ -87,6 +97,13 @@ describe('cli parser', () => {
     expect(parsed.kind).toBe('run')
     if (parsed.kind !== 'run') throw new Error('expected run')
     expect(parsed.prompt).toBe('hello world')
+  })
+
+  it('parses multi-token shorthand prompt invocation', () => {
+    const parsed = parseArgv(['explain', 'recursion'])
+    expect(parsed.kind).toBe('run')
+    if (parsed.kind !== 'run') throw new Error('expected run')
+    expect(parsed.prompt).toBe('explain recursion')
   })
 
   it('parses explicit run invocation with run flags', () => {
@@ -123,18 +140,24 @@ describe('cli parser', () => {
     )
   })
 
-  it('treats unknown single token as shorthand prompt', () => {
-    const parsed = parseArgv(['gleep'])
+  it('parses run prompt-file input without positional prompt text', () => {
+    const parsed = parseArgv(['run', '--provider', 'codex', '--prompt-file', 'prompt.txt'])
     expect(parsed.kind).toBe('run')
     if (parsed.kind !== 'run') throw new Error('expected run')
-    expect(parsed.prompt).toBe('gleep')
+    expect(parsed.options.promptFile).toBe('prompt.txt')
+    expect(parsed.prompt).toBeUndefined()
   })
 
-  it('rejects unknown root command when strict mode is enabled', () => {
+  it('treats unknown single token as shorthand prompt only when strict mode is disabled', () => {
+    expect(() => parseArgv(['gleep'])).toThrow("Unknown command 'gleep'. Use 'genie help' for usage.")
+
     const previous = process.env.GENIE_STRICT_COMMANDS
-    process.env.GENIE_STRICT_COMMANDS = '1'
+    process.env.GENIE_STRICT_COMMANDS = '0'
     try {
-      expect(() => parseArgv(['gleep'])).toThrow("Unknown command 'gleep'. Use 'genie help' for usage.")
+      const legacy = parseArgv(['gleep'])
+      expect(legacy.kind).toBe('run')
+      if (legacy.kind !== 'run') throw new Error('expected run')
+      expect(legacy.prompt).toBe('gleep')
     } finally {
       if (previous === undefined) {
         delete process.env.GENIE_STRICT_COMMANDS
@@ -144,11 +167,19 @@ describe('cli parser', () => {
     }
   })
 
-  it('rejects unknown root command when strict mode is enabled with leading global flags', () => {
+  it('rejects unknown single token with leading global flags by default', () => {
+    expect(() => parseArgv(['--json', 'gleep'])).toThrow("Unknown command 'gleep'. Use 'genie help' for usage.")
+  })
+
+  it('allows unknown single token with leading global flags when strict mode is disabled', () => {
     const previous = process.env.GENIE_STRICT_COMMANDS
-    process.env.GENIE_STRICT_COMMANDS = '1'
+    process.env.GENIE_STRICT_COMMANDS = 'off'
     try {
-      expect(() => parseArgv(['--json', 'gleep'])).toThrow("Unknown command 'gleep'. Use 'genie help' for usage.")
+      const parsed = parseArgv(['--json', 'gleep'])
+      expect(parsed.kind).toBe('run')
+      if (parsed.kind !== 'run') throw new Error('expected run')
+      expect(parsed.globals.json).toBe(true)
+      expect(parsed.prompt).toBe('gleep')
     } finally {
       if (previous === undefined) {
         delete process.env.GENIE_STRICT_COMMANDS
@@ -156,10 +187,30 @@ describe('cli parser', () => {
         process.env.GENIE_STRICT_COMMANDS = previous
       }
     }
+  })
+
+  it('rejects unknown root token when shorthand looks like a mistyped command with flags', () => {
+    expect(() => parseArgv(['reviw', '--all'])).toThrow("Unknown command 'reviw'. Use 'genie help' for usage.")
+  })
+
+  it('rejects unknown multi-token input when it looks like a mistyped command', () => {
+    expect(() => parseArgv(['reviw', 'all'])).toThrow("Unknown command 'reviw'. Use 'genie help' for usage.")
+  })
+
+  it('preserves multi-token prompt shorthand by default', () => {
+    const parsed = parseArgv(['explain', 'arrays'])
+    expect(parsed.kind).toBe('run')
+    if (parsed.kind !== 'run') throw new Error('expected run')
+    expect(parsed.prompt).toBe('explain arrays')
   })
 
   it('parses providers and config command trees', () => {
     expect(parseArgv(['update']).kind).toBe('update')
+    const updateDryRun = parseArgv(['update', '--dry-run', '--force'])
+    expect(updateDryRun.kind).toBe('update')
+    if (updateDryRun.kind !== 'update') throw new Error('expected update')
+    expect(updateDryRun.safety.dryRun).toBe(true)
+    expect(updateDryRun.safety.force).toBe(true)
     expect(parseArgv(['commit']).kind).toBe('commit')
     const commitApply = parseArgv(['commit', '--apply', '--provider', 'gemini'])
     expect(commitApply.kind).toBe('commit')
@@ -171,6 +222,14 @@ describe('cli parser', () => {
     expect(debugProvider.kind).toBe('debug')
     if (debugProvider.kind !== 'debug') throw new Error('expected debug')
     expect(debugProvider.options.provider).toBe('gemini')
+    const debugJson = parseArgv(['debug', '--json'])
+    expect(debugJson.kind).toBe('debug')
+    if (debugJson.kind !== 'debug') throw new Error('expected debug')
+    expect(debugJson.globals.json).toBe(true)
+    const debugFile = parseArgv(['debug', '--input-file', 'error.log'])
+    expect(debugFile.kind).toBe('debug')
+    if (debugFile.kind !== 'debug') throw new Error('expected debug')
+    expect(debugFile.options.inputFile).toBe('error.log')
 
     expect(parseArgv(['review', '--all']).kind).toBe('review')
     const reviewStaged = parseArgv(['review', '--all', '--staged'])
@@ -195,14 +254,30 @@ describe('cli parser', () => {
     expect(reviewAlias.options.agent).toBe('cursor')
 
     expect(parseArgv(['providers', 'list', '--json']).kind).toBe('providers-list')
+    const completion = parseArgv(['completion', 'zsh'])
+    expect(completion.kind).toBe('completion')
+    if (completion.kind !== 'completion') throw new Error('expected completion')
+    expect(completion.shell).toBe('zsh')
     expect(parseArgv(['providers', 'doctor', '--provider', 'gemini']).kind).toBe('providers-doctor')
     expect(parseArgv(['config', 'get']).kind).toBe('config-get')
-    expect(parseArgv(['config', 'set', 'mode.default', 'fast']).kind).toBe('config-set')
+    const configSet = parseArgv(['config', 'set', 'mode.default', 'fast', '--dry-run'])
+    expect(configSet.kind).toBe('config-set')
+    if (configSet.kind !== 'config-set') throw new Error('expected config-set')
+    expect(configSet.safety.dryRun).toBe(true)
     expect(parseArgv(['presets', 'list']).kind).toBe('presets-list')
     expect(parseArgv(['presets', 'get', 'default']).kind).toBe('presets-get')
-    expect(parseArgv(['presets', 'set', 'default', '--provider', 'codex']).kind).toBe('presets-set')
-    expect(parseArgv(['presets', 'delete', 'default']).kind).toBe('presets-delete')
-    expect(parseArgv(['presets', 'use', 'default']).kind).toBe('presets-use')
+    const presetsSet = parseArgv(['presets', 'set', 'default', '--provider', 'codex', '--dry-run'])
+    expect(presetsSet.kind).toBe('presets-set')
+    if (presetsSet.kind !== 'presets-set') throw new Error('expected presets-set')
+    expect(presetsSet.safety.dryRun).toBe(true)
+    const presetsDelete = parseArgv(['presets', 'delete', 'default', '--force'])
+    expect(presetsDelete.kind).toBe('presets-delete')
+    if (presetsDelete.kind !== 'presets-delete') throw new Error('expected presets-delete')
+    expect(presetsDelete.safety.force).toBe(true)
+    const presetsUse = parseArgv(['presets', 'use', 'default', '--dry-run'])
+    expect(presetsUse.kind).toBe('presets-use')
+    if (presetsUse.kind !== 'presets-use') throw new Error('expected presets-use')
+    expect(presetsUse.safety.dryRun).toBe(true)
   })
 
   it('rejects conflicting explicit review diff-source flags', () => {
