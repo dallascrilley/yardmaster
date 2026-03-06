@@ -6,20 +6,35 @@ const GIT_MAX_BUFFER_BYTES = 20 * 1024 * 1024
 
 export type GitReadFn = (args: string[]) => string
 export type GitExecFn = (args: string[]) => void
+export type GitWorkspaceOptions = {
+  cwd?: string
+}
+
+export function createGitRead(options?: GitWorkspaceOptions): GitReadFn {
+  return (args: string[]) =>
+    execFileSync('git', args, {
+      cwd: options?.cwd,
+      encoding: 'utf8',
+      maxBuffer: GIT_MAX_BUFFER_BYTES,
+    })
+}
+
+export function createGitExec(options?: GitWorkspaceOptions): GitExecFn {
+  return (args: string[]) =>
+    execFileSync('git', args, {
+      cwd: options?.cwd,
+      encoding: 'utf8',
+      maxBuffer: GIT_MAX_BUFFER_BYTES,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+}
 
 export function defaultGitRead(args: string[]): string {
-  return execFileSync('git', args, {
-    encoding: 'utf8',
-    maxBuffer: GIT_MAX_BUFFER_BYTES,
-  })
+  return createGitRead()(args)
 }
 
 export function defaultGitExec(args: string[]): void {
-  execFileSync('git', args, {
-    encoding: 'utf8',
-    maxBuffer: GIT_MAX_BUFFER_BYTES,
-    stdio: ['ignore', 'ignore', 'pipe'],
-  })
+  createGitExec()(args)
 }
 
 export function readStagedDiff(gitRead: GitReadFn = defaultGitRead): string {
