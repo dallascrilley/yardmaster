@@ -6,6 +6,7 @@ describe('cli parser', () => {
   it('keeps parser command-kind behavior stable via table-driven cases', () => {
     const cases: Array<{ argv: string[]; kind: string; topic?: string }> = [
       { argv: ['run', 'hello'], kind: 'run' },
+      { argv: ['debug', '--provider', 'codex'], kind: 'debug' },
       { argv: ['wish', 'hello'], kind: 'run' },
       { argv: ['rub', 'hello'], kind: 'run' },
       { argv: ['providers', 'list'], kind: 'providers-list' },
@@ -15,6 +16,7 @@ describe('cli parser', () => {
       { argv: ['presets', 'set', 'nightly', '--mode', 'default'], kind: 'presets-set' },
       { argv: ['presets', 'use', 'nightly'], kind: 'presets-use' },
       { argv: ['review', '--json-schema'], kind: 'review' },
+      { argv: ['help', 'debug'], kind: 'help', topic: 'debug' },
       { argv: ['help', 'providers'], kind: 'help', topic: 'providers' },
       { argv: ['--version'], kind: 'version' },
       { argv: ['--json', 'wish', 'hello'], kind: 'run' },
@@ -54,6 +56,12 @@ describe('cli parser', () => {
         message: "Unknown output format 'xml' for --output-format",
       },
       { argv: ['run', '--timeout-ms', '0', 'hello'], message: 'Invalid value for --timeout-ms' },
+      { argv: ['debug', '--timeout-ms', '0'], message: 'Invalid value for --timeout-ms' },
+      { argv: ['debug', '--json'], message: '--json is not supported for genie debug' },
+      {
+        argv: ['debug', 'TypeError'],
+        message: "Unexpected positional argument 'TypeError'. Pipe terminal output into genie debug instead.",
+      },
       { argv: ['providers', 'doctor', '--provider'], message: 'Missing value for --provider' },
       { argv: ['config', 'set', 'mode.default'], message: 'Usage: genie config set <key> <value>' },
       { argv: ['presets', 'set'], message: 'Usage: genie presets set <name>' },
@@ -143,6 +151,11 @@ describe('cli parser', () => {
 
   it('parses providers and config command trees', () => {
     expect(parseArgv(['update']).kind).toBe('update')
+    expect(parseArgv(['debug']).kind).toBe('debug')
+    const debugProvider = parseArgv(['debug', '--provider', 'gemini'])
+    expect(debugProvider.kind).toBe('debug')
+    if (debugProvider.kind !== 'debug') throw new Error('expected debug')
+    expect(debugProvider.options.provider).toBe('gemini')
 
     expect(parseArgv(['review', '--all']).kind).toBe('review')
     const reviewStaged = parseArgv(['review', '--all', '--staged'])
@@ -222,6 +235,11 @@ describe('cli parser', () => {
     expect(runHelp.kind).toBe('help')
     if (runHelp.kind !== 'help') throw new Error('expected help')
     expect(runHelp.topic).toBe('run')
+
+    const debugHelp = parseArgv(['help', 'debug'])
+    expect(debugHelp.kind).toBe('help')
+    if (debugHelp.kind !== 'help') throw new Error('expected help')
+    expect(debugHelp.topic).toBe('debug')
 
     const updateHelp = parseArgv(['help', 'update'])
     expect(updateHelp.kind).toBe('help')
