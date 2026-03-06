@@ -133,10 +133,11 @@ export async function setPreset(
   options?: { setDefault?: boolean },
 ): Promise<{ name: string; preset: ProviderPreset; default?: string; replaced: boolean }> {
   const key = validatePresetName(name)
-  const before = await loadConfig()
-  const replaced = Boolean(before.presets.named[key])
+  let replaced = false
   const updated = await updateConfig((current) => {
-    return applySetPreset(current, key, input, options).config
+    const applied = applySetPreset(current, key, input, options)
+    replaced = applied.replaced
+    return applied.config
   })
 
   return {

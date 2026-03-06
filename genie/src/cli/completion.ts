@@ -1,8 +1,9 @@
 import type { CompletionShell } from './types.js'
 
-const rootCommands = ['run', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'help', 'completion']
+const rootCommands = ['run', 'commit', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'help', 'completion']
 const globalFlags = ['-h', '--help', '--version', '--json', '--plain', '--no-color', '-q', '--quiet', '-v', '--verbose', '--no-input']
 const runFlags = ['-p', '--provider', '-m', '--model', '-w', '--workspace', '--mode', '--trust', '--preset', '--prompt-file', '--yolo', '--include-directories', '--output-format', '--print', '--extensions', '--mcp', '--timeout-ms', '--no-fallback']
+const commitFlags = ['-a', '--apply', '-p', '--provider', '-m', '--model', '-w', '--workspace', '--mode', '--trust', '--preset', '--yolo', '--timeout-ms', '--no-fallback']
 const debugFlags = ['-p', '--provider', '-m', '--model', '-w', '--workspace', '--mode', '--trust', '--preset', '--input-file', '--yolo', '--timeout-ms', '--no-fallback']
 const reviewFlags = ['--all', '--agent', '--diff-file', '--staged', '--base', '--json-schema']
 const updateFlags = ['--dry-run', '--force']
@@ -12,7 +13,7 @@ const configSubcommands = ['get', 'set', 'init', 'path']
 const configFlags = ['--dry-run', '--force']
 const presetsSubcommands = ['list', 'get', 'set', 'delete', 'use']
 const presetsFlags = ['--provider', '--model', '--mode', '--trust', '--yolo', '--print', '--include-directories', '--output-format', '--extensions', '--mcp', '--default', '--dry-run', '--force']
-const helpTopics = ['run', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'completion']
+const helpTopics = ['run', 'commit', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'completion']
 const shells = ['bash', 'zsh', 'fish']
 
 function words(values: string[]): string {
@@ -36,6 +37,9 @@ _genie() {
   case "$cmd" in
     run)
       COMPREPLY=( $(compgen -W "${words([...runFlags, ...globalFlags])}" -- "$cur") )
+      ;;
+    commit)
+      COMPREPLY=( $(compgen -W "${words([...commitFlags, ...globalFlags])}" -- "$cur") )
       ;;
     debug)
       COMPREPLY=( $(compgen -W "${words([...debugFlags, ...globalFlags])}" -- "$cur") )
@@ -81,11 +85,16 @@ complete -F _genie genie
 }
 
 function renderZsh(): string {
+  const rootChoices = [...rootCommands, ...globalFlags]
+  const withGlobalFlags = (flags: string[], description: string): string =>
+    [...flags, ...globalFlags].map((flag) => `'${flag}[${description}]'`).join(' ')
+
   return `#compdef genie
 
 local -a commands
 commands=(
   'run:Execute a prompt'
+  'commit:Generate a commit message'
   'debug:Diagnose terminal output'
   'review:Review repository changes'
   'update:Refresh the local install'
@@ -97,42 +106,45 @@ commands=(
 )
 
 if (( CURRENT == 2 )); then
-  _describe 'command' commands
+  _values 'command or global option' ${rootChoices.map((value) => `'${value}'`).join(' ')}
   return
 fi
 
 case "$words[2]" in
   run)
-    _arguments ${runFlags.map((flag) => `'${flag}[run option]'`).join(' ')}
+    _arguments ${withGlobalFlags(runFlags, 'run option')}
+    ;;
+  commit)
+    _arguments ${withGlobalFlags(commitFlags, 'commit option')}
     ;;
   debug)
-    _arguments ${debugFlags.map((flag) => `'${flag}[debug option]'`).join(' ')}
+    _arguments ${withGlobalFlags(debugFlags, 'debug option')}
     ;;
   review)
-    _arguments ${reviewFlags.map((flag) => `'${flag}[review option]'`).join(' ')}
+    _arguments ${withGlobalFlags(reviewFlags, 'review option')}
     ;;
   update)
-    _arguments ${updateFlags.map((flag) => `'${flag}[update option]'`).join(' ')}
+    _arguments ${withGlobalFlags(updateFlags, 'update option')}
     ;;
   providers)
     if (( CURRENT == 3 )); then
       _values 'providers subcommand' ${providersSubcommands.map((value) => `'${value}'`).join(' ')}
     else
-      _arguments ${providersFlags.map((flag) => `'${flag}[providers option]'`).join(' ')}
+      _arguments ${withGlobalFlags(providersFlags, 'providers option')}
     fi
     ;;
   config)
     if (( CURRENT == 3 )); then
       _values 'config subcommand' ${configSubcommands.map((value) => `'${value}'`).join(' ')}
     else
-      _arguments ${configFlags.map((flag) => `'${flag}[config option]'`).join(' ')}
+      _arguments ${withGlobalFlags(configFlags, 'config option')}
     fi
     ;;
   presets)
     if (( CURRENT == 3 )); then
       _values 'presets subcommand' ${presetsSubcommands.map((value) => `'${value}'`).join(' ')}
     else
-      _arguments ${presetsFlags.map((flag) => `'${flag}[presets option]'`).join(' ')}
+      _arguments ${withGlobalFlags(presetsFlags, 'presets option')}
     fi
     ;;
   help)
@@ -158,6 +170,7 @@ function renderFish(): string {
     `complete -c genie -f -s v -l verbose`,
     `complete -c genie -f -l no-input`,
     ...runFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from run" -a "${flag}"`),
+    ...commitFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from commit" -a "${flag}"`),
     ...debugFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from debug" -a "${flag}"`),
     ...reviewFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from review" -a "${flag}"`),
     ...updateFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from update" -a "${flag}"`),
