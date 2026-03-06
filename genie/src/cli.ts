@@ -251,8 +251,7 @@ function isDebugInvocation(argv: string[]): boolean {
 }
 
 function isCommitInvocation(argv: string[]): boolean {
-  const positional = argv.filter((token) => !token.startsWith('-'))
-  return positional[0] === 'commit'
+  return argv[0] === 'commit'
 }
 
 function outputForConfigResult(globals: GlobalOptions, value: unknown): void {

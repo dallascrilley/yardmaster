@@ -242,6 +242,14 @@ describe('cli parser', () => {
     expect(presetsHelp.topic).toBe('presets')
   })
 
+  it('keeps commit dispatch anchored to the first argv token', () => {
+    const parsed = parseArgv(['--json', 'commit'])
+    expect(parsed.kind).toBe('run')
+    if (parsed.kind !== 'run') throw new Error('expected run')
+    expect(parsed.globals.json).toBe(true)
+    expect(parsed.prompt).toBe('commit')
+  })
+
   it('parses explicit help command variants at root', () => {
     const rootHelp = parseArgv(['help'])
     expect(rootHelp.kind).toBe('help')
