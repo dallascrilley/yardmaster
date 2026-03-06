@@ -3,6 +3,52 @@ import { describe, expect, it } from 'vitest'
 import { parseArgv } from '../src/cli.js'
 
 describe('cli parser', () => {
+  it('keeps parser command-kind behavior stable via table-driven cases', () => {
+    const cases: Array<{ argv: string[]; kind: string; topic?: string }> = [
+      { argv: ['run', 'hello'], kind: 'run' },
+      { argv: ['wish', 'hello'], kind: 'run' },
+      { argv: ['rub', 'hello'], kind: 'run' },
+      { argv: ['providers', 'list'], kind: 'providers-list' },
+      { argv: ['providers', 'doctor', '--provider', 'codex'], kind: 'providers-doctor' },
+      { argv: ['config', 'path'], kind: 'config-path' },
+      { argv: ['config', 'init'], kind: 'config-init' },
+      { argv: ['presets', 'set', 'nightly', '--mode', 'default'], kind: 'presets-set' },
+      { argv: ['presets', 'use', 'nightly'], kind: 'presets-use' },
+      { argv: ['review', '--json-schema'], kind: 'review' },
+      { argv: ['help', 'providers'], kind: 'help', topic: 'providers' },
+      { argv: ['--version'], kind: 'version' },
+    ]
+
+    for (const testCase of cases) {
+      const parsed = parseArgv(testCase.argv)
+      expect(parsed.kind, `argv=${testCase.argv.join(' ')}`).toBe(testCase.kind)
+      if (testCase.topic) {
+        expect(parsed.kind).toBe('help')
+        if (parsed.kind !== 'help') throw new Error('expected help')
+        expect(parsed.topic).toBe(testCase.topic)
+      }
+    }
+  })
+
+  it('keeps parser validation error messages stable via table-driven cases', () => {
+    const errorCases: Array<{ argv: string[]; message: string }> = [
+      { argv: ['run', '--provider', 'nope', 'hello'], message: "Unknown provider 'nope' for --provider" },
+      {
+        argv: ['run', '--output-format', 'xml', 'hello'],
+        message: "Unknown output format 'xml' for --output-format",
+      },
+      { argv: ['run', '--timeout-ms', '0', 'hello'], message: 'Invalid value for --timeout-ms' },
+      { argv: ['providers', 'doctor', '--provider'], message: 'Missing value for --provider' },
+      { argv: ['config', 'set', 'mode.default'], message: 'Usage: genie config set <key> <value>' },
+      { argv: ['presets', 'set'], message: 'Usage: genie presets set <name>' },
+      { argv: ['help', 'unknown-topic'], message: "Unknown help topic 'unknown-topic'" },
+    ]
+
+    for (const testCase of errorCases) {
+      expect(() => parseArgv(testCase.argv), `argv=${testCase.argv.join(' ')}`).toThrow(testCase.message)
+    }
+  })
+
   it('parses legacy shorthand prompt invocation', () => {
     const parsed = parseArgv(['hello world'])
     expect(parsed.kind).toBe('run')
