@@ -21,6 +21,17 @@ export type ConfigFlagOverrides = {
   output?: CliOutputMode
 }
 
+function resolveHomeDirectory(explicitHome?: string): string {
+  const envHome = process.env.HOME?.trim()
+  if (explicitHome?.trim()) {
+    return explicitHome
+  }
+  if (envHome) {
+    return envHome
+  }
+  return homedir()
+}
+
 function safeParseConfig(raw: string): Partial<GenieConfig> {
   try {
     return genieConfigSchema.parse(JSON.parse(raw))
@@ -30,7 +41,7 @@ function safeParseConfig(raw: string): Partial<GenieConfig> {
 }
 
 export function resolveUserConfigPath(options?: ConfigStorageOptions): string {
-  const home = options?.home ?? homedir()
+  const home = resolveHomeDirectory(options?.home)
   return join(home, '.config', 'genie', 'config.json')
 }
 
