@@ -1,7 +1,7 @@
 # Review Command Implementation Plan
 
 **Date:** 2026-03-05
-**Status:** Ready for Implementation
+**Status:** Implemented and Verified on `main` (2026-03-06)
 **Depends On:** `docs/plans/2026-03-05-review-command-syntax-design.md`
 **Feature:** `genie review` for single-agent and all-agent code review
 
@@ -162,10 +162,28 @@ genie review --agent gemini --diff-file original-agents.diff
 
 ## 9) Task Checklist
 
-- [ ] Implement `review` CLI options and validation.
-- [ ] Implement diff source loader and empty-diff guard.
-- [ ] Normalize shared review request payload.
-- [ ] Implement single/all dispatch and ordered aggregation.
-- [ ] Map exit codes exactly as designed.
-- [ ] Add/extend tests for command behavior.
-- [ ] Run verification commands and record outcomes.
+- [x] Implement `review` CLI options and validation.
+- [x] Implement diff source loader and empty-diff guard.
+- [x] Normalize shared review request payload.
+- [x] Implement single/all dispatch and ordered aggregation.
+- [x] Map exit codes exactly as designed.
+- [x] Add/extend tests for command behavior.
+- [x] Run verification commands and record outcomes.
+
+## 10) Verification Snapshot
+
+Verified on 2026-03-06 from `main`:
+
+- `cd genie && bun run typecheck`
+- `cd genie && bun test`
+- `cd genie && bun run build`
+- `cd genie && node dist/bin/genie.js --help`
+- `cd genie && node dist/bin/genie.js providers list --json`
+- `cd genie && node dist/bin/genie.js review --json-schema`
+
+Notes:
+
+- The merged implementation exceeds the original v1 scope by also supporting `--staged`,
+  `--base <ref>`, and JSON schema output for the review envelope.
+- Real-provider `review` smoke execution still depends on a non-empty diff plus local auth,
+  so it remains part of release sign-off rather than unit/integration verification.
