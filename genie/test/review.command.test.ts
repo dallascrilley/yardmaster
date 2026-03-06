@@ -16,6 +16,7 @@ import {
   toReviewJsonEnvelope,
   type ReviewExecutionResult,
 } from '../src/review/command.js'
+import type { GitService } from '../src/review/git-service.js'
 
 describe('review command', () => {
   it('validates target selection', () => {
@@ -91,6 +92,31 @@ describe('review command', () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
     }
+  })
+
+  it('supports injecting a GitService for isolated review execution tests', async () => {
+    const gitService: GitService = {
+      read: () => '',
+      resolveContext: () => ({ branch: 'test-branch', head: 'abc1234' }),
+      resolveDiffSource: () => ({
+        source: 'git diff HEAD',
+        text: ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const isolated = true'].join('\n'),
+      }),
+    }
+
+    const result = await executeReviewCommand({
+      all: false,
+      agent: 'codex',
+      config: defaultConfig,
+      gitService,
+      requestRunner: async () => ({
+        response: 'ok',
+      }),
+    })
+
+    expect(result.source).toBe('git diff HEAD')
+    expect(result.git).toEqual({ branch: 'test-branch', head: 'abc1234' })
+    expect(result.summary).toEqual({ total: 1, succeeded: 1, failed: 0 })
   })
 
   it('fails on empty diff file', async () => {
