@@ -281,6 +281,102 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
   }
 }
 
+function parseDebugArgs(tokens: string[]): ParsedCommand {
+  const globals = defaultGlobals()
+  const options: RunOptions = { noFallback: false }
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
+    if (!token) continue
+    if (parseGlobalFlag(token, globals)) continue
+
+    if (token === '--provider' || token === '-p') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.provider = parseProvider(value, token)
+      index += 1
+      continue
+    }
+
+    if (token === '--model' || token === '-m') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.model = value
+      index += 1
+      continue
+    }
+
+    if (token === '--workspace' || token === '-w') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.workspace = value
+      index += 1
+      continue
+    }
+
+    if (token === '--mode') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.mode = parseMode(value, token)
+      index += 1
+      continue
+    }
+
+    if (token === '--preset') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --preset')
+      options.preset = value.trim()
+      index += 1
+      continue
+    }
+
+    if (token === '--timeout-ms') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError('Missing value for --timeout-ms')
+      const parsed = Number(value)
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new UsageError('Invalid value for --timeout-ms')
+      }
+      options.timeoutMs = Math.floor(parsed)
+      index += 1
+      continue
+    }
+
+    if (token === '--trust') {
+      options.trust = true
+      continue
+    }
+
+    if (token === '--yolo') {
+      options.yolo = true
+      continue
+    }
+
+    if (token === '--no-fallback') {
+      options.noFallback = true
+      continue
+    }
+
+    if (token.startsWith('-')) {
+      throw new UsageError(`Unknown debug argument '${token}'`)
+    }
+
+    throw new UsageError(`Unexpected positional argument '${token}'. Pipe terminal output into genie debug instead.`)
+  }
+
+  if (globals.version) return { kind: 'version' }
+  if (globals.json) {
+    throw new UsageError('--json is not supported for genie debug')
+  }
+  if (globals.help) return { kind: 'help', topic: 'debug' }
+
+  return {
+    kind: 'debug',
+    globals,
+    options,
+  }
+}
+
 function parseProvidersArgs(tokens: string[]): ParsedCommand {
   const globals = defaultGlobals()
   let subcommand: 'list' | 'doctor' | undefined
@@ -547,7 +643,7 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return { kind: 'version' }
   }
 
-  const helpTopicSet = new Set<HelpTopic>(['run', 'review', 'update', 'providers', 'config', 'presets'])
+  const helpTopicSet = new Set<HelpTopic>(['run', 'debug', 'review', 'update', 'providers', 'config', 'presets'])
   const globalFlagSet = new Set([
     '--help',
     '-h',
@@ -590,6 +686,9 @@ export function parseArgv(argv: string[]): ParsedCommand {
 
   if (first === 'run') {
     return parseRunLikeArgs(tokens.slice(1))
+  }
+  if (first === 'debug') {
+    return parseDebugArgs(tokens.slice(1))
   }
   if (first === 'review') {
     return parseReviewArgs(tokens.slice(1))

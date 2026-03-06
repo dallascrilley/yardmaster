@@ -20,6 +20,7 @@ Or use `npm link` / `pnpm link` after `bun run build`.
 ```bash
 genie <prompt>
 genie run [options] <prompt>
+genie debug [options]
 genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]
 genie review --json-schema
 genie update [--json]
@@ -72,6 +73,15 @@ genie presets use <name>
 - `--staged` (review staged/index changes only)
 - `--base <ref>` (review committed branch diff against explicit base, e.g. `origin/main`)
 - `--json-schema` (print JSON Schema for `genie review --json` envelope)
+
+## Debug
+
+`genie debug` reads terminal error output from stdin, sends the relevant failure context through the existing provider pipeline, and prints a plain-language diagnosis to stdout.
+
+```bash
+npm test 2>&1 | genie debug
+cat error.log | genie debug --provider claude --no-fallback
+```
 
 ## Update
 
@@ -174,6 +184,9 @@ genie gleep
 
 # explicit run command
 genie run -p gemini -m gemini-2.0-flash "summarize this"
+
+# diagnose piped terminal output
+npm test 2>&1 | genie debug
 
 # disable fallback for strict provider execution
 genie run --provider codex --no-fallback "generate release notes"
