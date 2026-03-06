@@ -106,14 +106,66 @@ describe('cli debug integration', () => {
     expect(result.stdout).toBe('')
   })
 
-  it('rejects --json for debug so the output contract stays plain-text only', () => {
-    const result = spawnSync('bun', ['src/bin/genie.ts', 'debug', '--json'], {
+  it('emits the shared json envelope for debug when requested', () => {
+    const binDir = createTempDir('genie-debug-bin')
+    const homeDir = createTempDir('genie-debug-home')
+    tempDirs.push(binDir, homeDir)
+    writeMockClaudeBinary(binDir, 'success')
+
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'debug', '--provider', 'claude', '--no-fallback', '--json'], {
       cwd: new URL('..', import.meta.url).pathname,
       encoding: 'utf8',
+      input: 'TypeError: fetch failed\n    at main (src/index.ts:1:1)\n',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+      },
     })
 
-    expect(result.status).toBe(2)
-    expect(result.stderr).toContain('--json is not supported for genie debug')
-    expect(result.stdout).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({
+      kind: 'debug_result',
+      version: 1,
+      ok: true,
+      exitCode: 0,
+      provider: 'claude',
+      error: null,
+    })
+    expect(parsed.response).toContain('Root cause: mocked provider diagnosis')
+  })
+
+  it('emits a shared json error envelope for debug failures when requested', () => {
+    const binDir = createTempDir('genie-debug-bin')
+    const homeDir = createTempDir('genie-debug-home')
+    tempDirs.push(binDir, homeDir)
+    writeMockClaudeBinary(binDir, 'failure')
+
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'debug', '--provider', 'claude', '--no-fallback', '--json'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+      input: 'TypeError: fetch failed\n',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+      },
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toBe('')
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({
+      kind: 'error',
+      version: 1,
+      ok: false,
+      exitCode: 1,
+      error: {
+        code: '1',
+      },
+    })
+    expect(parsed.error.message).toContain('All providers failed.')
   })
 })

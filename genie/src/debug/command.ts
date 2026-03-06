@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
-
 import { UsageError } from '../errors.js'
+import { normalizeTextInput, readTextInput } from '../cli/input.js'
 
 export const emptyDebugInputMessage = [
   'No terminal error input provided.',
@@ -9,20 +8,15 @@ export const emptyDebugInputMessage = [
 ].join('\n')
 
 export function normalizeDebugInput(raw: string): string {
-  const trimmed = raw.trim()
-  if (!trimmed) {
-    throw new UsageError(emptyDebugInputMessage)
-  }
-
-  return trimmed
+  return normalizeTextInput(raw, emptyDebugInputMessage)
 }
 
-export function readDebugInput(): string {
-  if (process.stdin.isTTY === true) {
+export function readDebugInput(inputFile?: string): string {
+  if (!inputFile && process.stdin.isTTY === true) {
     throw new UsageError(emptyDebugInputMessage)
   }
 
-  return normalizeDebugInput(readFileSync(0, 'utf8'))
+  return normalizeDebugInput(readTextInput(inputFile))
 }
 
 export function buildDebugPrompt(input: string): string {
