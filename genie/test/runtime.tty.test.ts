@@ -30,6 +30,21 @@ describe('runtime tty and workspace', () => {
     expect(state.ttyAwareMode).toBe('json')
   })
 
+  it('forces non-interactive and disables color when explicit globals require it', () => {
+    const state = resolveRuntimeState({
+      configOutput: 'auto',
+      explicitOutput: undefined,
+      explicitFormat: undefined,
+      forceNonInteractive: true,
+      disableColor: true,
+      argv: [],
+    })
+
+    expect(state.interactive).toBe(false)
+    expect(state.colorEnabled).toBe(false)
+    expect(state.ttyAwareMode).toBe('json')
+  })
+
   it('resolves workspace precedence', () => {
     expect(resolveWorkspacePath('/tmp/explicit', '/tmp/last')).toBe('/tmp/explicit')
     expect(resolveWorkspacePath(undefined, '/tmp/last')).toBe('/tmp/last')

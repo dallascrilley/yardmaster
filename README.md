@@ -15,7 +15,18 @@ bun link
 
 Or use `npm link` / `pnpm link` after `bun run build`.
 
-## Usage
+## Start here
+
+```bash
+genie "summarize the current branch"
+npm test 2>&1 | genie debug
+genie review --all
+genie providers doctor
+```
+
+If you just run `genie`, the root command now shows workflow-oriented help with examples, command discovery, and suggested next commands.
+
+## Command reference
 
 ```bash
 genie <prompt>
@@ -24,18 +35,47 @@ genie commit [options]
 genie debug [options]
 genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]
 genie review --json-schema
-genie update [--json]
+genie update [--json] [--dry-run] [--force]
 genie providers list [--json]
 genie providers doctor [--provider <id>] [--json]
 genie config get [key] [--json]
-genie config set <key> <value>
-genie config init
+genie config set <key> <value> [--dry-run]
+genie config init [--dry-run] [--force]
 genie config path [--json]
 genie presets list [--json]
 genie presets get <name> [--json]
-genie presets set <name> [options]
-genie presets delete <name>
-genie presets use <name>
+genie presets set <name> [options] [--dry-run] [--force]
+genie presets delete <name> [--dry-run] [--force]
+genie presets use <name> [--dry-run]
+genie completion <bash|zsh|fish>
+```
+
+Common next commands:
+
+- `genie help run`
+- `genie help review`
+- `genie presets list`
+- `genie config path`
+
+Task-oriented terminal help is available for every major command:
+
+```bash
+genie help run
+genie help debug
+genie help review
+genie help config
+genie help completion
+```
+
+Those help screens include examples, common flows, recovery guidance, and config/env precedence where relevant.
+
+Input composition examples:
+
+```bash
+genie run --prompt-file prompt.txt
+cat prompt.txt | genie run --prompt-file -
+genie debug --input-file error.log
+cat error.log | genie debug --input-file -
 ```
 
 ## Global flags
@@ -57,6 +97,7 @@ genie presets use <name>
 - `--mode <name>`
 - `--trust`
 - `--preset <name>`
+- `--prompt-file <path|->`
 - `--yolo`
 - `--include-directories <a,b,c>`
 - `--output-format <text|json|stream-json>`
@@ -82,6 +123,7 @@ genie presets use <name>
 ```bash
 npm test 2>&1 | genie debug
 cat error.log | genie debug --provider claude --no-fallback
+genie debug --input-file error.log --provider claude
 ```
 
 ## Commit
@@ -101,8 +143,14 @@ Refreshes your local `genie` install in one command by running:
 2. `bun link`
 
 ```bash
-genie update
+genie update --dry-run
+genie update --force
 ```
+
+Safety controls for mutating commands:
+
+- `--dry-run` previews `update`, `config set/init`, and `presets set/delete/use` without writing changes
+- `--force` skips confirmation for destructive or overwriting operations such as `update`, `config init` over an existing file, `presets set` overwrite, and `presets delete`
 
 Review output includes run context and per-agent metadata (`cwd`, `branch`, `head`, diff source, provider, model, latency, response chars).
 
@@ -114,6 +162,9 @@ Review output includes run context and per-agent metadata (`cwd`, `branch`, `hea
   - `provider`, `model`, `response`, `fallbackUsed`, `timings`, `error`
   - `genie review --json`: `kind`, `version`, `mode`, `targets`, `source`, `cwd`, `git`, `diff`, `summary`, `results`, `exitCode`
 - `--plain`: response text only.
+- `--verbose`: extra execution diagnostics on stderr without changing stdout payloads.
+- `--quiet`: suppresses confirmation-only success chatter such as `config init`.
+- `--no-color` and `--no-input`: force non-interactive, no-color execution for child processes that respect `NO_COLOR`/`CI`.
 
 ## Exit codes
 
@@ -145,16 +196,28 @@ Supported env vars:
 - `GENIE_OUTPUT`
 - `GENIE_STRICT_COMMANDS`
 
+### JSON output contract
+
+When `--json` is used, commands emit a stable top-level envelope with:
+
+- `kind`
+- `version`
+- `ok`
+- `exitCode`
+- `error`
+
+Each command keeps its command-specific payload fields alongside that shared metadata. `genie review --json-schema` describes the `genie review --json` envelope.
+
 ### Strict command mode
 
-Set `GENIE_STRICT_COMMANDS=1` to disable legacy shorthand fallback for unknown root tokens.
+Strict command parsing is the default. Unknown bare root tokens now fail fast so typos do not silently turn into prompts.
 
 ```bash
-# default behavior: shorthand prompt text
+# default behavior: usage error (exit 2)
 genie gleep
 
-# strict behavior: usage error (exit 2)
-GENIE_STRICT_COMMANDS=1 genie gleep
+# opt back into the legacy single-token fallback
+GENIE_STRICT_COMMANDS=0 genie gleep
 ```
 
 ## Presets
@@ -163,7 +226,8 @@ Use presets to preconfigure provider-specific execution flags so users do not ha
 
 ```bash
 # create/update a preset
-genie presets set headless-codex --provider codex --yolo --include-directories src,docs --output-format json --print --default
+genie presets set headless-codex --provider codex --yolo --include-directories src,docs --output-format json --print --default --dry-run
+genie presets set headless-codex --provider codex --yolo --include-directories src,docs --output-format json --print --default --force
 
 # inspect and list presets
 genie presets get headless-codex
@@ -184,19 +248,39 @@ Supported providers:
 
 Use `genie providers doctor` for availability/auth diagnostics and `genie providers list --json` for machine-readable provider inventory.
 
+## Shell completion
+
+Generate completion scripts directly from the CLI:
+
+```bash
+genie completion bash > ~/.local/share/bash-completion/completions/genie
+genie completion zsh > ~/.zfunc/_genie
+genie completion fish > ~/.config/fish/completions/genie.fish
+```
+
+Install notes:
+
+- `bash`: source the file or restart your shell after writing it into your bash completions directory
+- `zsh`: add the target directory to `fpath` and run `autoload -U compinit && compinit` if needed
+- `fish`: writing the file into `~/.config/fish/completions/` is enough for the next shell session
+
 ## Examples
 
 ```bash
-# legacy shorthand still works
+# shorthand prompt still works for actual prompt text
 genie "explain recursion in one sentence"
-# single-token input is also treated as prompt text (legacy compatibility)
-genie gleep
+genie explain recursion in one sentence
 
 # explicit run command
 genie run -p gemini -m gemini-2.0-flash "summarize this"
 
+# file/stdin prompt input
+genie run --prompt-file prompt.txt
+cat prompt.txt | genie run --prompt-file -
+
 # diagnose piped terminal output
 npm test 2>&1 | genie debug
+genie debug --input-file error.log
 
 # generate a conventional commit message from staged changes
 genie commit
@@ -222,8 +306,8 @@ genie review --all --base origin/main
 genie review --json-schema
 
 # config workflows
-genie config init
-genie config set provider.default codex
+genie config init --dry-run
+genie config set provider.default codex --dry-run
 genie config get provider.default
 ```
 

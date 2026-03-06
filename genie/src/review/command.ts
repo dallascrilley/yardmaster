@@ -208,10 +208,11 @@ export function getReviewJsonSchema(): ReviewJsonSchema {
     title: 'Genie Review Result',
     type: 'object',
     additionalProperties: false,
-    required: ['kind', 'version', 'mode', 'targets', 'source', 'cwd', 'git', 'diff', 'summary', 'results', 'exitCode'],
+    required: ['kind', 'version', 'ok', 'mode', 'targets', 'source', 'cwd', 'git', 'diff', 'summary', 'results', 'exitCode', 'error'],
     properties: {
       kind: { const: 'review_result' },
       version: { const: 1 },
+      ok: { type: 'boolean' },
       mode: { enum: ['single', 'all'] },
       targets: {
         type: 'array',
@@ -266,6 +267,7 @@ export function getReviewJsonSchema(): ReviewJsonSchema {
         },
       },
       exitCode: { enum: [0, 1] },
+      error: { type: 'null' },
     },
   }
 }
