@@ -38,6 +38,30 @@ describe('cli exit codes', () => {
 
     expect(result.status).toBe(2)
     expect(result.stderr).toContain("Unknown option '--unknown'")
+    expect(result.stderr).toContain('Next steps:')
+  })
+
+  it('emits a shared json error envelope for parse errors when --json is requested', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', '--json', '--unknown'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toBe('')
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({
+      kind: 'error',
+      version: 1,
+      ok: false,
+      exitCode: 2,
+      error: {
+        code: '2',
+      },
+    })
+    expect(parsed.error.message).toContain("Unknown option '--unknown'")
+    expect(parsed.error.message).toContain('Next steps:')
+    expect(parsed.error.message).toContain('Run `genie help` for usage.')
   })
 
   it('supports explicit help command and rejects invalid help topic', () => {
@@ -118,31 +142,63 @@ describe('cli exit codes', () => {
     expect(schemaConflict.stderr).toContain('--json-schema cannot be combined with review target or diff-source flags')
   })
 
-  it('returns exit code 2 for unknown root token when strict mode is enabled', () => {
+  it('returns exit code 2 for unknown root token by default', () => {
     const result = spawnSync('bun', ['src/bin/genie.ts', 'gleep'], {
       cwd: new URL('..', import.meta.url).pathname,
       encoding: 'utf8',
-      env: {
-        ...process.env,
-        GENIE_STRICT_COMMANDS: '1',
-      },
     })
 
     expect(result.status).toBe(2)
     expect(result.stderr).toContain("Unknown command 'gleep'. Use 'genie help' for usage.")
+    expect(result.stderr).toContain('Run `genie help` to see the available commands.')
   })
 
-  it('returns exit code 2 for unknown root token with leading global flags in strict mode', () => {
+  it('returns exit code 2 for unknown root token with leading global flags by default', () => {
     const result = spawnSync('bun', ['src/bin/genie.ts', '--json', 'gleep'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toBe('')
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({
+      kind: 'error',
+      version: 1,
+      ok: false,
+      exitCode: 2,
+      error: {
+        code: '2',
+      },
+    })
+    expect(parsed.error.message).toContain("Unknown command 'gleep'. Use 'genie help' for usage.")
+    expect(parsed.error.message).toContain('Next steps:')
+    expect(parsed.error.message).toContain('Run `genie help` to see the available commands.')
+  })
+
+  it('returns exit code 2 for mistyped multi-token root commands by default', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'reviw', 'all', '--help'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("Unknown command 'reviw'. Use 'genie help' for usage.")
+    expect(result.stderr).toContain('Run `genie help` to see the available commands.')
+  })
+
+  it('allows legacy single-token shorthand when strict mode is disabled explicitly', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'gleep', '--help'], {
       cwd: new URL('..', import.meta.url).pathname,
       encoding: 'utf8',
       env: {
         ...process.env,
-        GENIE_STRICT_COMMANDS: '1',
+        GENIE_STRICT_COMMANDS: '0',
       },
     })
 
-    expect(result.status).toBe(2)
-    expect(result.stderr).toContain("Unknown command 'gleep'. Use 'genie help' for usage.")
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(result.stdout).toContain('Usage: genie run [options] <prompt>')
   })
 })

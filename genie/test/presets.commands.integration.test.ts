@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { deletePreset, getPreset, listPresets, setPreset, usePreset } from '../src/presets/commands.js'
+import { deletePreset, getPreset, listPresets, previewDeletePreset, previewSetPreset, previewUsePreset, setPreset, usePreset } from '../src/presets/commands.js'
 
 describe('presets commands', () => {
   const homes: string[] = []
@@ -53,5 +53,30 @@ describe('presets commands', () => {
     const deleted = await deletePreset('default-headless')
     expect(deleted.deleted).toBe('default-headless')
     expect(deleted.default).toBeUndefined()
+  })
+
+  it('supports dry-run previews without mutating presets', async () => {
+    const home = join(tmpdir(), `genie-presets-${randomUUID()}`)
+    mkdirSync(home, { recursive: true })
+    homes.push(home)
+    process.env.HOME = home
+
+    const createPreview = await previewSetPreset('nightly', { provider: 'codex' }, { setDefault: true })
+    expect(createPreview.name).toBe('nightly')
+    expect(createPreview.default).toBe('nightly')
+    expect(createPreview.replaced).toBe(false)
+
+    await setPreset('nightly', { provider: 'codex' }, { setDefault: true })
+
+    const overwritePreview = await previewSetPreset('nightly', { provider: 'gemini' })
+    expect(overwritePreview.replaced).toBe(true)
+    expect((await getPreset('nightly')).provider).toBe('codex')
+
+    const usePreview = await previewUsePreset('nightly')
+    expect(usePreview.default).toBe('nightly')
+
+    const deletePreview = await previewDeletePreset('nightly')
+    expect(deletePreview.deleted).toBe('nightly')
+    expect((await getPreset('nightly')).provider).toBe('codex')
   })
 })
