@@ -13,6 +13,19 @@ bun run build
 bun link
 ```
 
+If `genie` is not found after `bun link`, add Bun's global bin directory to your shell `PATH`:
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+```
+
+Then verify the installed binary:
+
+```bash
+genie --help
+genie providers list --json
+```
+
 Or use `npm link` / `pnpm link` after `bun run build`.
 
 ## Start here
@@ -115,6 +128,15 @@ cat error.log | genie debug --input-file -
 - `--staged` (review staged/index changes only)
 - `--base <ref>` (review committed branch diff against explicit base, e.g. `origin/main`)
 - `--json-schema` (print JSON Schema for `genie review --json` envelope)
+
+## Provider prerequisites
+
+- `claude`: installed and authenticated via Claude Code
+- `codex`: installed and authenticated via `codex auth` or `~/.codex/auth.json`
+- `gemini`: installed and authenticated via `GEMINI_API_KEY`
+- `cursor-agent`: installed plus authenticated and trusted for the current workspace; non-interactive checks may surface a workspace-trust prompt until that directory is approved
+
+Use `genie providers doctor` for a quick health check before relying on any provider in automation or release smoke tests.
 
 ## Debug
 

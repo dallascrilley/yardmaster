@@ -1,4 +1,4 @@
-import { AggregatedProviderError, RuntimeProviderError, TimeoutError } from '../errors.js'
+import { AggregatedProviderError, TimeoutError } from '../errors.js'
 import {
   type CommandRunner,
   type ProviderAdapter,
@@ -110,10 +110,6 @@ export async function executeWithFallback(params: {
         reason,
       })
     }
-  }
-
-  if (failures.length > 0 && failures.every((item) => item.authFailure)) {
-    throw new RuntimeProviderError(new AggregatedProviderError(failures).message)
   }
 
   if (failures.some((item) => item.timeout)) {

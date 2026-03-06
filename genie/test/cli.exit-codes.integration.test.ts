@@ -1,9 +1,48 @@
 import { spawnSync } from 'node:child_process'
-import { describe, expect, it } from 'vitest'
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { AggregatedProviderError, AuthConfigurationError, TimeoutError, UsageError, getExitCode } from '../src/errors.js'
 
 describe('cli exit codes', () => {
+  const tempDirs: string[] = []
+
+  function createTempDir(prefix: string): string {
+    const dir = join(tmpdir(), `${prefix}-${randomUUID()}`)
+    mkdirSync(dir, { recursive: true })
+    tempDirs.push(dir)
+    return dir
+  }
+
+  function writeAuthFailingClaudeBinary(binDir: string): void {
+    const script = `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "claude 1.0.0"
+  exit 0
+fi
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  echo "login required" >&2
+  exit 1
+fi
+echo "should not execute" >&2
+exit 1
+`
+
+    const path = join(binDir, 'claude')
+    writeFileSync(path, script, 'utf8')
+    chmodSync(path, 0o755)
+  }
+
+  afterEach(() => {
+    for (const dir of tempDirs) {
+      rmSync(dir, { recursive: true, force: true })
+    }
+    tempDirs.length = 0
+  })
+
   it('maps error classes to explicit exit codes', () => {
     expect(getExitCode(new UsageError('bad args'))).toBe(2)
     expect(getExitCode(new AuthConfigurationError('auth'))).toBe(3)
@@ -211,5 +250,25 @@ describe('cli exit codes', () => {
     expect(result.status).toBe(0)
     expect(result.stderr).toBe('')
     expect(result.stdout).toContain('Usage: genie run [options] <prompt>')
+  })
+
+  it('returns exit code 3 for auth-only provider failures in spawned cli', () => {
+    const binDir = createTempDir('genie-authfail-bin')
+    const homeDir = createTempDir('genie-authfail-home')
+    writeAuthFailingClaudeBinary(binDir)
+
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'run', '--provider', 'claude', '--no-fallback', 'hello'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+      },
+    })
+
+    expect(result.status).toBe(3)
+    expect(result.stderr).toContain('claude (auth): claude authentication check failed')
+    expect(result.stderr).toContain('Run `genie providers doctor`')
   })
 })
