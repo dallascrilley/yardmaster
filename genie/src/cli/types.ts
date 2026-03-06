@@ -29,16 +29,12 @@ export type RunOptions = {
   mcp?: string[]
 }
 
-export type CommitOptions = {
-  provider?: ProviderId
-  model?: string
-  workspace?: string
-  mode?: string
-  trust?: boolean
-  timeoutMs?: number
-  noFallback: boolean
-  preset?: string
-  yolo?: boolean
+type CommitSharedOptions = Pick<
+  RunOptions,
+  'provider' | 'model' | 'workspace' | 'mode' | 'trust' | 'timeoutMs' | 'noFallback' | 'preset' | 'yolo'
+>
+
+export type CommitOptions = CommitSharedOptions & {
   apply: boolean
 }
 
