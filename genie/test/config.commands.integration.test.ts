@@ -58,10 +58,11 @@ describe('config commands', () => {
     expect(initPreview.exists).toBe(false)
     expect(initPreview.path).toContain('.config/genie/config.json')
 
+    const beforeProvider = await configGet('provider.default')
     const setPreview = await previewConfigSet('provider.default', 'codex')
     expect(setPreview.provider.default).toBe('codex')
 
     const provider = await configGet('provider.default')
-    expect(provider).not.toBe('codex')
+    expect(provider).toBe(beforeProvider)
   })
 })

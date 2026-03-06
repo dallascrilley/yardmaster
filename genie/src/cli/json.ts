@@ -25,10 +25,10 @@ export function toCliJsonSuccessEnvelope<T extends Record<string, unknown>>(
   exitCode = 0,
 ): CliJsonSuccessEnvelope<T> {
   return {
+    ...payload,
     kind,
     version: 1,
     ok: exitCode === 0,
-    ...payload,
     exitCode,
     error: null,
   }

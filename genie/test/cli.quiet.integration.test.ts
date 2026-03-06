@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -26,7 +27,7 @@ describe('cli quiet integration', () => {
     const homeDir = createTempDir('genie-quiet-home')
     tempDirs.push(homeDir)
 
-    const cwd = new URL('..', import.meta.url).pathname
+    const cwd = fileURLToPath(new URL('..', import.meta.url))
     const env = {
       ...process.env,
       HOME: homeDir,

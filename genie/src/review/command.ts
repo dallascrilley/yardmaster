@@ -48,6 +48,7 @@ export type ReviewExecutionResult = {
 export type ReviewJsonEnvelope = {
   kind: 'review_result'
   version: 1
+  ok: boolean
   mode: 'single' | 'all'
   targets: ReviewAgentId[]
   source: string
@@ -72,6 +73,7 @@ export type ReviewJsonEnvelope = {
     review: string
   }>
   exitCode: 0 | 1
+  error: null
 }
 
 export type ReviewJsonSchema = Record<string, unknown>
@@ -170,6 +172,7 @@ export function toReviewJsonEnvelope(result: ReviewExecutionResult): ReviewJsonE
   return {
     kind: 'review_result',
     version: 1,
+    ok: result.exitCode === 0,
     mode: result.mode,
     targets: [...result.agents],
     source: result.source,
@@ -198,6 +201,7 @@ export function toReviewJsonEnvelope(result: ReviewExecutionResult): ReviewJsonE
       review: item.review,
     })),
     exitCode: result.exitCode,
+    error: null,
   }
 }
 
