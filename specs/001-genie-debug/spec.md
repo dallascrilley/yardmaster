@@ -43,12 +43,14 @@ As a developer automating local troubleshooting, I want `genie debug` to behave 
 
 **Why this priority**: Stable terminal behavior makes the feature useful beyond manual experimentation and ensures it fits the existing CLI contract expectations.
 
-**Independent Test**: Can be tested by piping a known error string into `genie debug` from a script and verifying that success and failure cases return consistent exit codes and write the analysis to standard output.
+**Independent Test**: Can be tested by piping a known error string into `genie debug` from a script or passing a saved log file and verifying that success and failure cases return consistent exit codes and write the analysis to standard output.
 
 **Acceptance Scenarios**:
 
 1. **Given** a script pipes a known error into `genie debug`, **When** the command succeeds, **Then** the analysis is written to standard output and the process exits with code 0.
 2. **Given** a script invokes `genie debug` with no usable input, **When** the command fails validation, **Then** the guidance is written to standard error and the process exits with a non-zero code.
+3. **Given** a script passes a saved terminal log with `genie debug --input-file <path>`, **When** the command succeeds, **Then** it returns the same diagnosis contract as piped input without requiring stdin.
+4. **Given** a script invokes `genie debug --json`, **When** the command succeeds or fails, **Then** it emits the shared CLI JSON envelope on standard output with the appropriate exit code metadata.
 
 ### Edge Cases
 
@@ -62,7 +64,7 @@ As a developer automating local troubleshooting, I want `genie debug` to behave 
 ### Functional Requirements
 
 - **FR-001**: System MUST provide a new `genie debug` subcommand dedicated to analyzing terminal error output.
-- **FR-002**: System MUST accept terminal error content supplied through piped input.
+- **FR-002**: System MUST accept terminal error content supplied through piped input or an explicit input file path.
 - **FR-003**: System MUST reject invocations where no usable terminal error content is supplied.
 - **FR-004**: System MUST generate a response that includes both a likely root-cause explanation and at least one actionable remediation step.
 - **FR-005**: System MUST prioritize the most relevant failure in the supplied input when multiple lines of terminal output are present.
@@ -73,15 +75,15 @@ As a developer automating local troubleshooting, I want `genie debug` to behave 
 ### Contract & Operational Requirements *(mandatory for runtime or CLI changes)*
 
 - **CR-001**: Stdout behavior changes by adding a new `genie debug` command that emits human-readable diagnostic output on success.
-- **CR-002**: Machine contract changes for `genie debug` are limited to predictable exit codes and stderr usage: success returns exit code 0; missing input or execution failure returns a non-zero exit code; no JSON envelope or schema is introduced in this feature.
+- **CR-002**: `genie debug` MUST preserve predictable CLI contracts for both plain-text and machine-readable usage: success returns exit code 0; validation and execution failures return non-zero exit codes; `--json` emits the shared CLI JSON envelope on standard output.
 - **CR-003**: No provider execution change. The feature uses the existing provider authentication, fallback, and timeout behavior already defined for the CLI.
-- **CR-004**: Automated verification MUST include parser coverage for the new subcommand, execution tests for piped-input success and empty-input failure, and the repository test command `cd genie && bun test`.
+- **CR-004**: Automated verification MUST include parser coverage for the new subcommand, execution tests for piped-input success and empty-input failure, coverage for `--input-file`, coverage for `--json` success/failure behavior, and the repository test command `cd genie && bun test`.
 
 ### Assumptions
 
-- The initial release focuses on analyzing terminal output supplied through pipelines rather than opening files or attaching logs by path.
+- The initial release supports both pipeline-friendly stdin usage and explicit log-file input for saved terminal output.
 - The command is intended for local developer troubleshooting and does not need collaboration, sharing, or persistence features in this scope.
-- The first release returns plain-language terminal output only and does not introduce a structured machine-readable response format.
+- The first release keeps plain-language diagnostic output as the default while also supporting the shared CLI `--json` envelope for scripted consumers.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -94,5 +96,5 @@ As a developer automating local troubleshooting, I want `genie debug` to behave 
 
 - **SC-001**: In acceptance testing with representative terminal failures, 90% of successful `genie debug` runs identify the primary issue category well enough for a reviewer to select the correct remediation path on first read.
 - **SC-002**: 95% of invocations without usable piped input fail in under 2 seconds with clear guidance on how to provide error content.
-- **SC-003**: 100% of scripted success-path tests confirm that diagnostic text is written to standard output and the process exits with code 0.
-- **SC-004**: 100% of scripted validation-failure tests confirm that usage guidance is written to standard error and the process exits with a non-zero code.
+- **SC-003**: 100% of scripted success-path tests confirm that diagnostic text or the shared JSON success envelope is written to standard output and the process exits with code 0.
+- **SC-004**: 100% of scripted validation-failure tests confirm that plain-mode guidance is written to standard error or JSON-mode failures are emitted as the shared error envelope on standard output, with a non-zero exit code.
