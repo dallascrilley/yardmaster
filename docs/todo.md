@@ -19,3 +19,4 @@
 - Confirm `config set mode.default` rejects unsupported values with clear guidance.
 - Confirm provider availability checks retry once on timeout to reduce `providers doctor` false-missing results.
 - Confirm `genie review` supports `--agent` and `--all` with mutual exclusivity, default `git diff`, and `--diff-file` override.
+- Confirm parser regression coverage is table-driven for command-kind and validation-error stability across refactors.
