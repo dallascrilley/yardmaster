@@ -24,6 +24,14 @@ import {
 import { formatUpdateResult, runUpdateCommand } from './update/command.js'
 import { buildDebugPrompt, readDebugInput } from './debug/command.js'
 import {
+  applyCommitMessage,
+  buildCommitPrompt,
+  createGitExec,
+  createGitRead,
+  normalizeCommitMessage,
+  readStagedDiff,
+} from './commit/command.js'
+import {
   runRequest,
   toErrorEnvelope,
   toResponseEnvelope,
@@ -52,6 +60,7 @@ function usage(topic?: HelpTopic): string {
     'Usage:',
     '  genie <prompt>',
     '  genie run [options] <prompt>',
+    '  genie commit [options]',
     '  genie debug [options]',
     '  genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]',
     '  genie review --json-schema',
@@ -109,6 +118,21 @@ function usage(topic?: HelpTopic): string {
     '  --json-schema',
   ]
 
+  const commit = [
+    'Usage: genie commit [options]',
+    'Reads staged git changes and generates a Conventional Commits message.',
+    '  -a, --apply',
+    '  -p, --provider <claude|codex|cursor-agent|gemini>',
+    '  -m, --model <name>',
+    '  -w, --workspace <path>',
+    '  --mode <name>',
+    '  --trust',
+    '  --preset <name>',
+    '  --yolo',
+    '  --timeout-ms <n>',
+    '  --no-fallback',
+  ]
+
   const debug = [
     'Usage: genie debug [options]',
     'Reads terminal error output from stdin and returns a diagnosis.',
@@ -158,6 +182,7 @@ function usage(topic?: HelpTopic): string {
   ]
 
   if (topic === 'run') return run.join('\n')
+  if (topic === 'commit') return commit.join('\n')
   if (topic === 'debug') return debug.join('\n')
   if (topic === 'review') return review.join('\n')
   if (topic === 'update') return update.join('\n')
@@ -223,6 +248,10 @@ function shouldUseJson(globals: GlobalOptions): boolean {
 function isDebugInvocation(argv: string[]): boolean {
   const positional = argv.filter((token) => !token.startsWith('-'))
   return positional[0] === 'debug'
+}
+
+function isCommitInvocation(argv: string[]): boolean {
+  return argv[0] === 'commit'
 }
 
 function outputForConfigResult(globals: GlobalOptions, value: unknown): void {
@@ -313,6 +342,47 @@ async function executeCommand(parsed: ParsedCommand): Promise<void> {
       )
     }
 
+    return
+  }
+
+  if (parsed.kind === 'commit') {
+    const config = await loadConfig()
+    const presetName = parsed.options.preset ?? config.presets.default
+    const preset = presetName ? config.presets.named[presetName] : undefined
+    if (presetName && !preset) {
+      throw new UsageError(`Unknown preset '${presetName}'`)
+    }
+
+    const effectiveOptions = mergeRunOptionsWithPreset(parsed.options, preset)
+    const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
+    const gitRead = createGitRead({ cwd: workspace })
+    const gitExec = createGitExec({ cwd: workspace })
+    const diff = readStagedDiff(gitRead)
+    const result = await runRequest({
+      input: {
+        prompt: buildCommitPrompt(diff),
+        provider: effectiveOptions.provider,
+        model: effectiveOptions.model,
+        workspace,
+        mode: effectiveOptions.mode,
+        trust: effectiveOptions.trust,
+        output: 'plain',
+        timeoutMs: effectiveOptions.timeoutMs,
+        noFallback: effectiveOptions.noFallback,
+        yolo: effectiveOptions.yolo,
+        outputFormat: 'text',
+        headless: true,
+      },
+      config,
+      persistLastUsed: false,
+    })
+
+    const message = normalizeCommitMessage(result.response)
+    if (parsed.options.apply) {
+      applyCommitMessage(message, gitExec)
+    }
+
+    writeLine(message)
     return
   }
 
@@ -510,7 +580,8 @@ export async function cli(argv: string[] = process.argv.slice(2)): Promise<void>
   } catch (error) {
     const code = getExitCode(error)
     const message = formatError(error)
-    const wantsJson = argv.includes('--json') && !argv.includes('--plain') && !isDebugInvocation(argv)
+    const wantsJson =
+      argv.includes('--json') && !argv.includes('--plain') && !isDebugInvocation(argv) && !isCommitInvocation(argv)
 
     if (wantsJson) {
       writeJson(
