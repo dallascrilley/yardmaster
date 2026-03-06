@@ -17,6 +17,7 @@ describe('cli parser', () => {
       { argv: ['review', '--json-schema'], kind: 'review' },
       { argv: ['help', 'providers'], kind: 'help', topic: 'providers' },
       { argv: ['--version'], kind: 'version' },
+      { argv: ['--json', 'wish', 'hello'], kind: 'run' },
     ]
 
     for (const testCase of cases) {
@@ -27,7 +28,22 @@ describe('cli parser', () => {
         if (parsed.kind !== 'help') throw new Error('expected help')
         expect(parsed.topic).toBe(testCase.topic)
       }
+
+      if (testCase.argv.join(' ') === '--json wish hello') {
+        expect(parsed.kind).toBe('run')
+        if (parsed.kind !== 'run') throw new Error('expected run')
+        expect(parsed.globals.json).toBe(true)
+        expect(parsed.prompt).toBe('hello')
+      }
     }
+  })
+
+  it('normalizes provider and mode values in run parsing', () => {
+    const parsed = parseArgv(['run', '--provider', ' CLAUDE ', '--mode', 'DEFAULT', 'hello'])
+    expect(parsed.kind).toBe('run')
+    if (parsed.kind !== 'run') throw new Error('expected run')
+    expect(parsed.options.provider).toBe('claude')
+    expect(parsed.options.mode).toBe('default')
   })
 
   it('keeps parser validation error messages stable via table-driven cases', () => {
