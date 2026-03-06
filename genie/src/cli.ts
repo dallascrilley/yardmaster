@@ -46,7 +46,7 @@ function readPackageVersion(): string {
   }
 }
 
-function usage(topic?: ParsedCommand['kind'] | HelpTopic): string {
+function usage(topic?: HelpTopic): string {
   const root = [
     'Usage:',
     '  genie <prompt>',

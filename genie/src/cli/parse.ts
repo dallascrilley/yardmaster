@@ -25,6 +25,42 @@ function defaultGlobals(): GlobalOptions {
   }
 }
 
+function parseGlobalFlag(token: string, globals: GlobalOptions): boolean {
+  if (token === '--help' || token === '-h') {
+    globals.help = true
+    return true
+  }
+  if (token === '--version') {
+    globals.version = true
+    return true
+  }
+  if (token === '--json') {
+    globals.json = true
+    return true
+  }
+  if (token === '--plain') {
+    globals.plain = true
+    return true
+  }
+  if (token === '--no-color') {
+    globals.noColor = true
+    return true
+  }
+  if (token === '--no-input') {
+    globals.noInput = true
+    return true
+  }
+  if (token === '--quiet' || token === '-q') {
+    globals.quiet = true
+    return true
+  }
+  if (token === '--verbose' || token === '-v') {
+    globals.verbose = true
+    return true
+  }
+  return false
+}
+
 function parseReviewArgs(tokens: string[]): ParsedCommand {
   const globals = defaultGlobals()
   const options: ReviewOptions = { all: false, staged: false, jsonSchema: false }
@@ -32,39 +68,7 @@ function parseReviewArgs(tokens: string[]): ParsedCommand {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
     if (!token) continue
-
-    if (token === '--help' || token === '-h') {
-      globals.help = true
-      continue
-    }
-    if (token === '--version') {
-      globals.version = true
-      continue
-    }
-    if (token === '--json') {
-      globals.json = true
-      continue
-    }
-    if (token === '--plain') {
-      globals.plain = true
-      continue
-    }
-    if (token === '--no-color') {
-      globals.noColor = true
-      continue
-    }
-    if (token === '--no-input') {
-      globals.noInput = true
-      continue
-    }
-    if (token === '--quiet' || token === '-q') {
-      globals.quiet = true
-      continue
-    }
-    if (token === '--verbose' || token === '-v') {
-      globals.verbose = true
-      continue
-    }
+    if (parseGlobalFlag(token, globals)) continue
     if (token === '--all') {
       options.all = true
       continue
@@ -128,38 +132,7 @@ function parseUpdateArgs(tokens: string[]): ParsedCommand {
 
   for (const token of tokens) {
     if (!token) continue
-    if (token === '--help' || token === '-h') {
-      globals.help = true
-      continue
-    }
-    if (token === '--version') {
-      globals.version = true
-      continue
-    }
-    if (token === '--json') {
-      globals.json = true
-      continue
-    }
-    if (token === '--plain') {
-      globals.plain = true
-      continue
-    }
-    if (token === '--no-color') {
-      globals.noColor = true
-      continue
-    }
-    if (token === '--no-input') {
-      globals.noInput = true
-      continue
-    }
-    if (token === '--quiet' || token === '-q') {
-      globals.quiet = true
-      continue
-    }
-    if (token === '--verbose' || token === '-v') {
-      globals.verbose = true
-      continue
-    }
+    if (parseGlobalFlag(token, globals)) continue
     throw new UsageError(`Unknown update argument '${token}'`)
   }
 
@@ -179,39 +152,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
     if (!token) continue
-
-    if (token === '--help' || token === '-h') {
-      globals.help = true
-      continue
-    }
-    if (token === '--version') {
-      globals.version = true
-      continue
-    }
-    if (token === '--json') {
-      globals.json = true
-      continue
-    }
-    if (token === '--plain') {
-      globals.plain = true
-      continue
-    }
-    if (token === '--no-color') {
-      globals.noColor = true
-      continue
-    }
-    if (token === '--no-input') {
-      globals.noInput = true
-      continue
-    }
-    if (token === '--quiet' || token === '-q') {
-      globals.quiet = true
-      continue
-    }
-    if (token === '--verbose' || token === '-v') {
-      globals.verbose = true
-      continue
-    }
+    if (parseGlobalFlag(token, globals)) continue
 
     if (token === '--provider' || token === '-p') {
       const value = tokens[index + 1]
@@ -348,39 +289,7 @@ function parseProvidersArgs(tokens: string[]): ParsedCommand {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
     if (!token) continue
-
-    if (token === '--help' || token === '-h') {
-      globals.help = true
-      continue
-    }
-    if (token === '--version') {
-      globals.version = true
-      continue
-    }
-    if (token === '--json') {
-      globals.json = true
-      continue
-    }
-    if (token === '--plain') {
-      globals.plain = true
-      continue
-    }
-    if (token === '--no-color') {
-      globals.noColor = true
-      continue
-    }
-    if (token === '--no-input') {
-      globals.noInput = true
-      continue
-    }
-    if (token === '--quiet' || token === '-q') {
-      globals.quiet = true
-      continue
-    }
-    if (token === '--verbose' || token === '-v') {
-      globals.verbose = true
-      continue
-    }
+    if (parseGlobalFlag(token, globals)) continue
 
     if (!subcommand && (token === 'list' || token === 'doctor')) {
       subcommand = token
@@ -424,39 +333,7 @@ function parsePresetsArgs(tokens: string[]): ParsedCommand {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
     if (!token) continue
-
-    if (token === '--help' || token === '-h') {
-      globals.help = true
-      continue
-    }
-    if (token === '--version') {
-      globals.version = true
-      continue
-    }
-    if (token === '--json') {
-      globals.json = true
-      continue
-    }
-    if (token === '--plain') {
-      globals.plain = true
-      continue
-    }
-    if (token === '--no-color') {
-      globals.noColor = true
-      continue
-    }
-    if (token === '--no-input') {
-      globals.noInput = true
-      continue
-    }
-    if (token === '--quiet' || token === '-q') {
-      globals.quiet = true
-      continue
-    }
-    if (token === '--verbose' || token === '-v') {
-      globals.verbose = true
-      continue
-    }
+    if (parseGlobalFlag(token, globals)) continue
 
     if (!subcommand && (token === 'list' || token === 'get' || token === 'set' || token === 'delete' || token === 'use')) {
       subcommand = token
@@ -589,39 +466,7 @@ function parseConfigArgs(tokens: string[]): ParsedCommand {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
     if (!token) continue
-
-    if (token === '--help' || token === '-h') {
-      globals.help = true
-      continue
-    }
-    if (token === '--version') {
-      globals.version = true
-      continue
-    }
-    if (token === '--json') {
-      globals.json = true
-      continue
-    }
-    if (token === '--plain') {
-      globals.plain = true
-      continue
-    }
-    if (token === '--no-color') {
-      globals.noColor = true
-      continue
-    }
-    if (token === '--no-input') {
-      globals.noInput = true
-      continue
-    }
-    if (token === '--quiet' || token === '-q') {
-      globals.quiet = true
-      continue
-    }
-    if (token === '--verbose' || token === '-v') {
-      globals.verbose = true
-      continue
-    }
+    if (parseGlobalFlag(token, globals)) continue
 
     if (!subcommand && (token === 'get' || token === 'set' || token === 'init' || token === 'path')) {
       subcommand = token
@@ -650,10 +495,14 @@ function parseConfigArgs(tokens: string[]): ParsedCommand {
     if (positional.length < 2) {
       throw new UsageError('Usage: genie config set <key> <value>')
     }
+    const key = positional[0]
+    if (!key) {
+      throw new UsageError('Usage: genie config set <key> <value>')
+    }
 
     return {
       kind: 'config-set',
-      key: positional[0],
+      key,
       value: positional.slice(1).join(' '),
       globals,
     }
@@ -732,8 +581,11 @@ export function parseArgv(argv: string[]): ParsedCommand {
     throw new UsageError(`Unknown help topic '${topic}'`)
   }
 
-  if (aliasCommands.has(first)) {
-    return parseRunLikeArgs(tokens.slice(1))
+  const cmd = positional[0]
+  if (cmd && aliasCommands.has(cmd)) {
+    const index = tokens.indexOf(cmd)
+    const runTokens = [...tokens.slice(0, index), ...tokens.slice(index + 1)]
+    return parseRunLikeArgs(runTokens)
   }
 
   if (first === 'run') {
