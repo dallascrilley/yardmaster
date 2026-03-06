@@ -15,6 +15,7 @@
 - Confirm design uses `dc-cli-kit` with incur semantics.
 - Confirm v1 keeps YAGNI scope and defers sessions/history.
 - Confirm implementation plan contains testable acceptance criteria and verification steps.
+- Confirm `genie debug` rejects empty stdin quickly and writes diagnosis text to stdout on success.
 - Confirm CLI `help` command routes to usage output (`help`, `help <topic>`, `--json help`) without invoking providers.
 - Confirm `config set mode.default` rejects unsupported values with clear guidance.
 - Confirm provider availability checks retry once on timeout to reduce `providers doctor` false-missing results.
