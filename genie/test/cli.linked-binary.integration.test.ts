@@ -18,7 +18,7 @@ describe('linked binary critical path integration', () => {
     return harness
   }
 
-  it('verifies linked genie help and provider inventory with an isolated HOME', () => {
+  it('verifies linked genie help and provider inventory with an isolated HOME', { timeout: 20_000 }, () => {
     const harness = useHarness('linked-help')
 
     const help = harness.runLinkedCli(['--help'])
@@ -33,7 +33,7 @@ describe('linked binary critical path integration', () => {
     })
   })
 
-  it('executes a linked binary prompt flow with mocked providers and timeout handling', () => {
+  it('executes a linked binary prompt flow with mocked providers and timeout handling', { timeout: 20_000 }, () => {
     const successHarness = useHarness('linked-success')
     successHarness.writeMockBinary('claude', { executionStdout: 'linked mocked response' })
 

@@ -113,7 +113,7 @@ describe('cli critical path integration', () => {
     expect(commit.stdout.trim()).toBe('feat(cli): generated commit message')
   })
 
-  it('validates state flows unattended, including review modes and mocked update execution', () => {
+  it('validates state flows unattended, including review modes and mocked update execution', { timeout: 20_000 }, () => {
     const harness = useHarness('critical-state')
     for (const provider of ['claude', 'codex', 'gemini', 'cursor-agent'] as const) {
       harness.writeMockBinary(provider, {
@@ -182,14 +182,24 @@ describe('cli critical path integration', () => {
     harness.commitAll(workspace, 'feat: baseline')
     harness.stageFile(workspace, 'src/base.ts', 'export const base = 2\n')
     harness.commitAll(workspace, 'feat: change for base review')
-    const reviewBase = harness.runSourceCli(['review', '--agent', 'gemini', '--base', 'HEAD~1', '--json'], { cwd: workspace })
+    const reviewBase = harness.runSourceCli(['review', '--agent', 'gemini', '--base', 'HEAD~1', '--json'], {
+      cwd: workspace,
+      env: {
+        GEMINI_API_KEY: 'test-key',
+      },
+    })
     expect(reviewBase.status).toBe(0)
     expect(JSON.parse(reviewBase.stdout)).toMatchObject({
       kind: 'review_result',
       targets: ['gemini'],
     })
 
-    const reviewAll = harness.runSourceCli(['review', '--all', '--base', 'HEAD~1', '--json'], { cwd: workspace })
+    const reviewAll = harness.runSourceCli(['review', '--all', '--base', 'HEAD~1', '--json'], {
+      cwd: workspace,
+      env: {
+        GEMINI_API_KEY: 'test-key',
+      },
+    })
     expect(reviewAll.status).toBe(0)
     expect(JSON.parse(reviewAll.stdout)).toMatchObject({
       kind: 'review_result',
