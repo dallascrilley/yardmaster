@@ -24,7 +24,7 @@ export function resolveReviewTargets(all: boolean, agent?: ReviewAgentId): Revie
     throw new UsageError('A review target is required. Use --all or --agent <codex|claude|gemini|cursor>.')
   }
   if (all) {
-    return ['codex', 'claude', 'gemini', 'cursor']
+    return [...reviewAgentIds]
   }
   return [agent as ReviewAgentId]
 }

@@ -102,4 +102,28 @@ describe('cli global flags integration', () => {
     expect(result.stdout).toContain('claude | available | authenticated')
     expect(result.stderr).toContain('[genie] command=providers-doctor provider=claude available=true authenticated=true')
   })
+
+  it('keeps providers list json valid when verbose logging is enabled', () => {
+    const binDir = createTempDir('genie-flags-bin')
+    const homeDir = createTempDir('genie-flags-home')
+    tempDirs.push(binDir, homeDir)
+    writeEnvAwareClaudeBinary(binDir)
+
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'providers', 'list', '--json', '--verbose'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+      },
+    })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      kind: 'providers_list',
+      ok: true,
+    })
+    expect(result.stderr).toContain('[genie] command=providers-list count=')
+  })
 })

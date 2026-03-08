@@ -20,6 +20,7 @@ export type GitReadFn = (args: string[]) => string
 export type GitService = {
   read: GitReadFn
   resolveContext: () => GitContext
+  resolveWorkspace?: () => string
   resolveDiffSource: (params?: { staged?: boolean; base?: string }) => GitDiffSource
 }
 
@@ -35,6 +36,13 @@ export function createGitService(params?: { gitRead?: GitReadFn }): GitService {
   return {
     read: gitRead,
     resolveContext: () => resolveGitContext(gitRead),
+    resolveWorkspace: () => {
+      try {
+        return gitRead(['rev-parse', '--show-toplevel']).trim() || process.cwd()
+      } catch {
+        return process.cwd()
+      }
+    },
     resolveDiffSource: (resolveParams?: { staged?: boolean; base?: string }) =>
       resolveGitDiffSource(gitRead, resolveParams),
   }
