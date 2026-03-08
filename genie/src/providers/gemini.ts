@@ -1,6 +1,6 @@
 import { createProviderAdapter, extractResponseText } from './base.js'
 import { type NormalizedRequest } from '../types.js'
-import { applyGeminiMappedArgs } from './mapped-args.js'
+import { applyGeminiMappedArgs } from './mapped-args/gemini.js'
 
 function buildInvocation(request: NormalizedRequest) {
   const args: string[] = []

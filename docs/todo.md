@@ -32,3 +32,7 @@
 - 2026-03-06: Auth-only provider failures now preserve exit code `3` end-to-end; clean-worktree
   release smoke verified `0/1/2/3/124` and moved `cursor-agent` to an optional-but-documented
   release gate because workspace trust remains environment-local.
+
+- 2026-03-08: Added stabilization review bundle and stacked refactor review order in `docs/plans/2026-03-08-stabilization-review-bundle.md`.
+
+- 2026-03-08: Closed duplicate TD task `td-ee1467` and updated the stabilization review bundle to recommend review consolidation over further micro-refactors.

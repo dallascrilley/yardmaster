@@ -1,6 +1,6 @@
 import { createProviderAdapter, extractResponseText } from './base.js'
 import { type NormalizedRequest } from '../types.js'
-import { applyClaudeMappedArgs } from './mapped-args.js'
+import { applyClaudeMappedArgs } from './mapped-args/claude.js'
 
 function buildInvocation(request: NormalizedRequest) {
   const args = [request.prompt]

@@ -137,7 +137,7 @@ cat error.log | genie debug --input-file -
 - `claude`: installed and authenticated via Claude Code
 - `codex`: installed and authenticated via `codex auth` or `~/.codex/auth.json`
 - `gemini`: installed and authenticated via `GEMINI_API_KEY`
-- `cursor-agent`: installed plus authenticated and trusted for the current workspace; non-interactive checks may surface a workspace-trust prompt until that directory is approved
+- `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `genie providers doctor --provider cursor-agent --json` times out, open Cursor, confirm sign-in, and trust/approve the current workspace for agent access before retrying
 
 Use `genie providers doctor` for a quick health check before relying on any provider in automation or release smoke tests.
 
