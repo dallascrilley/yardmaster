@@ -100,6 +100,7 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
   const diffText = ensureNonEmptyDiff(diff.text)
   const prompt = buildReviewPrompt(diffText)
   const git = gitService.resolveContext()
+  const workspace = params.diffFile ? cwd : (gitService.resolveWorkspace?.() ?? cwd)
   const runner = params.requestRunner ?? ((requestParams: { input: RunRequestInput; config: GenieConfig }) =>
     runRequest({
       ...requestParams,
@@ -111,7 +112,7 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
       agent,
       prompt,
       config: params.config,
-      workspace: cwd,
+      workspace,
       requestRunner: runner,
     }),
   )

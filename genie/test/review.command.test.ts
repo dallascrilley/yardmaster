@@ -161,6 +161,7 @@ describe('review command', () => {
     const gitService: GitService = {
       read: () => '',
       resolveContext: () => ({ branch: 'test-branch', head: 'abc1234' }),
+      resolveWorkspace: () => '/tmp/genie-review-workspace',
       resolveDiffSource: () => ({
         source: 'git diff HEAD',
         text: ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const isolated = true'].join('\n'),
@@ -179,7 +180,58 @@ describe('review command', () => {
 
     expect(result.source).toBe('git diff HEAD')
     expect(result.git).toEqual({ branch: 'test-branch', head: 'abc1234' })
+    expect(result.results[0]).toMatchObject({
+      provider: 'codex',
+      status: 'ok',
+    })
     expect(result.summary).toEqual({ total: 1, succeeded: 1, failed: 0 })
+  })
+
+  it('uses git workspace root for branch reviews and current cwd for diff files', async () => {
+    const seenWorkspaces: string[] = []
+    const gitService: GitService = {
+      read: () => '',
+      resolveContext: () => ({ branch: 'workspace-test', head: 'abc1234' }),
+      resolveWorkspace: () => '/repo/root',
+      resolveDiffSource: () => ({
+        source: 'git diff HEAD',
+        text: ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const isolated = true'].join('\n'),
+      }),
+    }
+
+    const tempDir = mkdtempSync(join(tmpdir(), 'genie-review-workspace-'))
+    const diffFile = join(tempDir, 'manual.diff')
+    writeFileSync(diffFile, ['diff --git a/b.ts b/b.ts', '--- a/b.ts', '+++ b/b.ts', '+const y = 1'].join('\n'), 'utf8')
+
+    try {
+      await executeReviewCommand({
+        all: false,
+        agent: 'codex',
+        config: defaultConfig,
+        gitService,
+        requestRunner: async ({ input }) => {
+          seenWorkspaces.push(String(input.workspace))
+          return { response: 'ok' }
+        },
+      })
+
+      await executeReviewCommand({
+        all: false,
+        agent: 'codex',
+        diffFile,
+        config: defaultConfig,
+        gitService,
+        requestRunner: async ({ input }) => {
+          seenWorkspaces.push(String(input.workspace))
+          return { response: 'ok' }
+        },
+      })
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+
+    expect(seenWorkspaces[0]).toBe('/repo/root')
+    expect(seenWorkspaces[1]).toBe(process.cwd())
   })
 
   it('fails on empty diff file', async () => {

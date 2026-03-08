@@ -7,6 +7,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 project_root := justfile_directory()
 genie_dir := join(justfile_directory(), "genie")
 genie_bin := "node dist/bin/genie.js"
+genie_src_bin := "bun genie/src/bin/genie.ts"
 review_runs_dir := join(justfile_directory(), ".review-runs")
 default_review_base := "origin/main"
 default_review_agent := "codex"
@@ -70,7 +71,7 @@ _review-start reviewer base timeout:
     set -euo pipefail
     cd "{{ project_root }}"
     mkdir -p "{{ review_runs_dir }}"
-    run_id="$(date +%Y%m%d-%H%M%S)-{{ reviewer }}"
+    run_id="$(date +%Y%m%d-%H%M%S)-{{ reviewer }}-$$-$RANDOM"
     run_dir="{{ review_runs_dir }}/$run_id"
     mkdir -p "$run_dir"
     printf '%s\n' "{{ reviewer }}" >"$run_dir/reviewer"
@@ -133,7 +134,7 @@ review-ready base=default_review_base timeout="5":
     check claude-auth claude auth status
     check gemini command -v gemini
     check gemini-headless timeout "{{ timeout }}"s sh -c 'printf "hello" | gemini --extensions "" -p "say ok"'
-    check genie-cursor timeout "{{ timeout }}"s sh -c 'cd "{{ genie_dir }}" && {{ genie_bin }} review --agent cursor --base "{{ base }}"'
+    check genie-cursor timeout "{{ timeout }}"s sh -c 'cd "{{ project_root }}" && {{ genie_src_bin }} review --agent cursor --base "{{ base }}"'
 
 # Render review output for a single reviewer using the strongest available path
 [no-exit-message]
@@ -168,8 +169,8 @@ _review-output reviewer base timeout:
             timeout "{{ timeout }}"s sh -c 'git diff "$1"...HEAD | gemini --extensions "" -p "$2"' _ "{{ base }}" "{{ default_review_prompt }}"
             ;;
         cursor)
-            cd "{{ genie_dir }}"
-            timeout "{{ timeout }}"s {{ genie_bin }} review --agent cursor --base "{{ base }}"
+            cd "{{ project_root }}"
+            timeout "{{ timeout }}"s {{ genie_src_bin }} review --agent cursor --base "{{ base }}"
             ;;
         *)
             echo "Unknown reviewer: {{ reviewer }}"
@@ -273,23 +274,25 @@ review-agent agent=default_review_agent base=default_review_base timeout=default
 [script("bash")]
 review-staged agent=default_review_agent timeout=default_review_timeout_seconds:
     set -euo pipefail
-    cd "{{ genie_dir }}"
-    timeout "{{ timeout }}"s {{ genie_bin }} review --agent "{{ agent }}" --staged
+    cd "{{ project_root }}"
+    timeout "{{ timeout }}"s {{ genie_src_bin }} review --agent "{{ agent }}" --staged
 
 # Print the stable JSON schema for review automation
-[working-directory("genie")]
+[script("bash")]
 review-schema:
-    {{ genie_bin }} review --json-schema
+    set -euo pipefail
+    cd "{{ project_root }}"
+    {{ genie_src_bin }} review --json-schema
 
 # Check provider installation/auth status before running AI reviews
 [script("bash")]
 review-doctor provider="":
     set -euo pipefail
-    cd "{{ genie_dir }}"
+    cd "{{ project_root }}"
     if [ -n "{{ provider }}" ]; then
-        {{ genie_bin }} providers doctor --provider "{{ provider }}" --json
+        {{ genie_src_bin }} providers doctor --provider "{{ provider }}" --json
     else
-        {{ genie_bin }} providers doctor --json
+        {{ genie_src_bin }} providers doctor --json
     fi
 
 # Post a single-agent review as a PR comment when a PR exists for the branch
