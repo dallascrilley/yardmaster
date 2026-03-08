@@ -5,3 +5,9 @@ package-lock.json
 /genie/package-lock.json
 
 .todos/
+
+# Local agent/session artifacts
+/.omc/
+/.omcodex/
+/error.log
+/genie/error.log
