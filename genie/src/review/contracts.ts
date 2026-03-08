@@ -54,15 +54,7 @@ export type ReviewJsonEnvelope = {
     succeeded: number
     failed: number
   }
-  results: Array<{
-    agent: ReviewAgentId
-    provider: ProviderId
-    model: string | null
-    status: 'ok' | 'error'
-    latencyMs: number
-    responseChars: number
-    review: string
-  }>
+  results: ReviewProviderResult[]
   exitCode: 0 | 1
   error: null
 }

@@ -48,6 +48,66 @@ describe('review command', () => {
     })
   })
 
+  it('counts rename-only git diffs as files even without --- headers', () => {
+    const stats = parseUnifiedDiffStats([
+      'diff --git a/old.ts b/new.ts',
+      'similarity index 100%',
+      'rename from old.ts',
+      'rename to new.ts',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 0,
+    })
+  })
+
+  it('counts binary git diffs as files even when no --- headers are present', () => {
+    const stats = parseUnifiedDiffStats([
+      'diff --git a/logo.png b/logo.png',
+      'new file mode 100644',
+      'index 0000000..1234567',
+      'Binary files /dev/null and b/logo.png differ',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 0,
+    })
+  })
+
+  it('counts empty file additions as files even when there are no content hunks', () => {
+    const stats = parseUnifiedDiffStats([
+      'diff --git a/empty.ts b/empty.ts',
+      'new file mode 100644',
+      'index 0000000..e69de29',
+      '--- /dev/null',
+      '+++ b/empty.ts',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 0,
+    })
+  })
+
+  it('does not treat deleted content lines that begin with -- as file headers', () => {
+    const stats = parseUnifiedDiffStats([
+      '--- a/file.sql',
+      '+++ b/file.sql',
+      '--- comment removed from sql',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 1,
+    })
+  })
+
   it('executes all-agent review from a diff file and preserves agent ordering', async () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'genie-review-'))
     const diffFile = join(tempDir, 'change.diff')
@@ -59,6 +119,7 @@ describe('review command', () => {
 
     const seenProviders: string[] = []
     const seenTimeouts: number[] = []
+    const seenWorkspaces: string[] = []
     try {
       const result = await executeReviewCommand({
         all: true,
@@ -67,6 +128,7 @@ describe('review command', () => {
         requestRunner: async ({ input }) => {
           seenProviders.push(String(input.provider))
           seenTimeouts.push(Number(input.timeoutMs))
+          seenWorkspaces.push(String(input.workspace))
           if (input.provider === 'gemini') {
             throw new Error('gemini unavailable')
           }
@@ -79,6 +141,7 @@ describe('review command', () => {
       expect(result.agents).toEqual(['codex', 'claude', 'gemini', 'cursor'])
       expect(seenProviders).toEqual(['codex', 'claude', 'gemini', 'cursor-agent'])
       expect(seenTimeouts).toEqual([120000, 120000, 120000, 120000])
+      expect(seenWorkspaces.every((workspace) => workspace === process.cwd())).toBe(true)
       expect(result.cwd.length).toBeGreaterThan(0)
       expect(result.summary).toEqual({ total: 4, succeeded: 3, failed: 1 })
       expect(result.exitCode).toBe(1)
@@ -98,6 +161,7 @@ describe('review command', () => {
     const gitService: GitService = {
       read: () => '',
       resolveContext: () => ({ branch: 'test-branch', head: 'abc1234' }),
+      resolveWorkspace: () => '/tmp/genie-review-workspace',
       resolveDiffSource: () => ({
         source: 'git diff HEAD',
         text: ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const isolated = true'].join('\n'),
@@ -116,7 +180,58 @@ describe('review command', () => {
 
     expect(result.source).toBe('git diff HEAD')
     expect(result.git).toEqual({ branch: 'test-branch', head: 'abc1234' })
+    expect(result.results[0]).toMatchObject({
+      provider: 'codex',
+      status: 'ok',
+    })
     expect(result.summary).toEqual({ total: 1, succeeded: 1, failed: 0 })
+  })
+
+  it('uses git workspace root for branch reviews and current cwd for diff files', async () => {
+    const seenWorkspaces: string[] = []
+    const gitService: GitService = {
+      read: () => '',
+      resolveContext: () => ({ branch: 'workspace-test', head: 'abc1234' }),
+      resolveWorkspace: () => '/repo/root',
+      resolveDiffSource: () => ({
+        source: 'git diff HEAD',
+        text: ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '+const isolated = true'].join('\n'),
+      }),
+    }
+
+    const tempDir = mkdtempSync(join(tmpdir(), 'genie-review-workspace-'))
+    const diffFile = join(tempDir, 'manual.diff')
+    writeFileSync(diffFile, ['diff --git a/b.ts b/b.ts', '--- a/b.ts', '+++ b/b.ts', '+const y = 1'].join('\n'), 'utf8')
+
+    try {
+      await executeReviewCommand({
+        all: false,
+        agent: 'codex',
+        config: defaultConfig,
+        gitService,
+        requestRunner: async ({ input }) => {
+          seenWorkspaces.push(String(input.workspace))
+          return { response: 'ok' }
+        },
+      })
+
+      await executeReviewCommand({
+        all: false,
+        agent: 'codex',
+        diffFile,
+        config: defaultConfig,
+        gitService,
+        requestRunner: async ({ input }) => {
+          seenWorkspaces.push(String(input.workspace))
+          return { response: 'ok' }
+        },
+      })
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+
+    expect(seenWorkspaces[0]).toBe('/repo/root')
+    expect(seenWorkspaces[1]).toBe(process.cwd())
   })
 
   it('fails on empty diff file', async () => {
