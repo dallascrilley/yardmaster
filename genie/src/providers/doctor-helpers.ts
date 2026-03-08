@@ -9,9 +9,16 @@ export function resolveDoctorTargets(provider?: string) {
     throw new UsageError(`Unknown provider '${provider}'`)
   }
 
-  return provider
-    ? [getProviderAdapter(provider as ProviderId)].filter((item): item is NonNullable<typeof item> => Boolean(item))
-    : providerAdapters
+  if (!provider) {
+    return providerAdapters
+  }
+
+  const adapter = getProviderAdapter(provider as ProviderId)
+  if (!adapter) {
+    throw new UsageError(`No adapter registered for '${provider}'`)
+  }
+
+  return [adapter]
 }
 
 export async function doctorProviderStatus(adapter: (typeof providerAdapters)[number]): Promise<ProviderDoctorStatus> {

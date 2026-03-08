@@ -46,6 +46,7 @@ async function runReviewForAgent(params: {
   agent: ReviewAgentId
   prompt: string
   config: GenieConfig
+  workspace: string
   requestRunner: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{ response: string; model?: string }>
 }): Promise<ReviewProviderResult> {
   const startedAt = Date.now()
@@ -55,6 +56,7 @@ async function runReviewForAgent(params: {
       input: {
         prompt: params.prompt,
         provider,
+        workspace: params.workspace,
         noFallback: true,
         output: 'plain',
         timeoutMs: REVIEW_TIMEOUT_MS,
@@ -86,6 +88,7 @@ async function runReviewForAgent(params: {
 }
 
 export async function executeReviewCommand(params: ExecuteReviewCommandParams): Promise<ReviewExecutionResult> {
+  const cwd = process.cwd()
   const agents = resolveReviewTargets(params.all, params.agent)
   const gitService = params.gitService ?? createGitService()
   const diff = resolveReviewDiffSource({
@@ -97,6 +100,7 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
   const diffText = ensureNonEmptyDiff(diff.text)
   const prompt = buildReviewPrompt(diffText)
   const git = gitService.resolveContext()
+  const workspace = params.diffFile ? cwd : (gitService.resolveWorkspace?.() ?? cwd)
   const runner = params.requestRunner ?? ((requestParams: { input: RunRequestInput; config: GenieConfig }) =>
     runRequest({
       ...requestParams,
@@ -108,6 +112,7 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
       agent,
       prompt,
       config: params.config,
+      workspace,
       requestRunner: runner,
     }),
   )
@@ -119,7 +124,7 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
     mode: params.all ? 'all' : 'single',
     agents,
     source: diff.source,
-    cwd: process.cwd(),
+    cwd,
     git,
     diff: parseUnifiedDiffStats(diffText),
     results,

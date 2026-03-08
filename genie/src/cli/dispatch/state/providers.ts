@@ -5,6 +5,7 @@ import type { ParsedCommand } from '../../types.js'
 
 export async function handleProvidersListCommand(parsed: Extract<ParsedCommand, { kind: 'providers-list' }>): Promise<void> {
   const providers = await listProviders()
+  writeVerbose(parsed.globals, `[genie] command=providers-list count=${providers.length}`)
   if (shouldUseJson(parsed.globals)) {
     writeJson(toCliJsonSuccessEnvelope('providers_list', { providers }))
     return
@@ -12,7 +13,6 @@ export async function handleProvidersListCommand(parsed: Extract<ParsedCommand, 
   for (const provider of providers) {
     writeLine(provider.id)
   }
-  writeVerbose(parsed.globals, `[genie] command=providers-list count=${providers.length}`)
 }
 
 export async function handleProvidersDoctorCommand(parsed: Extract<ParsedCommand, { kind: 'providers-doctor' }>): Promise<void> {

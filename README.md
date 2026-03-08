@@ -132,6 +132,33 @@ cat error.log | genie debug --input-file -
 - `--base <ref>` (review committed branch diff against explicit base, e.g. `origin/main`)
 - `--json-schema` (print JSON Schema for `genie review --json` envelope)
 
+## Repo review workflows
+
+From the repo root, the `justfile` wraps the most common local review flows:
+
+```bash
+just review-ready
+just review-agent codex
+just review-fast
+just review-async-all
+just review-status
+just review-tail latest
+```
+
+Quick guide:
+
+- `just review-ready`: check which reviewer paths are currently usable before starting a slower run
+- `just review-agent codex`: run the strongest default single-reviewer path
+- `just review-fast`: run a short bounded multi-reviewer sweep
+- `just review-all`: run the full bounded multi-reviewer sweep
+- `just review-async <reviewer>` / `just review-async-all`: launch background review runs
+- `just review-status`: inspect async review run state
+- `just review-tail latest`: inspect the latest async review output
+- `just review-comment`: post generated review output as a PR comment
+- `just review-submit approve|comment|request-changes`: submit a formal PR review
+
+The review recipes use the source CLI entrypoint, resolve a portable timeout command, and surface real `gh` errors instead of collapsing them into a misleading "No open PR" message.
+
 ## Provider prerequisites
 
 - `claude`: installed and authenticated via Claude Code

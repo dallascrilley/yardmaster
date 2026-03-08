@@ -94,6 +94,59 @@ describe('cli input integration', () => {
     expect(JSON.parse(result.stdout).response).toBe('prompt from stdin')
   })
 
+  it('falls back to --prompt-file when the provided prompt is empty', () => {
+    const promptFile = createTempDir('genie-input-work')
+    const binDir = createTempDir('genie-input-bin')
+    const homeDir = createTempDir('genie-input-home')
+    tempDirs.push(promptFile, binDir, homeDir)
+    writeEchoClaudeBinary(binDir)
+
+    const filePath = join(promptFile, 'prompt.txt')
+    writeFileSync(filePath, 'prompt from file\n', 'utf8')
+
+    const result = spawnSync(
+      'bun',
+      ['-e', `
+        import { resolveRunPrompt } from './src/cli/dispatch/shared.ts'
+        process.stdout.write(resolveRunPrompt('', ${JSON.stringify(filePath)}))
+      `],
+      {
+        cwd: new URL('..', import.meta.url).pathname,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      },
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe('prompt from file')
+  })
+
+  it('fails with a clear error when the provided prompt is empty and no prompt file exists', () => {
+    const result = spawnSync(
+      'bun',
+      ['-e', `
+        import { resolveRunPrompt } from './src/cli/dispatch/shared.ts'
+        try {
+          process.stdout.write(resolveRunPrompt('', undefined))
+        } catch (error) {
+          process.stderr.write(String(error instanceof Error ? error.message : error))
+          process.exit(1)
+        }
+      `],
+      {
+        cwd: new URL('..', import.meta.url).pathname,
+        encoding: 'utf8',
+      },
+    )
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Prompt is required')
+  })
+
   it('reads debug input from --input-file', () => {
     const binDir = createTempDir('genie-input-bin')
     const homeDir = createTempDir('genie-input-home')

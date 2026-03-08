@@ -36,3 +36,8 @@
 - 2026-03-08: Added stabilization review bundle and stacked refactor review order in `docs/plans/2026-03-08-stabilization-review-bundle.md`.
 
 - 2026-03-08: Closed duplicate TD task `td-ee1467` and updated the stabilization review bundle to recommend review consolidation over further micro-refactors.
+
+- 2026-03-08: Added a repo-root `justfile` with Bun install/build/test/typecheck helpers plus reviewer actions for `genie review`, PR comments/reviews, and direct Claude/Gemini/Codex diff review flows.
+- 2026-03-08: Stabilized the repo-root `justfile` review workflows so `review-agent`, `review-all`, `review-comment`, and `review-submit` share a private reviewer-dispatch helper and route Codex through the dedicated `codex exec review` path.
+- 2026-03-08: Added `just review-ready` so the repo can preflight PR state and reviewer readiness (Codex, Claude, Gemini, and cursor via Genie) before invoking slower review commands.
+- 2026-03-08: Manually verified direct reviewer commands before and during justfile wiring: Codex works best through `codex exec review`, Claude is currently blocked by an invalid API key despite `claude auth status` succeeding, Gemini can complete asynchronously with longer timeouts but carries MCP startup noise, and cursor reviews currently fail or time out at the auth check.

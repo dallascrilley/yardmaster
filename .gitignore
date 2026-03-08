@@ -11,3 +11,4 @@ package-lock.json
 /.omcodex/
 /error.log
 /genie/error.log
+/.review-runs/

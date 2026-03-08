@@ -9,13 +9,20 @@ export function parseUnifiedDiffStats(diffText: string): ReviewDiffStats {
   let files = 0
   let additions = 0
   let deletions = 0
+  let sawGitHeader = false
+  let fallbackFiles = 0
 
   for (const line of lines) {
     if (line.startsWith('diff --git ')) {
+      sawGitHeader = true
       files += 1
       continue
     }
-    if (line.startsWith('+++') || line.startsWith('---')) {
+    if (line.startsWith('--- a/') || line.startsWith('--- b/') || line.startsWith('--- /dev/null')) {
+      fallbackFiles += 1
+      continue
+    }
+    if (line.startsWith('+++ ')) {
       continue
     }
     if (line.startsWith('+')) {
@@ -27,7 +34,7 @@ export function parseUnifiedDiffStats(diffText: string): ReviewDiffStats {
     }
   }
 
-  return { files, additions, deletions }
+  return { files: sawGitHeader ? files : fallbackFiles, additions, deletions }
 }
 
 export function formatReviewReport(result: ReviewExecutionResult): string {
