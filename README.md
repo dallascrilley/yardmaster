@@ -39,6 +39,16 @@ genie providers doctor
 
 If you just run `genie`, the root command now shows workflow-oriented help with examples, command discovery, and suggested next commands.
 
+## Verification
+
+Run the full unattended critical-path suite locally from `genie/`:
+
+```bash
+bun run test:critical-path
+```
+
+That suite validates bootstrap commands, prompt flows, stateful commands, and the linked `genie` binary with isolated temp homes, mock providers, and temporary git workspaces.
+
 ## Command reference
 
 ```bash
