@@ -64,6 +64,40 @@ describe('provider contract checks', () => {
     expect(check.ok).toBe(false)
   })
 
+  it('does not treat arbitrary nested strings in tokens as auth tokens', async () => {
+    const home = join(tmpdir(), `genie-codex-home-${randomUUID()}`)
+    mkdirSync(join(home, '.codex'), { recursive: true })
+    writeFileSync(
+      join(home, '.codex', 'auth.json'),
+      JSON.stringify({
+        tokens: {
+          default: {
+            provider: 'openai',
+          },
+        },
+      }),
+    )
+
+    const previousHome = process.env.HOME
+    process.env.HOME = home
+
+    let check: Awaited<ReturnType<typeof codexAdapter.isAuthenticated>>
+    try {
+      check = await codexAdapter.isAuthenticated(async () => {
+        return {
+          code: 1,
+          stdout: '',
+          stderr: 'Unknown command: auth status',
+        } satisfies CommandResult
+      })
+    } finally {
+      process.env.HOME = previousHome
+      rmSync(home, { recursive: true, force: true })
+    }
+
+    expect(check.ok).toBe(false)
+  })
+
   it('uses GEMINI_API_KEY for gemini auth checks', async () => {
     const previousKey = process.env.GEMINI_API_KEY
     process.env.GEMINI_API_KEY = 'redacted'

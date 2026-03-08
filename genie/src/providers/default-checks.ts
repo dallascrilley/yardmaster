@@ -10,12 +10,18 @@ const RETRY_AVAILABILITY_TIMEOUT_MS = 6_000
 
 export function createDefaultAvailabilityCheck(binary: string, invocation?: ProviderInvocation) {
   return async (runner: CommandRunner): Promise<ProviderCheckResult> => {
-    const baseInvocation =
-      invocation ?? {
-        command: binary,
-        args: ['--version'],
-        timeoutMs: DEFAULT_AVAILABILITY_TIMEOUT_MS,
-      }
+    const baseInvocation: ProviderInvocation = invocation
+      ? {
+          command: invocation.command,
+          args: invocation.args,
+          cwd: invocation.cwd,
+          timeoutMs: invocation.timeoutMs ?? DEFAULT_AVAILABILITY_TIMEOUT_MS,
+        }
+      : {
+          command: binary,
+          args: ['--version'],
+          timeoutMs: DEFAULT_AVAILABILITY_TIMEOUT_MS,
+        }
     let result = await runner(baseInvocation)
 
     if (isLikelyTimeout(result)) {

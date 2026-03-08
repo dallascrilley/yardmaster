@@ -11,11 +11,11 @@ export function parseUnifiedDiffStats(diffText: string): ReviewDiffStats {
   let deletions = 0
 
   for (const line of lines) {
-    if (line.startsWith('diff --git ')) {
+    if (line.startsWith('--- ')) {
       files += 1
       continue
     }
-    if (line.startsWith('+++') || line.startsWith('---')) {
+    if (line.startsWith('+++ ')) {
       continue
     }
     if (line.startsWith('+')) {

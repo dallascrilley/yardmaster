@@ -59,6 +59,7 @@ describe('review command', () => {
 
     const seenProviders: string[] = []
     const seenTimeouts: number[] = []
+    const seenWorkspaces: string[] = []
     try {
       const result = await executeReviewCommand({
         all: true,
@@ -67,6 +68,7 @@ describe('review command', () => {
         requestRunner: async ({ input }) => {
           seenProviders.push(String(input.provider))
           seenTimeouts.push(Number(input.timeoutMs))
+          seenWorkspaces.push(String(input.workspace))
           if (input.provider === 'gemini') {
             throw new Error('gemini unavailable')
           }
@@ -79,6 +81,7 @@ describe('review command', () => {
       expect(result.agents).toEqual(['codex', 'claude', 'gemini', 'cursor'])
       expect(seenProviders).toEqual(['codex', 'claude', 'gemini', 'cursor-agent'])
       expect(seenTimeouts).toEqual([120000, 120000, 120000, 120000])
+      expect(seenWorkspaces.every((workspace) => workspace === process.cwd())).toBe(true)
       expect(result.cwd.length).toBeGreaterThan(0)
       expect(result.summary).toEqual({ total: 4, succeeded: 3, failed: 1 })
       expect(result.exitCode).toBe(1)

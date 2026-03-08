@@ -11,7 +11,7 @@ export { handlePresetsDeleteCommand, handlePresetsGetCommand, handlePresetsListC
 export { handleProvidersDoctorCommand, handleProvidersListCommand }
 export { handleReviewCommand, handleUpdateCommand }
 
-export function assertUnreachableCommand(): never {
+export function assertUnreachableCommand(_: never): never {
   throw new Error('Unknown state command kind')
 }
 
@@ -61,5 +61,7 @@ export async function dispatchStateCommand(
       return handlePresetsDeleteCommand(parsed, deps)
     case 'presets-use':
       return handlePresetsUseCommand(parsed)
+    default:
+      return assertUnreachableCommand(parsed)
   }
 }

@@ -12,6 +12,10 @@ export function resolveProviderOrder(
   const explicitProvider = explicit?.trim().toLowerCase()
   const includes = (value: string): value is ProviderId => providerIds.includes(value as ProviderId)
 
+  if (explicitProvider && !includes(explicitProvider)) {
+    throw new Error(`Unknown provider '${explicit}'`)
+  }
+
   const baseOrder = (() => {
     if (explicitProvider && includes(explicitProvider)) {
       return [explicitProvider, ...config.provider.fallbackOrder.filter((id) => id !== explicitProvider)]
