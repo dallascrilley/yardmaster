@@ -2,6 +2,16 @@
 
 Unified AI CLI with deterministic provider routing, script-safe output, and robust non-hanging execution.
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [CLI Reference](docs/CLI.md) | Complete command reference with all flags and examples |
+| [Architecture](docs/ARCHITECTURE.md) | System design, module map, request lifecycle, patterns |
+| [API Reference](docs/API.md) | TypeScript types, interfaces, and JSON contracts |
+| [Contributing](docs/CONTRIBUTING.md) | Development setup, conventions, extension guides |
+| [Release Checklist](docs/release-checklist.md) | Pre-release verification steps |
+
 ## Install
 
 From the project root:
@@ -382,4 +392,13 @@ bun run test
 bun run build
 ```
 
-Release checklist: `docs/release-checklist.md`
+Or use the justfile:
+
+```bash
+just qa          # typecheck + test + build
+just ci          # install + typecheck + test + build
+```
+
+See [Contributing](docs/CONTRIBUTING.md) for development guidelines and extension guides.
+
+Release checklist: [docs/release-checklist.md](docs/release-checklist.md)

@@ -12,3 +12,9 @@ package-lock.json
 /error.log
 /genie/error.log
 /.review-runs/
+
+# Nightshift local monitoring
+.nightshift/
+
+# Local Claude worktree artifacts
+.claude/worktrees/
