@@ -33,7 +33,7 @@ build:
 
 # Update the local linked genie install
 [working-directory("genie")]
-update:
+update: build
     {{ genie_bin }} update --force
 
 # Remove build artifacts
@@ -132,6 +132,14 @@ review-comment agent=default_review_agent base=default_review_base:
 [script("bash")]
 review-submit action="comment" agent=default_review_agent base=default_review_base:
     set -euo pipefail
+    case "{{ action }}" in
+        comment|approve|request-changes) ;;
+        *)
+            echo "Invalid review action: {{ action }}"
+            echo "Expected one of: comment, approve, request-changes"
+            exit 1
+            ;;
+    esac
     PR_NUMBER=$(gh pr view --json number -q .number 2>/dev/null || true)
     if [ -z "$PR_NUMBER" ]; then
         echo "No open PR for the current branch."
