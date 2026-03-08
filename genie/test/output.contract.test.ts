@@ -56,6 +56,18 @@ describe('output contract', () => {
     })
   })
 
+  it('builds stable design success envelopes for json mode', () => {
+    expect(toCliJsonSuccessEnvelope('design_result', { provider: 'claude', response: 'ok' })).toEqual({
+      kind: 'design_result',
+      version: 1,
+      ok: true,
+      provider: 'claude',
+      response: 'ok',
+      exitCode: 0,
+      error: null,
+    })
+  })
+
   it('builds shared cli json error envelopes', () => {
     expect(toCliJsonErrorEnvelope(2, { code: '2', message: 'bad args' })).toEqual({
       kind: 'error',

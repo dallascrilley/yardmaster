@@ -71,13 +71,19 @@ export type PresetsSetOptions = {
   setDefault: boolean
 }
 
-export type HelpTopic = 'run' | 'commit' | 'debug' | 'review' | 'update' | 'providers' | 'config' | 'presets' | 'completion'
+export type HelpTopic = 'run' | 'design' | 'commit' | 'debug' | 'review' | 'update' | 'providers' | 'config' | 'presets' | 'completion'
 
 export type ParsedCommand =
   | { kind: 'help'; topic?: HelpTopic }
   | { kind: 'version' }
   | {
       kind: 'run'
+      prompt?: string
+      globals: GlobalOptions
+      options: RunOptions
+    }
+  | {
+      kind: 'design'
       prompt?: string
       globals: GlobalOptions
       options: RunOptions
