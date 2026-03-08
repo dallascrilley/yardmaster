@@ -44,6 +44,7 @@ If you just run `genie`, the root command now shows workflow-oriented help with 
 ```bash
 genie <prompt>
 genie run [options] <prompt>
+genie design [options] <prompt>
 genie commit [options]
 genie debug [options]
 genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]
@@ -66,6 +67,7 @@ genie completion <bash|zsh|fish>
 Common next commands:
 
 - `genie help run`
+- `genie help design`
 - `genie help review`
 - `genie presets list`
 - `genie config path`
@@ -74,6 +76,7 @@ Task-oriented terminal help is available for every major command:
 
 ```bash
 genie help run
+genie help design
 genie help debug
 genie help review
 genie help config

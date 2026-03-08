@@ -3,7 +3,7 @@
 **Date:** 2026-03-06
 **Scope:** `genie` CLI release readiness and release-hygiene follow-up
 **Branch Tip Verified:** `bd9b057` (`chore(release): tighten readiness verification`)
-**Status:** Ready pending merge of this branch; `cursor-agent` is waived as an optional provider gate
+**Status:** Released as `v0.1.0` on `main`; `cursor-agent` remains an optional provider gate
 
 ## Worktree Hygiene Inventory
 
@@ -118,14 +118,15 @@ fix preserves auth-only failures as aggregated auth errors so the CLI again retu
 
 Task reviewed: `task_e_69ab32b08fc483339f87a48bfeb32b1f`
 
-- Decision: safe to apply if CI/docs-only changes are acceptable before release
+- Decision: do not apply here as-is after release follow-up review
 - Scope: workflow/docs + `genie/scripts/quantify-doctor-flake.ts`
-- Caveat: the workflow introduces a privileged manual-dispatch execution surface; defer until after
-  release if you do not want new CI privilege surface area pre-tag
+- Caveat: the diff targets a different workflow surface than this repo's current CI and introduces a
+  privileged manual-dispatch path, so keep the local `doctor:flake` script as the source of truth
+  unless a repo-native post-release workflow is designed intentionally
 
 ## Release Decision
 
-Go/No-Go: **Go after this branch is merged**
+Go/No-Go: **Released**
 
 - Verified:
   - clean release worktree
@@ -135,5 +136,8 @@ Go/No-Go: **Go after this branch is merged**
   - plain/json command contract green
   - provider doctor green with an explicit `cursor-agent` waiver
   - exit-code matrix green
-- Remaining non-code action:
-  - merge this branch before tagging so release sign-off and the auth-exit fix live on `main`
+- Release outcome:
+  - `v0.1.0` was created on 2026-03-06 against `main` commit `181cb7843dbaa1a1b952dae5229e2cd3a1cc7c50`
+- Remaining follow-up actions:
+  - keep `cursor-agent` trust/auth behavior documented until a reproducible bootstrap path exists
+  - extend CI beyond typecheck/test/build with linked-binary contract smoke checks
