@@ -15,6 +15,8 @@ describe('cli help integration', () => {
     expect(result.stdout).toContain('Examples:')
     expect(result.stdout).toContain('Next commands:')
     expect(result.stdout).toContain('genie help run')
+    expect(result.stdout).toContain('genie help design')
+    expect(result.stdout).toContain('design     Get frontend design feedback and UI recommendations.')
   })
 
   it('keeps explicit root help aligned with bare invocation output', () => {
@@ -45,6 +47,21 @@ describe('cli help integration', () => {
     expect(result.stdout).toContain('Common flows:')
     expect(result.stdout).toContain('Config and precedence:')
     expect(result.stdout).toContain('GENIE_PROVIDER')
+    expect(result.stdout).toContain('--prompt-file <path|->')
+    expect(result.stdout).toContain('Recovery tips:')
+  })
+
+  it('shows design help with examples and provider guidance', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'help', 'design'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(result.stdout).toContain('Usage: genie design [options] <prompt>')
+    expect(result.stdout).toContain('Get frontend design feedback and implementation-aware UI recommendations')
+    expect(result.stdout).toContain('Common flows:')
     expect(result.stdout).toContain('--prompt-file <path|->')
     expect(result.stdout).toContain('Recovery tips:')
   })
