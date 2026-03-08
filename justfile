@@ -11,6 +11,7 @@ default_review_base := "origin/main"
 default_review_agent := "codex"
 default_review_prompt := "Review this diff for bugs, behavioral regressions, missing tests, security issues, and style problems. Be concise and actionable."
 default_review_timeout_seconds := "45"
+fast_review_timeout_seconds := "15"
 
 # ── Default ──────────────────────────────────────────────────────────
 # Show available recipes
@@ -80,6 +81,10 @@ review-all base=default_review_base timeout=default_review_timeout_seconds:
         fi
         echo ""
     done
+
+# Run the all-agent review flow with a faster timeout for quick checks
+review-fast base=default_review_base:
+    @just review-all "{{ base }}" "{{ fast_review_timeout_seconds }}"
 
 # Review current branch changes with one agent against a base ref
 [script("bash")]
@@ -198,6 +203,10 @@ review-cli-all base=default_review_base timeout=default_review_timeout_seconds:
         fi
         echo ""
     done
+
+# Run the direct CLI reviewer sweep with a faster timeout for quick checks
+review-cli-fast base=default_review_base:
+    @just review-cli-all "{{ base }}" "{{ fast_review_timeout_seconds }}"
 
 # ── Git ──────────────────────────────────────────────────────────────
 
