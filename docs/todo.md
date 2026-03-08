@@ -36,3 +36,5 @@
 - 2026-03-08: Added stabilization review bundle and stacked refactor review order in `docs/plans/2026-03-08-stabilization-review-bundle.md`.
 
 - 2026-03-08: Closed duplicate TD task `td-ee1467` and updated the stabilization review bundle to recommend review consolidation over further micro-refactors.
+
+- 2026-03-08: Added a repo-root `justfile` with Bun install/build/test/typecheck helpers plus reviewer actions for `genie review`, PR comments/reviews, and direct Claude/Gemini/Codex diff review flows.
