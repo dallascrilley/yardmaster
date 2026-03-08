@@ -162,7 +162,7 @@ time node dist/bin/genie.js --help
 ls -la dist/cli/
 ```
 
-Expected result: the linked binary still exposes the same help header and JSON provider inventory shape, startup remains fast enough to feel instantaneous in local use, and the compiled CLI module layout under `dist/cli/` still looks coherent after the split.
+Expected result: the linked binary still exposes the same help header and JSON provider inventory shape, startup remains fast enough to feel instantaneous in local use (treat anything noticeably slower than the current baseline as a regression to investigate), and the compiled CLI module layout under `dist/cli/` still looks coherent after the split.
 
 ## Validation and Acceptance
 
@@ -239,7 +239,7 @@ Use existing dependencies only: Node subprocess APIs, TypeScript, Vitest, and th
 
 Current evidence snapshots worth preserving during implementation:
 
-    Latest CI run for `main` succeeded on 2026-03-08 and already includes linked-binary smoke.
+    Snapshot as of 2026-03-08: the latest CI run on `main` succeeded and already includes linked-binary smoke.
 
     `git status --short --branch` currently reports:
 
