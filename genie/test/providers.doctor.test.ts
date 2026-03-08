@@ -78,4 +78,30 @@ describe('providers doctor', () => {
 
     spy.mockRestore()
   })
+
+  it('returns actionable cursor-agent trust guidance when auth status times out', async () => {
+    const spy = vi
+      .spyOn(base, 'runCommand')
+      .mockResolvedValueOnce({
+        code: 0,
+        stdout: '2026.02.27-e7d2ef6',
+        stderr: '',
+      })
+      .mockResolvedValueOnce({
+        code: 124,
+        stdout: '',
+        stderr: 'Timed out after 4000ms',
+      })
+
+    const report = await doctorProviders('cursor-agent')
+    expect(report[0]).toMatchObject({
+      provider: 'cursor-agent',
+      available: true,
+      authenticated: false,
+      authDetails: 'Timed out after 4000ms',
+      hint: 'cursor-agent did not respond to `auth status`. Open Cursor, confirm you are signed in, and trust/approve this workspace for agent access before retrying.',
+    })
+
+    spy.mockRestore()
+  })
 })

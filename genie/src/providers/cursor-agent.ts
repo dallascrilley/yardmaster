@@ -1,6 +1,6 @@
 import { createProviderAdapter, extractResponseText } from './base.js'
 import { type NormalizedRequest } from '../types.js'
-import { applyCursorMappedArgs } from './mapped-args.js'
+import { applyCursorMappedArgs } from './mapped-args/cursor.js'
 
 function buildInvocation(request: NormalizedRequest) {
   const args = [request.prompt]
@@ -26,4 +26,40 @@ export const cursorAgentAdapter = createProviderAdapter({
   binary: 'cursor-agent',
   buildInvocation,
   parse,
+  authCheck: async (runner) => {
+    const result = await runner({
+      command: 'cursor-agent',
+      args: ['auth', 'status'],
+      timeoutMs: 4_000,
+      cwd: process.cwd(),
+    })
+
+    if (result.code === 0) {
+      return {
+        ok: true,
+        details: (result.stdout || result.stderr).trim() || undefined,
+      }
+    }
+
+    const details = [result.stderr, result.stdout].filter(Boolean).join('\n').trim()
+    if (result.code === 124) {
+      return {
+        ok: false,
+        reason: 'cursor-agent authentication check timed out',
+        hint: 'cursor-agent did not respond to `auth status`. Open Cursor, confirm you are signed in, and trust/approve this workspace for agent access before retrying.',
+        authFailure: true,
+        timeout: true,
+        code: result.code,
+        details: details || undefined,
+      }
+    }
+
+    return {
+      ok: false,
+      reason: 'cursor-agent authentication check failed',
+      hint: details || 'Open Cursor, confirm you are signed in, and trust/approve this workspace for agent access before retrying.',
+      authFailure: true,
+      code: result.code,
+    }
+  },
 })
