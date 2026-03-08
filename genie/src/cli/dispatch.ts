@@ -71,5 +71,5 @@ export async function executeCommand(
     return
   }
 
-  assertUnreachableCommand()
+  assertUnreachableCommand(parsed as never)
 }
