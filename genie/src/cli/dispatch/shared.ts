@@ -38,7 +38,9 @@ export function mergeRunOptionsWithPreset(options: RunOptions, preset?: Provider
 
 export function resolveRunPrompt(prompt: string | undefined, promptFile: string | undefined): string {
   if (prompt !== undefined) {
-    return normalizeTextInput(prompt, 'Prompt is required')
+    if (prompt.trim().length > 0 || !promptFile) {
+      return normalizeTextInput(prompt, 'Prompt is required')
+    }
   }
 
   if (!promptFile) {

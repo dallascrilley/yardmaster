@@ -48,6 +48,35 @@ describe('review command', () => {
     })
   })
 
+  it('counts rename-only git diffs as files even without --- headers', () => {
+    const stats = parseUnifiedDiffStats([
+      'diff --git a/old.ts b/new.ts',
+      'similarity index 100%',
+      'rename from old.ts',
+      'rename to new.ts',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 0,
+    })
+  })
+
+  it('does not treat deleted content lines that begin with -- as file headers', () => {
+    const stats = parseUnifiedDiffStats([
+      '--- a/file.sql',
+      '+++ b/file.sql',
+      '--- comment removed from sql',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 1,
+    })
+  })
+
   it('executes all-agent review from a diff file and preserves agent ordering', async () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'genie-review-'))
     const diffFile = join(tempDir, 'change.diff')
