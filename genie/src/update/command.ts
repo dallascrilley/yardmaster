@@ -37,6 +37,10 @@ function defaultRunner(command: string, args: string[], cwd: string): { code: nu
 }
 
 export function resolveCliPackageRoot(moduleUrl: string = import.meta.url): string {
+  const override = process.env.GENIE_UPDATE_PACKAGE_ROOT?.trim()
+  if (override) {
+    return resolve(override)
+  }
   const modulePath = fileURLToPath(moduleUrl)
   return resolve(dirname(modulePath), '..', '..')
 }
