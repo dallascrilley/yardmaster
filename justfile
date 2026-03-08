@@ -64,6 +64,22 @@ test *args:
 
 # ── Review ───────────────────────────────────────────────────────────
 
+# Resolve a portable timeout binary for review commands
+[private]
+[script("bash")]
+_timeout-bin:
+    set -euo pipefail
+    if command -v gtimeout >/dev/null 2>&1; then
+        printf '%s\n' "gtimeout"
+        exit 0
+    fi
+    if command -v timeout >/dev/null 2>&1; then
+        printf '%s\n' "timeout"
+        exit 0
+    fi
+    echo "A timeout command is required. Install GNU coreutils so 'gtimeout' or 'timeout' is available." >&2
+    exit 1
+
 # Start a reviewer in the background and write its output to a repo-local run directory
 [private]
 [script("bash")]
@@ -100,6 +116,7 @@ _review-start reviewer base timeout:
 review-ready base=default_review_base timeout="5":
     set -euo pipefail
     cd "{{ project_root }}"
+    timeout_cmd="$(just --quiet _timeout-bin)"
 
     check() {
         local name="$1"
@@ -129,12 +146,12 @@ review-ready base=default_review_base timeout="5":
     fi
 
     check codex command -v codex
-    check codex-review timeout "{{ timeout }}"s codex exec review --base "{{ base }}" -o /dev/null
+    check codex-review "$timeout_cmd" "{{ timeout }}"s codex exec review --base "{{ base }}" -o /dev/null
     check claude command -v claude
     check claude-auth claude auth status
     check gemini command -v gemini
-    check gemini-headless timeout "{{ timeout }}"s sh -c 'printf "hello" | gemini --extensions "" -p "say ok"'
-    check genie-cursor timeout "{{ timeout }}"s sh -c 'cd "{{ project_root }}" && {{ genie_src_bin }} review --agent cursor --base "{{ base }}"'
+    check gemini-headless "$timeout_cmd" "{{ timeout }}"s sh -c 'printf "hello" | gemini --extensions "" -p "say ok"'
+    check genie-cursor "$timeout_cmd" "{{ timeout }}"s sh -c 'cd "{{ project_root }}" && {{ genie_src_bin }} review --agent cursor --base "{{ base }}"'
 
 # Render review output for a single reviewer using the strongest available path
 [no-exit-message]
@@ -143,6 +160,7 @@ review-ready base=default_review_base timeout="5":
 _review-output reviewer base timeout:
     set -euo pipefail
     cd "{{ project_root }}"
+    timeout_cmd="$(just --quiet _timeout-bin)"
     case "{{ reviewer }}" in
         codex)
             if ! command -v codex >/dev/null 2>&1; then
@@ -151,7 +169,7 @@ _review-output reviewer base timeout:
             fi
             tmp=$(mktemp)
             trap 'rm -f "$tmp"' EXIT
-            timeout "{{ timeout }}"s codex exec review --base "{{ base }}" -o "$tmp"
+            "$timeout_cmd" "{{ timeout }}"s codex exec review --base "{{ base }}" -o "$tmp"
             cat "$tmp"
             ;;
         claude)
@@ -159,18 +177,18 @@ _review-output reviewer base timeout:
                 echo "claude CLI is not installed."
                 exit 1
             fi
-            timeout "{{ timeout }}"s sh -c 'git diff "$1"...HEAD | claude -p "$2" --output-format text' _ "{{ base }}" "{{ default_review_prompt }}"
+            "$timeout_cmd" "{{ timeout }}"s sh -c 'git diff "$1"...HEAD | claude -p "$2" --output-format text' _ "{{ base }}" "{{ default_review_prompt }}"
             ;;
         gemini)
             if ! command -v gemini >/dev/null 2>&1; then
                 echo "gemini CLI is not installed."
                 exit 1
             fi
-            timeout "{{ timeout }}"s sh -c 'git diff "$1"...HEAD | gemini --extensions "" -p "$2"' _ "{{ base }}" "{{ default_review_prompt }}"
+            "$timeout_cmd" "{{ timeout }}"s sh -c 'git diff "$1"...HEAD | gemini --extensions "" -p "$2"' _ "{{ base }}" "{{ default_review_prompt }}"
             ;;
         cursor)
             cd "{{ project_root }}"
-            timeout "{{ timeout }}"s {{ genie_src_bin }} review --agent cursor --base "{{ base }}"
+            "$timeout_cmd" "{{ timeout }}"s {{ genie_src_bin }} review --agent cursor --base "{{ base }}"
             ;;
         *)
             echo "Unknown reviewer: {{ reviewer }}"
@@ -275,7 +293,8 @@ review-agent agent=default_review_agent base=default_review_base timeout=default
 review-staged agent=default_review_agent timeout=default_review_timeout_seconds:
     set -euo pipefail
     cd "{{ project_root }}"
-    timeout "{{ timeout }}"s {{ genie_src_bin }} review --agent "{{ agent }}" --staged
+    timeout_cmd="$(just --quiet _timeout-bin)"
+    "$timeout_cmd" "{{ timeout }}"s {{ genie_src_bin }} review --agent "{{ agent }}" --staged
 
 # Print the stable JSON schema for review automation
 [script("bash")]
@@ -299,7 +318,11 @@ review-doctor provider="":
 [script("bash")]
 review-comment agent=default_review_agent base=default_review_base:
     set -euo pipefail
-    PR_NUMBER=$(gh pr view --json number -q .number 2>/dev/null || true)
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "GitHub CLI 'gh' is required."
+        exit 1
+    fi
+    PR_NUMBER="$(gh pr view --json number -q .number)"
     if [ -z "$PR_NUMBER" ]; then
         echo "No open PR for the current branch."
         exit 0
@@ -319,7 +342,11 @@ review-submit action="comment" agent=default_review_agent base=default_review_ba
             exit 1
             ;;
     esac
-    PR_NUMBER=$(gh pr view --json number -q .number 2>/dev/null || true)
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "GitHub CLI 'gh' is required."
+        exit 1
+    fi
+    PR_NUMBER="$(gh pr view --json number -q .number)"
     if [ -z "$PR_NUMBER" ]; then
         echo "No open PR for the current branch."
         exit 0
@@ -358,7 +385,8 @@ review-gemini base=default_review_base timeout=default_review_timeout_seconds:
 [script("bash")]
 review-codex base=default_review_base timeout=default_review_timeout_seconds:
     set -euo pipefail
-    timeout "{{ timeout }}"s sh -c '{ printf "%s\n\n" "$2"; git diff "$1"...HEAD; } | codex exec --sandbox read-only -o /dev/stdout -' _ "{{ base }}" "{{ default_review_prompt }}"
+    timeout_cmd="$(just --quiet _timeout-bin)"
+    "$timeout_cmd" "{{ timeout }}"s sh -c '{ printf "%s\n\n" "$2"; git diff "$1"...HEAD; } | codex exec --sandbox read-only -o /dev/stdout -' _ "{{ base }}" "{{ default_review_prompt }}"
 
 # Run the dedicated Codex review command against a base ref
 [no-exit-message]

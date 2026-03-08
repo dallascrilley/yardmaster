@@ -43,9 +43,9 @@ export function hasCodexAuthToken(): boolean {
 
     const allowedTokenKeys = new Set(['api_key', 'apiKey', 'token', 'access_token', 'accessToken', 'key'])
 
-    return Object.values(tokens as Record<string, unknown>).some((value) => {
+    return Object.entries(tokens as Record<string, unknown>).some(([key, value]) => {
       if (typeof value === 'string') {
-        return value.trim().length > 0
+        return allowedTokenKeys.has(key) && value.trim().length > 0
       }
 
       if (!value || typeof value !== 'object') {
