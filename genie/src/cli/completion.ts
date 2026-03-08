@@ -1,8 +1,9 @@
 import type { CompletionShell } from './types.js'
 
-const rootCommands = ['run', 'commit', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'help', 'completion']
+const rootCommands = ['run', 'design', 'commit', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'help', 'completion']
 const globalFlags = ['-h', '--help', '--version', '--json', '--plain', '--no-color', '-q', '--quiet', '-v', '--verbose', '--no-input']
 const runFlags = ['-p', '--provider', '-m', '--model', '-w', '--workspace', '--mode', '--trust', '--preset', '--prompt-file', '--yolo', '--include-directories', '--output-format', '--print', '--extensions', '--mcp', '--timeout-ms', '--no-fallback']
+const designFlags = ['-p', '--provider', '-m', '--model', '-w', '--workspace', '--mode', '--trust', '--preset', '--prompt-file', '--yolo', '--timeout-ms', '--no-fallback']
 const commitFlags = ['-a', '--apply', '-p', '--provider', '-m', '--model', '-w', '--workspace', '--mode', '--trust', '--preset', '--yolo', '--timeout-ms', '--no-fallback']
 const debugFlags = ['-p', '--provider', '-m', '--model', '-w', '--workspace', '--mode', '--trust', '--preset', '--input-file', '--yolo', '--timeout-ms', '--no-fallback']
 const reviewFlags = ['--all', '--agent', '--diff-file', '--staged', '--base', '--json-schema']
@@ -13,7 +14,7 @@ const configSubcommands = ['get', 'set', 'init', 'path']
 const configFlags = ['--dry-run', '--force']
 const presetsSubcommands = ['list', 'get', 'set', 'delete', 'use']
 const presetsFlags = ['--provider', '--model', '--mode', '--trust', '--yolo', '--print', '--include-directories', '--output-format', '--extensions', '--mcp', '--default', '--dry-run', '--force']
-const helpTopics = ['run', 'commit', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'completion']
+const helpTopics = ['run', 'design', 'commit', 'debug', 'review', 'update', 'providers', 'config', 'presets', 'completion']
 const shells = ['bash', 'zsh', 'fish']
 
 function words(values: string[]): string {
@@ -37,6 +38,9 @@ _genie() {
   case "$cmd" in
     run)
       COMPREPLY=( $(compgen -W "${words([...runFlags, ...globalFlags])}" -- "$cur") )
+      ;;
+    design)
+      COMPREPLY=( $(compgen -W "${words([...designFlags, ...globalFlags])}" -- "$cur") )
       ;;
     commit)
       COMPREPLY=( $(compgen -W "${words([...commitFlags, ...globalFlags])}" -- "$cur") )
@@ -94,6 +98,7 @@ function renderZsh(): string {
 local -a commands
 commands=(
   'run:Execute a prompt'
+  'design:Get frontend design feedback'
   'commit:Generate a commit message'
   'debug:Diagnose terminal output'
   'review:Review repository changes'
@@ -113,6 +118,9 @@ fi
 case "$words[2]" in
   run)
     _arguments ${withGlobalFlags(runFlags, 'run option')}
+    ;;
+  design)
+    _arguments ${withGlobalFlags(designFlags, 'design option')}
     ;;
   commit)
     _arguments ${withGlobalFlags(commitFlags, 'commit option')}
@@ -170,6 +178,7 @@ function renderFish(): string {
     `complete -c genie -f -s v -l verbose`,
     `complete -c genie -f -l no-input`,
     ...runFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from run" -a "${flag}"`),
+    ...designFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from design" -a "${flag}"`),
     ...commitFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from commit" -a "${flag}"`),
     ...debugFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from debug" -a "${flag}"`),
     ...reviewFlags.map((flag) => `complete -c genie -n "__fish_seen_subcommand_from review" -a "${flag}"`),

@@ -71,6 +71,36 @@ describe('cli machine-readable json integration', () => {
     })
   })
 
+  it('emits the shared json envelope for design', () => {
+    const binDir = createTempDir('genie-design-bin')
+    const homeDir = createTempDir('genie-design-home')
+    tempDirs.push(binDir, homeDir)
+    writeMockClaudeBinary(binDir)
+
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'design', '--provider', 'claude', '--no-fallback', '--json', 'audit the hero'], {
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`,
+      },
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({
+      kind: 'design_result',
+      version: 1,
+      ok: true,
+      exitCode: 0,
+      provider: 'claude',
+      response: 'mocked response',
+      error: null,
+    })
+  })
+
   it('emits shared json envelopes for providers, config, and presets commands', () => {
     const binDir = createTempDir('genie-machine-bin')
     const homeDir = createTempDir('genie-machine-home')

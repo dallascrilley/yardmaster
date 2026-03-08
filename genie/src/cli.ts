@@ -25,6 +25,7 @@ import {
 } from './review/command.js'
 import { formatUpdateResult, previewUpdateCommand, runUpdateCommand } from './update/command.js'
 import { buildDebugPrompt, readDebugInput } from './debug/command.js'
+import { buildDesignPrompt } from './design/command.js'
 import {
   applyCommitMessage,
   buildCommitPrompt,
@@ -73,6 +74,7 @@ function usage(topic?: HelpTopic): string {
     '',
     'Common workflows:',
     '  run        Execute a prompt with provider routing, presets, and fallback.',
+    '  design     Get frontend design feedback and UI recommendations.',
     '  debug      Diagnose terminal errors from stdin.',
     '  review     Review the current diff with one agent or all agents.',
     '  providers  Check provider availability and auth health.',
@@ -83,6 +85,7 @@ function usage(topic?: HelpTopic): string {
     'Examples:',
     '  genie "summarize the current branch"',
     '  genie run --preset headless-codex "explain this repo layout"',
+    '  genie design "review the onboarding hero and primary CTA hierarchy"',
     '  genie run --prompt-file prompt.txt',
     '  npm test 2>&1 | genie debug --provider claude',
     '  genie review --all --base origin/main',
@@ -90,12 +93,14 @@ function usage(topic?: HelpTopic): string {
     '',
     'Next commands:',
     '  genie help run',
+    '  genie help design',
     '  genie help review',
     '  genie presets list',
     '  genie config path',
     '',
     'Command reference:',
     '  genie run [options] <prompt>',
+    '  genie design [options] <prompt>',
     '  genie commit [options]',
     '  genie debug [options]',
     '  genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]',
@@ -126,6 +131,7 @@ function usage(topic?: HelpTopic): string {
     '',
     'Help topics:',
     '  genie help run',
+    '  genie help design',
     '  genie help commit',
     '  genie help debug',
     '  genie help review',
@@ -173,6 +179,37 @@ function usage(topic?: HelpTopic): string {
     '  Use `--no-fallback` to isolate one provider while debugging a failure.',
     '  Use `genie help config` to inspect supported defaults and config keys.',
     '  Use `--prompt-file <path>` for saved prompt text or `--prompt-file -` to read stdin.',
+  ]
+
+  const design = [
+    'Usage: genie design [options] <prompt>',
+    'Get frontend design feedback and implementation-aware UI recommendations through the normal provider pipeline.',
+    '',
+    'Common flows:',
+    '  genie design "review the pricing page hierarchy and CTA emphasis"',
+    '  genie design --provider codex --no-fallback "critique the dashboard empty state"',
+    '  genie design --prompt-file brief.txt --json',
+    '',
+    'Options:',
+    '  -p, --provider <claude|codex|cursor-agent|gemini>',
+    '  -m, --model <name>',
+    '  -w, --workspace <path>',
+    '  --mode <name>',
+    '  --trust',
+    '  --preset <name>',
+    '  --prompt-file <path|->',
+    '  --yolo',
+    '  --timeout-ms <n>',
+    '  --no-fallback',
+    '',
+    'Config and precedence:',
+    '  flags > GENIE_* env vars > .genie/config.json > ~/.config/genie/config.json > defaults',
+    '  Relevant env vars: GENIE_PROVIDER, GENIE_MODEL, GENIE_MODE, GENIE_WORKSPACE, GENIE_TRUST, GENIE_TIMEOUT_MS, GENIE_OUTPUT',
+    '',
+    'Recovery tips:',
+    '  Pass the design brief directly or use `--prompt-file <path>` for longer review requests.',
+    '  Use `--no-fallback` to isolate one provider while tuning recommendation quality.',
+    '  Use `--json` when you need structured automation-friendly output.',
   ]
 
   const review = [
@@ -374,6 +411,7 @@ function usage(topic?: HelpTopic): string {
   ]
 
   if (topic === 'run') return run.join('\n')
+  if (topic === 'design') return design.join('\n')
   if (topic === 'commit') return commit.join('\n')
   if (topic === 'debug') return debug.join('\n')
   if (topic === 'review') return review.join('\n')
@@ -576,6 +614,47 @@ async function executeCommand(
       `[genie] command=run provider=${result.provider} fallback=${String(result.fallbackUsed)} totalMs=${result.timings.totalMs}`,
     )
 
+    return
+  }
+
+  if (parsed.kind === 'design') {
+    const config = await loadConfig()
+    const presetName = parsed.options.preset ?? config.presets.default
+    const preset = presetName ? config.presets.named[presetName] : undefined
+    if (presetName && !preset) {
+      throw new UsageError(`Unknown preset '${presetName}'`)
+    }
+
+    const effectiveOptions = mergeRunOptionsWithPreset(parsed.options, preset)
+    const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
+    const result = await runRequest({
+      input: {
+        prompt: buildDesignPrompt(resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile)),
+        provider: effectiveOptions.provider,
+        model: effectiveOptions.model,
+        workspace,
+        mode: effectiveOptions.mode,
+        trust: effectiveOptions.trust,
+        output: 'plain',
+        timeoutMs: effectiveOptions.timeoutMs,
+        noFallback: effectiveOptions.noFallback,
+        yolo: effectiveOptions.yolo,
+        outputFormat: 'text',
+        headless: true,
+      },
+      config,
+      persistLastUsed: false,
+    })
+
+    if (shouldUseJson(parsed.globals)) {
+      writeJson(toCliJsonSuccessEnvelope('design_result', toResponseEnvelope(result)))
+    } else {
+      writeLine(result.response)
+    }
+    writeVerbose(
+      parsed.globals,
+      `[genie] command=design provider=${result.provider} fallback=${String(result.fallbackUsed)} totalMs=${result.timings.totalMs}`,
+    )
     return
   }
 

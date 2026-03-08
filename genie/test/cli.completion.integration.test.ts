@@ -15,7 +15,7 @@ describe('cli completion integration', () => {
     expect(result.status).toBe(0)
     expect(result.stderr).toBe('')
     expect(result.stdout).toContain('complete -F _genie genie')
-    expect(result.stdout).toContain('run commit debug review update providers config presets help completion')
+    expect(result.stdout).toContain('run design commit debug review update providers config presets help completion')
   })
 
   it('renders zsh and fish completion scripts', () => {
@@ -32,12 +32,14 @@ describe('cli completion integration', () => {
     expect(zsh.stderr).toBe('')
     expect(zsh.stdout).toContain('#compdef genie')
     expect(zsh.stdout).toContain("completion:Generate shell completion")
+    expect(zsh.stdout).toContain("design:Get frontend design feedback")
     expect(zsh.stdout).toContain("'--json'")
     expect(zsh.stdout).toContain("'commit'")
 
     expect(fish.status).toBe(0)
     expect(fish.stderr).toBe('')
     expect(fish.stdout).toContain('complete -c genie -n "__fish_use_subcommand" -a "completion"')
+    expect(fish.stdout).toContain('complete -c genie -n "__fish_seen_subcommand_from design" -a "--prompt-file"')
     expect(fish.stdout).toContain('complete -c genie -n "__fish_seen_subcommand_from completion" -a "fish"')
     expect(fish.stdout).toContain('complete -c genie -n "__fish_seen_subcommand_from commit" -a "--apply"')
   })

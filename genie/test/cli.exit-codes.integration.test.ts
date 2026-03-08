@@ -141,6 +141,17 @@ exit 1
     expect(result.stderr).toContain("Unknown mode 'invalidmode' for --mode")
   })
 
+  it('returns exit code 2 for missing design prompt before execution', () => {
+    const result = spawnSync('bun', ['src/bin/genie.ts', 'design'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('Prompt is required')
+    expect(result.stderr).toContain('Run `genie help run`')
+  })
+
   it('returns exit code 2 for invalid update arguments', () => {
     const result = spawnSync('bun', ['src/bin/genie.ts', 'update', '--nope'], {
       cwd: new URL('..', import.meta.url).pathname,

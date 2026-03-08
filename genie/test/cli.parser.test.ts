@@ -6,6 +6,7 @@ describe('cli parser', () => {
   it('keeps parser command-kind behavior stable via table-driven cases', () => {
     const cases: Array<{ argv: string[]; kind: string; topic?: string }> = [
       { argv: ['run', 'hello'], kind: 'run' },
+      { argv: ['design', 'hero audit'], kind: 'design' },
       { argv: ['commit'], kind: 'commit' },
       { argv: ['commit', '--apply'], kind: 'commit' },
       { argv: ['run', '--prompt-file', 'prompt.txt'], kind: 'run' },
@@ -25,6 +26,7 @@ describe('cli parser', () => {
       { argv: ['update', '--dry-run'], kind: 'update' },
       { argv: ['review', '--json-schema'], kind: 'review' },
       { argv: ['help', 'commit'], kind: 'help', topic: 'commit' },
+      { argv: ['help', 'design'], kind: 'help', topic: 'design' },
       { argv: ['help', 'debug'], kind: 'help', topic: 'debug' },
       { argv: ['help', 'completion'], kind: 'help', topic: 'completion' },
       { argv: ['help', 'providers'], kind: 'help', topic: 'providers' },
@@ -58,6 +60,14 @@ describe('cli parser', () => {
     expect(parsed.options.mode).toBe('default')
   })
 
+  it('normalizes provider and mode values in design parsing', () => {
+    const parsed = parseArgv(['design', '--provider', ' CLAUDE ', '--mode', 'DEFAULT', 'audit this layout'])
+    expect(parsed.kind).toBe('design')
+    if (parsed.kind !== 'design') throw new Error('expected design')
+    expect(parsed.options.provider).toBe('claude')
+    expect(parsed.options.mode).toBe('default')
+  })
+
   it('keeps parser validation error messages stable via table-driven cases', () => {
     const errorCases: Array<{ argv: string[]; message: string }> = [
       { argv: ['run', '--provider', 'nope', 'hello'], message: "Unknown provider 'nope' for --provider" },
@@ -66,6 +76,7 @@ describe('cli parser', () => {
         message: "Unknown output format 'xml' for --output-format",
       },
       { argv: ['run', '--timeout-ms', '0', 'hello'], message: 'Invalid value for --timeout-ms' },
+      { argv: ['design', '--timeout-ms', '0', 'hello'], message: 'Invalid value for --timeout-ms' },
       { argv: ['debug', '--timeout-ms', '0'], message: 'Invalid value for --timeout-ms' },
       { argv: ['commit', '--timeout-ms', '0'], message: 'Invalid value for --timeout-ms' },
       { argv: ['commit', '--json'], message: '--json is not supported for genie commit' },
@@ -80,6 +91,7 @@ describe('cli parser', () => {
       { argv: ['providers', 'doctor', '--provider'], message: 'Missing value for --provider' },
       { argv: ['config', 'set', 'mode.default'], message: 'Usage: genie config set <key> <value>' },
       { argv: ['run', '--prompt-file', 'prompt.txt', 'hello'], message: '--prompt-file cannot be used with positional prompt text' },
+      { argv: ['design', '--prompt-file', 'brief.txt', 'hello'], message: '--prompt-file cannot be used with positional prompt text' },
       { argv: ['presets', 'set'], message: 'Usage: genie presets set <name>' },
       { argv: ['config', 'get', '--dry-run'], message: "Unknown config argument '--dry-run'" },
       { argv: ['presets', 'list', '--dry-run'], message: "Unknown presets argument '--dry-run'" },
@@ -148,6 +160,14 @@ describe('cli parser', () => {
     expect(parsed.prompt).toBeUndefined()
   })
 
+  it('parses design prompt-file input without positional prompt text', () => {
+    const parsed = parseArgv(['design', '--provider', 'codex', '--prompt-file', 'brief.txt'])
+    expect(parsed.kind).toBe('design')
+    if (parsed.kind !== 'design') throw new Error('expected design')
+    expect(parsed.options.promptFile).toBe('brief.txt')
+    expect(parsed.prompt).toBeUndefined()
+  })
+
   it('treats unknown single token as shorthand prompt only when strict mode is disabled', () => {
     expect(() => parseArgv(['gleep'])).toThrow("Unknown command 'gleep'. Use 'genie help' for usage.")
 
@@ -212,6 +232,11 @@ describe('cli parser', () => {
     expect(updateDryRun.safety.dryRun).toBe(true)
     expect(updateDryRun.safety.force).toBe(true)
     expect(parseArgv(['commit']).kind).toBe('commit')
+    expect(parseArgv(['design', 'audit hierarchy']).kind).toBe('design')
+    const designJson = parseArgv(['design', '--json', 'audit hierarchy'])
+    expect(designJson.kind).toBe('design')
+    if (designJson.kind !== 'design') throw new Error('expected design')
+    expect(designJson.globals.json).toBe(true)
     const commitApply = parseArgv(['commit', '--apply', '--provider', 'gemini'])
     expect(commitApply.kind).toBe('commit')
     if (commitApply.kind !== 'commit') throw new Error('expected commit')
@@ -333,6 +358,11 @@ describe('cli parser', () => {
     expect(runHelp.kind).toBe('help')
     if (runHelp.kind !== 'help') throw new Error('expected help')
     expect(runHelp.topic).toBe('run')
+
+    const designHelp = parseArgv(['help', 'design'])
+    expect(designHelp.kind).toBe('help')
+    if (designHelp.kind !== 'help') throw new Error('expected help')
+    expect(designHelp.topic).toBe('design')
 
     const commitHelp = parseArgv(['help', 'commit'])
     expect(commitHelp.kind).toBe('help')

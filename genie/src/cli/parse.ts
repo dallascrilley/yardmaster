@@ -21,7 +21,7 @@ import {
 } from './validate.js'
 
 const aliasCommands = new Set(['wish', 'rub'])
-const rootCommands = new Set(['run', 'commit', 'debug', 'review', 'update', 'providers', 'presets', 'config', 'help', 'completion'])
+const rootCommands = new Set(['run', 'design', 'commit', 'debug', 'review', 'update', 'providers', 'presets', 'config', 'help', 'completion'])
 const strictCommandNames = [...rootCommands, ...aliasCommands]
 
 function defaultGlobals(): GlobalOptions {
@@ -201,10 +201,11 @@ function parseCompletionArgs(tokens: string[]): ParsedCommand {
   }
 }
 
-function parseRunLikeArgs(tokens: string[]): ParsedCommand {
+function parsePromptCommandArgs(tokens: string[], kind: 'run' | 'design'): ParsedCommand {
   const globals = defaultGlobals()
   const options: RunOptions = { noFallback: false }
   const positional: string[] = []
+  const allowExtendedOptions = kind === 'run'
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
@@ -259,7 +260,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
       continue
     }
 
-    if (token === '--output-format') {
+    if (allowExtendedOptions && token === '--output-format') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError('Missing value for --output-format')
       options.outputFormat = parseOutputFormat(value, '--output-format')
@@ -267,7 +268,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
       continue
     }
 
-    if (token === '--include-directories') {
+    if (allowExtendedOptions && token === '--include-directories') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError('Missing value for --include-directories')
       options.includeDirectories = [...(options.includeDirectories ?? []), ...parseListValue(value)]
@@ -275,7 +276,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
       continue
     }
 
-    if (token === '--extensions') {
+    if (allowExtendedOptions && token === '--extensions') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError('Missing value for --extensions')
       options.extensions = [...(options.extensions ?? []), ...parseListValue(value)]
@@ -283,7 +284,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
       continue
     }
 
-    if (token === '--mcp') {
+    if (allowExtendedOptions && token === '--mcp') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError('Missing value for --mcp')
       options.mcp = [...(options.mcp ?? []), ...parseListValue(value)]
@@ -313,7 +314,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
       continue
     }
 
-    if (token === '--print') {
+    if (allowExtendedOptions && token === '--print') {
       options.headless = true
       continue
     }
@@ -331,7 +332,7 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
   }
 
   if (globals.version) return { kind: 'version' }
-  if (globals.help) return { kind: 'help', topic: 'run' }
+  if (globals.help) return { kind: 'help', topic: kind }
 
   const prompt = positional.join(' ').trim()
   if (prompt && options.promptFile) {
@@ -342,11 +343,19 @@ function parseRunLikeArgs(tokens: string[]): ParsedCommand {
   }
 
   return {
-    kind: 'run',
+    kind,
     prompt: prompt || undefined,
     globals,
     options,
   }
+}
+
+function parseRunLikeArgs(tokens: string[]): ParsedCommand {
+  return parsePromptCommandArgs(tokens, 'run')
+}
+
+function parseDesignArgs(tokens: string[]): ParsedCommand {
+  return parsePromptCommandArgs(tokens, 'design')
 }
 
 function parseDebugArgs(tokens: string[]): ParsedCommand {
@@ -876,6 +885,7 @@ export function parseArgv(argv: string[]): ParsedCommand {
 
   const helpTopicSet = new Set<HelpTopic>([
     'run',
+    'design',
     'commit',
     'debug',
     'review',
@@ -927,6 +937,9 @@ export function parseArgv(argv: string[]): ParsedCommand {
 
   if (first === 'run') {
     return parseRunLikeArgs(tokens.slice(1))
+  }
+  if (first === 'design') {
+    return parseDesignArgs(tokens.slice(1))
   }
   if (first === 'commit') {
     return parseCommitArgs(tokens.slice(1))
