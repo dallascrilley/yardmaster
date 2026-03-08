@@ -63,6 +63,37 @@ describe('review command', () => {
     })
   })
 
+  it('counts binary git diffs as files even when no --- headers are present', () => {
+    const stats = parseUnifiedDiffStats([
+      'diff --git a/logo.png b/logo.png',
+      'new file mode 100644',
+      'index 0000000..1234567',
+      'Binary files /dev/null and b/logo.png differ',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 0,
+    })
+  })
+
+  it('counts empty file additions as files even when there are no content hunks', () => {
+    const stats = parseUnifiedDiffStats([
+      'diff --git a/empty.ts b/empty.ts',
+      'new file mode 100644',
+      'index 0000000..e69de29',
+      '--- /dev/null',
+      '+++ b/empty.ts',
+    ].join('\n'))
+
+    expect(stats).toEqual({
+      files: 1,
+      additions: 0,
+      deletions: 0,
+    })
+  })
+
   it('does not treat deleted content lines that begin with -- as file headers', () => {
     const stats = parseUnifiedDiffStats([
       '--- a/file.sql',

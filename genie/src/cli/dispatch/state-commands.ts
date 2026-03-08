@@ -11,27 +11,49 @@ export { handlePresetsDeleteCommand, handlePresetsGetCommand, handlePresetsListC
 export { handleProvidersDoctorCommand, handleProvidersListCommand }
 export { handleReviewCommand, handleUpdateCommand }
 
+export type StateParsedCommand = Extract<
+  ParsedCommand,
+  | { kind: 'review' }
+  | { kind: 'update' }
+  | { kind: 'providers-list' }
+  | { kind: 'providers-doctor' }
+  | { kind: 'config-get' }
+  | { kind: 'config-set' }
+  | { kind: 'config-init' }
+  | { kind: 'config-path' }
+  | { kind: 'presets-list' }
+  | { kind: 'presets-get' }
+  | { kind: 'presets-set' }
+  | { kind: 'presets-delete' }
+  | { kind: 'presets-use' }
+>
+
+export const stateCommandKinds: StateParsedCommand['kind'][] = [
+  'review',
+  'update',
+  'providers-list',
+  'providers-doctor',
+  'config-get',
+  'config-set',
+  'config-init',
+  'config-path',
+  'presets-list',
+  'presets-get',
+  'presets-set',
+  'presets-delete',
+  'presets-use',
+]
+
+export function isStateCommand(parsed: ParsedCommand): parsed is StateParsedCommand {
+  return stateCommandKinds.includes(parsed.kind as StateParsedCommand['kind'])
+}
+
 export function assertUnreachableCommand(_: never): never {
   throw new Error('Unknown state command kind')
 }
 
 export async function dispatchStateCommand(
-  parsed: Extract<
-    ParsedCommand,
-    | { kind: 'review' }
-    | { kind: 'update' }
-    | { kind: 'providers-list' }
-    | { kind: 'providers-doctor' }
-    | { kind: 'config-get' }
-    | { kind: 'config-set' }
-    | { kind: 'config-init' }
-    | { kind: 'config-path' }
-    | { kind: 'presets-list' }
-    | { kind: 'presets-get' }
-    | { kind: 'presets-set' }
-    | { kind: 'presets-delete' }
-    | { kind: 'presets-use' }
-  >,
+  parsed: StateParsedCommand,
   deps?: CliDispatchDeps,
 ): Promise<void> {
   switch (parsed.kind) {

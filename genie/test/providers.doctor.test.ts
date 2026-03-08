@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import * as base from '../src/providers/base.js'
+import { UsageError } from '../src/errors.js'
+import { resolveDoctorTargets } from '../src/providers/doctor-helpers.js'
 import { doctorProviders, listProviders } from '../src/providers/doctor.js'
 
 describe('providers doctor', () => {
@@ -103,5 +105,10 @@ describe('providers doctor', () => {
     })
 
     spy.mockRestore()
+  })
+
+  it('throws a usage error for unknown provider targets', () => {
+    expect(() => resolveDoctorTargets('unknown-provider')).toThrow(UsageError)
+    expect(() => resolveDoctorTargets('unknown-provider')).toThrow("Unknown provider 'unknown-provider'")
   })
 })

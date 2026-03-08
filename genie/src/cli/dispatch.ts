@@ -11,6 +11,7 @@ import {
 import {
   assertUnreachableCommand,
   dispatchStateCommand,
+  isStateCommand,
 } from './dispatch/state-commands.js'
 import { readPackageVersion } from './dispatch/shared.js'
 
@@ -24,22 +25,6 @@ const promptHandlers = {
   commit: handleCommitCommand,
   debug: handleDebugCommand,
 } satisfies Partial<Record<ParsedCommand['kind'], (parsed: any) => Promise<void>>>
-
-const stateKinds = new Set<ParsedCommand['kind']>([
-  'review',
-  'update',
-  'providers-list',
-  'providers-doctor',
-  'config-get',
-  'config-set',
-  'config-init',
-  'config-path',
-  'presets-list',
-  'presets-get',
-  'presets-set',
-  'presets-delete',
-  'presets-use',
-])
 
 export async function executeCommand(
   parsed: ParsedCommand,
@@ -66,8 +51,8 @@ export async function executeCommand(
     return
   }
 
-  if (stateKinds.has(parsed.kind)) {
-    await dispatchStateCommand(parsed as never, deps)
+  if (isStateCommand(parsed)) {
+    await dispatchStateCommand(parsed, deps)
     return
   }
 
