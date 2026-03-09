@@ -2,6 +2,11 @@
 
 Guidelines for developing and extending genie-cli.
 
+## Key Resources
+- **Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md) for system design and module map.
+- **API Reference**: See [API.md](API.md) for types and contracts.
+- **Capabilities**: Explore the [genie-dispatch skill](../.claude/skills/genie-dispatch/SKILL.md) for provider strengths.
+
 ## Prerequisites
 
 - Node.js 18+
