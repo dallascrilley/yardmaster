@@ -10,6 +10,9 @@ export function parsePresetsArgs(tokens: string[]): ParsedCommand {
   const positional: string[] = []
   const setOptions: Omit<PresetsSetOptions, 'name'> = { setDefault: false }
 
+  const setOnlyFlagNames = ['--provider', '--model', '--mode', '--output-format', '--include-directories', '--extensions', '--mcp', '--trust', '--yolo', '--print', '--default']
+  const seenSetOnlyFlags: string[] = []
+
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
     if (!token) continue
@@ -22,6 +25,14 @@ export function parsePresetsArgs(tokens: string[]): ParsedCommand {
 
     if (subcommand && (subcommand === 'set' || subcommand === 'delete' || subcommand === 'use') && parseMutationFlag(token, safety)) {
       continue
+    }
+
+    const isSetOnlyFlag = setOnlyFlagNames.includes(token)
+    if (isSetOnlyFlag && subcommand && subcommand !== 'set') {
+      throw new UsageError(`'${token}' is only valid with 'presets set'`)
+    }
+    if (isSetOnlyFlag) {
+      seenSetOnlyFlags.push(token)
     }
 
     if (token === '--provider') {
@@ -95,6 +106,11 @@ export function parsePresetsArgs(tokens: string[]): ParsedCommand {
     }
 
     positional.push(token)
+  }
+
+  // Post-loop: reject set-only flags that appeared before the subcommand was known
+  if (seenSetOnlyFlags.length > 0 && subcommand && subcommand !== 'set') {
+    throw new UsageError(`'${seenSetOnlyFlags[0]}' is only valid with 'presets set'`)
   }
 
   if (globals.version) return { kind: 'version' }
