@@ -85,36 +85,38 @@ function median(values: number[]): number {
 function runOnce(mode: Mode, provider?: string): { code: number; durationMs: number; timeout: boolean } {
   const homeDir = mkdtempSync(join(tmpdir(), 'genie-home-'))
   const xdgDir = mkdtempSync(join(tmpdir(), 'genie-xdg-'))
-  const startedAt = Date.now()
-  const args = ['src/bin/genie.ts', 'providers', 'doctor']
-  if (provider) {
-    args.push('--provider', provider)
-  }
-  if (mode === 'json') {
-    args.push('--json')
-  }
+  try {
+    const startedAt = Date.now()
+    const args = ['src/bin/genie.ts', 'providers', 'doctor']
+    if (provider) {
+      args.push('--provider', provider)
+    }
+    if (mode === 'json') {
+      args.push('--json')
+    }
 
-  const result = spawnSync('bun', args, {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      HOME: homeDir,
-      XDG_CONFIG_HOME: xdgDir,
-    },
-  })
+    const result = spawnSync('bun', args, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        XDG_CONFIG_HOME: xdgDir,
+      },
+    })
 
-  const durationMs = Date.now() - startedAt
-  const combinedOutput = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.toLowerCase()
-  const timeout = combinedOutput.includes('timed out') || combinedOutput.includes('timeout')
+    const durationMs = Date.now() - startedAt
+    const combinedOutput = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.toLowerCase()
+    const timeout = combinedOutput.includes('timed out') || combinedOutput.includes('timeout')
 
-  rmSync(homeDir, { recursive: true, force: true })
-  rmSync(xdgDir, { recursive: true, force: true })
-
-  return {
-    code: result.status ?? 1,
-    durationMs,
-    timeout,
+    return {
+      code: result.status ?? 1,
+      durationMs,
+      timeout,
+    }
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true })
+    rmSync(xdgDir, { recursive: true, force: true })
   }
 }
 

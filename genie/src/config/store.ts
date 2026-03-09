@@ -33,10 +33,21 @@ function resolveHomeDirectory(explicitHome?: string): string {
 }
 
 function safeParseConfig(raw: string): Partial<GenieConfig> {
+  let parsed: unknown
   try {
-    return genieConfigSchema.parse(JSON.parse(raw))
-  } catch {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    process.stderr.write(`Warning: config file contains invalid JSON: ${error instanceof Error ? error.message : String(error)}\n`)
     return {}
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    process.stderr.write('Warning: config file does not contain a JSON object\n')
+    return {}
+  }
+  try {
+    return genieConfigSchema.parse(parsed)
+  } catch {
+    return parsed as Partial<GenieConfig>
   }
 }
 
@@ -57,6 +68,7 @@ function parseConfigFile(path: string): Partial<GenieConfig> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return {}
     }
+    process.stderr.write(`Warning: failed to read config at ${path}: ${error instanceof Error ? error.message : String(error)}\n`)
     return {}
   }
 }

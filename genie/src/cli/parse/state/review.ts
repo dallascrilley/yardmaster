@@ -36,7 +36,9 @@ export function parseReviewArgs(tokens: string[]): ParsedCommand {
     if (token === '--base') {
       const value = tokens[index + 1]
       if (!value) throw new UsageError('Missing value for --base')
-      options.base = value.trim()
+      const trimmed = value.trim()
+      if (!trimmed) throw new UsageError('Missing value for --base')
+      options.base = trimmed
       index += 1
       continue
     }
