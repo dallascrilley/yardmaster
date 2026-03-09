@@ -44,6 +44,15 @@ just test
 just build
 ```
 
+Targeted contract verification that landed after the initial command rollout:
+
+```bash
+cd genie
+bun run test:critical-path
+```
+
+That suite covers bootstrap help flows, prompt commands, stateful commands, update behavior, and the linked `genie` binary in isolated temp homes and git workspaces.
+
 ## Project structure
 
 ```
@@ -123,9 +132,11 @@ genie-cli/
 ### I/O contract
 - stdout: response payload or machine output only
 - stderr: diagnostics, warnings, and errors only
-- `--json`: stable envelope with `ok`, `error`, typed payload
+- `--json`: stable envelope with `kind`, `version`, `ok`, `exitCode`, `error`, and typed payload
 - `--plain`: response text only, no formatting
 - `--verbose`: extra diagnostics on stderr
+- `--quiet`: suppress confirmation-only success chatter
+- `--no-color` and `--no-input`: force non-interactive child-process behavior where supported
 
 ### Commits
 - Use Conventional Commits format

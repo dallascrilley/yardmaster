@@ -16,17 +16,28 @@ Use this checklist before cutting a release tag for `genie`.
 - [ ] Legacy shorthand and explicit run command both work:
   - `genie "test prompt"`
   - `genie run "test prompt"`
+- [ ] Root workflow help and topic help remain discoverable:
+  - `genie --help`
+  - `genie help run`
+  - `genie help review`
 - [ ] Machine-readable flows are stable:
   - `genie run --json "test prompt"`
   - `genie providers list --json`
   - `genie providers doctor --json`
+  - `genie update --json --dry-run`
 - [ ] JSON envelopes and schema output remain backward compatible, or the release
   explicitly documents an approved breaking change.
+- [ ] Review JSON surfaces remain compatible:
+  - `genie review --json-schema`
+  - `genie review --all --base origin/main --json`
 - [ ] Plain mode returns response text only:
   - `genie run --plain "test prompt"`
 - [ ] Output channel contract holds:
   - stdout contains payload/machine data only.
   - stderr contains diagnostics/errors only.
+- [ ] Non-interactive and quiet controls behave as documented:
+  - `genie run --no-input --plain "test prompt"`
+  - `genie config init --dry-run --quiet`
 
 ## 3) Exit-code checks
 
@@ -68,6 +79,7 @@ bun install --frozen-lockfile
 bun run typecheck
 bun run test
 bun run build
+bun run test:critical-path
 ```
 
 Recommended smoke checks after build:
@@ -76,9 +88,12 @@ Recommended smoke checks after build:
 cd genie
 bun link
 $HOME/.bun/bin/genie --help
+$HOME/.bun/bin/genie help run
 $HOME/.bun/bin/genie run --provider codex --no-fallback --plain "release smoke test"
 $HOME/.bun/bin/genie providers list --json
 ```
+
+If the linked binary smoke fails, run `genie update --force` from `genie/` and retry the linked-binary checks before cutting the release.
 
 ## 6) Release sign-off criteria
 
@@ -86,6 +101,7 @@ $HOME/.bun/bin/genie providers list --json
 - [ ] Test suite passes.
 - [ ] Build passes.
 - [ ] Smoke commands pass locally.
+- [ ] Critical-path suite passes locally.
 - [ ] Contract checks (commands/output/exit-codes/providers doctor) are complete.
 - [ ] No open blocker defects for this release scope.
 - [ ] Release approver confirms go/no-go in PR or release notes.
