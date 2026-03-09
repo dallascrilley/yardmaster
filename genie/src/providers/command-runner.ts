@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 
 import {
   type CommandRunner,
@@ -14,6 +15,19 @@ export const defaultCommandError: CommandResult = {
 
 export function isCommandNotFound(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT'
+}
+
+function isCwdError(error: unknown, cwd?: string): boolean {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false
+  return typeof cwd === 'string' && !existsSync(cwd)
+}
+
+function signalExitCode(signal: NodeJS.Signals | null): number {
+  if (!signal) return 1
+  const signalNumbers: Record<string, number> = {
+    SIGHUP: 1, SIGINT: 2, SIGQUIT: 3, SIGTERM: 15, SIGKILL: 9,
+  }
+  return 128 + (signalNumbers[signal] ?? 1)
 }
 
 export function isLikelyTimeout(result: CommandResult): boolean {
@@ -69,6 +83,13 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
       if (timeoutHandle) {
         clearTimeout(timeoutHandle)
       }
+      if (isCwdError(error, invocation.cwd)) {
+        resolve({
+          ...defaultCommandError,
+          stderr: `Working directory does not exist: ${invocation.cwd}`,
+        })
+        return
+      }
       if (isCommandNotFound(error)) {
         resolve({
           ...defaultCommandError,
@@ -83,7 +104,7 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
       })
     })
 
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       if (didResolve) return
       didResolve = true
       if (timeoutHandle) {
@@ -92,7 +113,7 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
       resolve({
         stdout,
         stderr,
-        code: code ?? 0,
+        code: code ?? signalExitCode(signal),
       })
     })
   })

@@ -33,6 +33,9 @@ export function parseProvidersArgs(tokens: string[]): ParsedCommand {
   if (globals.help || !subcommand) return { kind: 'help', topic: 'providers' }
 
   if (subcommand === 'list') {
+    if (provider) {
+      throw new UsageError('--provider is not supported with providers list')
+    }
     return {
       kind: 'providers-list',
       globals,

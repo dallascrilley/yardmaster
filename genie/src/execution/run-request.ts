@@ -44,10 +44,14 @@ export async function runRequest(params: {
   })
 
   if (persistLastUsed) {
-    await persistLastUsedConfig({
-      request,
-      providerId: result.provider.id,
-    })
+    try {
+      await persistLastUsedConfig({
+        request,
+        providerId: result.provider.id,
+      })
+    } catch {
+      process.stderr.write('Warning: failed to persist last-used config\n')
+    }
   }
 
   return {
