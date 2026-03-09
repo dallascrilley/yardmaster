@@ -377,3 +377,181 @@ genie completion fish > ~/.config/fish/completions/genie.fish
 - Prompt commands (`run`, `design`, `debug`) use the response envelope documented in [docs/API.md](/Users/rncnadmin2023/Code/genie-cli/docs/API.md).
 - State and mutation commands use stable envelopes with `kind`, `version`, `ok`, `exitCode`, and `error`.
 - `genie review --json` emits the `review_result` envelope, and `genie review --json-schema` prints the matching JSON Schema.
+
+---
+
+## Global flags
+
+| Flag | Description |
+|------|-------------|
+| `-h, --help` | Show help |
+| `--version` | Show version |
+| `--json` | Structured JSON output |
+| `--plain` | Plain text output only |
+| `--no-color` | Disable color output |
+| `-q, --quiet` | Suppress success chatter |
+| `-v, --verbose` | Extra diagnostics on stderr |
+| `--no-input` | Force non-interactive mode |
+
+---
+
+## Exit codes
+
+- `0` success
+- `1` runtime/provider failure
+- `2` invalid usage
+- `3` auth/configuration failure
+- `124` timeout
+
+---
+
+## I/O contract
+
+- stdout: response payload or machine output only.
+- stderr: diagnostics, warnings, and errors only.
+- `--json`: stable envelope:
+  - `provider`, `model`, `response`, `fallbackUsed`, `timings`, `error`
+  - `genie review --json`: `kind`, `version`, `mode`, `targets`, `source`, `cwd`, `git`, `diff`, `summary`, `results`, `exitCode`
+- `--plain`: response text only.
+- `--verbose`: extra execution diagnostics on stderr without changing stdout payloads.
+- `--quiet`: suppresses confirmation-only success chatter such as `config init`.
+- `--no-color` and `--no-input`: force non-interactive, no-color execution for child processes that respect `NO_COLOR`/`CI`.
+
+---
+
+## Configuration
+
+### Paths
+
+- User: `~/.config/genie/config.json`
+- Project: `<repo>/.genie/config.json` (optional)
+
+### Precedence
+
+- `flags > env > project config > user config > defaults`
+
+### Supported env vars
+
+- `GENIE_PROVIDER`
+- `GENIE_MODEL`
+- `GENIE_MODE`
+- `GENIE_WORKSPACE`
+- `GENIE_TRUST`
+- `GENIE_TIMEOUT_MS`
+- `GENIE_OUTPUT`
+- `GENIE_STRICT_COMMANDS`
+
+### JSON output contract
+
+When `--json` is used, commands emit a stable top-level envelope with:
+
+- `kind`
+- `version`
+- `ok`
+- `exitCode`
+- `error`
+
+Each command keeps its command-specific payload fields alongside that shared metadata. `genie review --json-schema` describes the `genie review --json` envelope.
+
+---
+
+## Provider prerequisites
+
+- `claude`: installed and authenticated via Claude Code
+- `codex`: installed and authenticated via `codex auth` or `~/.codex/auth.json`
+- `gemini`: installed and authenticated via `GEMINI_API_KEY`
+- `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `genie providers doctor --provider cursor-agent --json` times out, open Cursor, confirm sign-in, and trust/approve the current workspace for agent access before retrying
+
+Use `genie providers doctor` for a quick health check before relying on any provider in automation or release smoke tests.
+
+---
+
+## Advanced workflows
+
+### Repo review workflows
+
+From the repo root, the `justfile` wraps the most common local review flows:
+
+```bash
+just review-ready
+just review-agent codex
+just review-fast
+just review-async-all
+just review-status
+just review-tail latest
+```
+
+Quick guide:
+
+- `just review-ready`: check which reviewer paths are currently usable before starting a slower run
+- `just review-agent codex`: run the strongest default single-reviewer path
+- `just review-fast`: run a short bounded multi-reviewer sweep
+- `just review-all`: run the full bounded multi-reviewer sweep
+- `just review-async <reviewer>` / `just review-async-all`: launch background review runs
+- `just review-status`: inspect async review run state
+- `just review-tail latest`: inspect the latest async review output
+- `just review-comment`: post generated review output as a PR comment
+- `just review-submit approve|comment|request-changes`: submit a formal PR review
+
+The review recipes use the source CLI entrypoint, resolve a portable timeout command, and surface real `gh` errors instead of collapsing them into a misleading "No open PR" message.
+
+### Strict command mode
+
+Strict command parsing is the default. Unknown bare root tokens now fail fast so typos do not silently turn into prompts.
+
+```bash
+# default behavior: usage error (exit 2)
+genie gleep
+
+# opt back into the legacy single-token fallback
+GENIE_STRICT_COMMANDS=0 genie gleep
+```
+
+---
+
+## Examples
+
+```bash
+# shorthand prompt still works for actual prompt text
+genie "explain recursion in one sentence"
+genie explain recursion in one sentence
+
+# explicit run command
+genie run -p gemini -m gemini-2.0-flash "summarize this"
+
+# file/stdin prompt input
+genie run --prompt-file prompt.txt
+cat prompt.txt | genie run --prompt-file -
+
+# diagnose piped terminal output
+npm test 2>&1 | genie debug
+genie debug --input-file error.log
+
+# generate a conventional commit message from staged changes
+genie commit
+
+# generate and apply the commit directly
+genie commit --apply
+
+# disable fallback for strict provider execution
+genie run --provider codex --no-fallback "generate release notes"
+
+# machine output
+genie run --json "what changed in src/"
+
+# provider diagnostics
+genie providers doctor --json
+
+# review with one or all coding agents
+genie review --agent codex
+genie review --all
+genie review --all --diff-file original-agents.diff
+genie review --all --staged
+genie review --all --base origin/main
+genie review --json-schema
+
+# config workflows
+genie config init --dry-run
+genie config set provider.default codex --dry-run
+genie config get provider.default
+```
