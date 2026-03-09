@@ -144,7 +144,7 @@ genie commit --apply                      # Commit with generated message
 genie commit --apply --provider claude    # Use specific provider
 ```
 
-`genie commit` reads `git diff --staged --no-color` from the selected workspace. It fails if there are no staged changes, and `--workspace <path>` changes which repository is inspected before generating or applying the message.
+`genie commit` reads `git diff --staged --no-color` from the selected workspace. It fails if there are no staged changes, `--workspace <path>` changes which repository is inspected before generating or applying the message, and `--json` is rejected for this command.
 
 ---
 

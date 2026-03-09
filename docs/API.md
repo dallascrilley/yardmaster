@@ -252,7 +252,7 @@ type GenieResponseEnvelope = {
 }
 ```
 
-Prompt commands (`genie run`, `genie design`, `genie debug`) emit this envelope. If the CLI fails before a prompt result exists and `--json` was requested, it emits `CliJsonErrorEnvelope` instead.
+`GenieResponseEnvelope` is the payload wrapped inside the prompt-command JSON success envelopes. `genie run`, `genie design`, and `genie debug` emit `CliJsonSuccessEnvelope<GenieResponseEnvelope>` with command-specific `kind` values such as `run_result`, `design_result`, and `debug_result`. If the CLI fails before a prompt result exists and `--json` was requested, it emits `CliJsonErrorEnvelope` instead.
 
 ---
 
