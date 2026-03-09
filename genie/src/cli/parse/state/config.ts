@@ -34,6 +34,9 @@ export function parseConfigArgs(tokens: string[]): ParsedCommand {
   if (globals.help || !subcommand) return { kind: 'help', topic: 'config' }
 
   if (subcommand === 'get') {
+    if (positional.length > 1) {
+      throw new UsageError('Usage: genie config get [key]')
+    }
     if (positional[0] && !isConfigKey(positional[0])) {
       throw new UsageError(`Unknown config key '${positional[0]}'`)
     }
