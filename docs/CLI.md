@@ -11,11 +11,40 @@ genie design [options] <prompt>   # Frontend design feedback
 genie commit [options]            # Generate commit message from staged diff
 genie debug [options]             # Diagnose piped terminal errors
 genie review [options]            # Code review with AI agents
+genie review --json-schema        # Print the review JSON Schema
 genie update [options]            # Refresh local install
 genie providers <subcommand>     # Provider inventory and diagnostics
 genie config <subcommand>        # Configuration management
 genie presets <subcommand>       # Preset management
 genie completion <shell>          # Generate shell completions
+```
+
+---
+
+## Global flags
+
+These flags are parsed before the subcommand and work across the CLI unless a command explicitly documents otherwise.
+
+| Flag | Description |
+|------|-------------|
+| `-h, --help` | Show root or topic help |
+| `--version` | Print the installed version |
+| `--json` | Emit stable machine-readable JSON |
+| `--plain` | Emit response text only |
+| `--no-color` | Disable color output |
+| `-q, --quiet` | Suppress confirmation-only success chatter |
+| `-v, --verbose` | Emit extra diagnostics on stderr |
+| `--no-input` | Force non-interactive mode for child processes that respect `CI` |
+
+Task-oriented help is available for every major command:
+
+```bash
+genie help run
+genie help design
+genie help debug
+genie help review
+genie help config
+genie help completion
 ```
 
 ---
@@ -59,6 +88,8 @@ genie run --prompt-file prompt.txt
 cat prompt.txt | genie run --prompt-file -
 genie run -p gemini -m gemini-2.0-flash "summarize this"
 ```
+
+The global `--json`, `--plain`, `--quiet`, `--verbose`, `--no-color`, and `--no-input` flags also apply here.
 
 ---
 
@@ -113,6 +144,8 @@ genie commit --apply                      # Commit with generated message
 genie commit --apply --provider claude    # Use specific provider
 ```
 
+`genie commit` reads `git diff --staged --no-color` from the selected workspace. It fails if there are no staged changes, `--workspace <path>` changes which repository is inspected before generating or applying the message, and `--json` is rejected for this command.
+
 ---
 
 ## genie debug
@@ -149,6 +182,8 @@ bun run build 2>&1 | genie debug --json
 genie debug --input-file error.log --provider claude
 ```
 
+When no `--input-file` is provided, `genie debug` expects piped input and rejects an interactive TTY with usage guidance.
+
 ---
 
 ## genie review
@@ -179,6 +214,13 @@ One target is required: `--all` or `--agent <id>`.
 2. `--staged` — `git diff --staged`
 3. `--base <ref>` — `git diff <ref>..HEAD`
 4. Default — `git diff HEAD`
+
+### Validation rules
+
+- Choose exactly one target: `--all` or `--agent <id>`.
+- Choose at most one diff source: default diff, `--staged`, `--base <ref>`, or `--diff-file <path>`.
+- `--json-schema` cannot be combined with review targets or diff-source flags.
+- `--base` rejects empty or whitespace-only values.
 
 ### Examples
 
@@ -231,6 +273,8 @@ genie providers doctor
 genie providers doctor --provider codex --json
 ```
 
+`--provider <id>` is only supported with `genie providers doctor`.
+
 ---
 
 ## genie config
@@ -268,6 +312,8 @@ genie config set provider.default codex --dry-run
 genie config path
 ```
 
+`genie config get` accepts zero or one key only. `genie config init` and `genie config path` reject extra positional arguments.
+
 ---
 
 ## genie presets
@@ -299,6 +345,8 @@ genie presets delete headless-codex --force
 genie run --preset headless-codex "summarize open todos"
 ```
 
+The preset mutation flags (`--provider`, `--model`, `--mode`, `--output-format`, `--include-directories`, `--extensions`, `--mcp`, `--trust`, `--yolo`, `--print`, `--default`) are only valid with `genie presets set`, even when they appear before the subcommand token.
+
 ---
 
 ## genie completion
@@ -324,15 +372,8 @@ genie completion fish > ~/.config/fish/completions/genie.fish
 
 ---
 
-## Global flags
+## JSON output notes
 
-| Flag | Description |
-|------|-------------|
-| `-h, --help` | Show help |
-| `--version` | Show version |
-| `--json` | Structured JSON output |
-| `--plain` | Plain text output only |
-| `--no-color` | Disable color output |
-| `-q, --quiet` | Suppress success chatter |
-| `-v, --verbose` | Extra diagnostics on stderr |
-| `--no-input` | Force non-interactive mode |
+- Prompt commands (`run`, `design`, `debug`) use the response envelope documented in [docs/API.md](/Users/operator/Code/genie-cli/docs/API.md).
+- State and mutation commands use stable envelopes with `kind`, `version`, `ok`, `exitCode`, and `error`.
+- `genie review --json` emits the `review_result` envelope, and `genie review --json-schema` prints the matching JSON Schema.

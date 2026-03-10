@@ -120,9 +120,11 @@ Raw output from a spawned provider process.
 type CommandResult = {
   stdout: string
   stderr: string
-  code: number         // 0 = success, 124 = timeout, 127 = not found
+  code: number         // 0 = success, 124 = timeout, 127 = spawn/cwd ENOENT, 128+N = signal exit
 }
 ```
+
+When `code` is `127`, inspect `stderr` to distinguish a missing binary from an invalid working directory.
 
 ### CommandRunner
 
@@ -164,6 +166,37 @@ type ProviderParseResult = {
 ---
 
 ## Result types
+
+### CliJsonSuccessEnvelope
+
+Stable success envelope used by stateful commands such as `config`, `presets`, `providers`, and `update`.
+
+```typescript
+type CliJsonSuccessEnvelope<T extends Record<string, unknown>> = T & {
+  kind: string
+  version: 1
+  ok: boolean
+  exitCode: number
+  error: null
+}
+```
+
+### CliJsonErrorEnvelope
+
+Stable top-level error envelope returned when `--json` is requested and the command fails before producing a feature-specific payload.
+
+```typescript
+type CliJsonErrorEnvelope = {
+  kind: 'error'
+  version: 1
+  ok: false
+  exitCode: number
+  error: {
+    code: string
+    message: string
+  }
+}
+```
 
 ### GenieRunResult
 
@@ -218,6 +251,8 @@ type GenieResponseEnvelope = {
   } | null
 }
 ```
+
+`GenieResponseEnvelope` is the payload wrapped inside the prompt-command JSON success envelopes. `genie run`, `genie design`, and `genie debug` emit `CliJsonSuccessEnvelope<GenieResponseEnvelope>` with command-specific `kind` values such as `run_result`, `design_result`, and `debug_result`. If the CLI fails before a prompt result exists and `--json` was requested, it emits `CliJsonErrorEnvelope` instead.
 
 ---
 
@@ -380,6 +415,8 @@ type ReviewJsonEnvelope = {
 ```
 
 Use `genie review --json-schema` to get the full JSON Schema for this envelope.
+
+`targets` is the requested review-agent set. Per-agent execution outcomes appear in `results`.
 
 ---
 
