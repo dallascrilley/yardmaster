@@ -44,8 +44,24 @@ export const stateCommandKinds: StateParsedCommand['kind'][] = [
   'presets-use',
 ]
 
+const stateCommandKindLookup: Record<StateParsedCommand['kind'], true> = {
+  review: true,
+  update: true,
+  'providers-list': true,
+  'providers-doctor': true,
+  'config-get': true,
+  'config-set': true,
+  'config-init': true,
+  'config-path': true,
+  'presets-list': true,
+  'presets-get': true,
+  'presets-set': true,
+  'presets-delete': true,
+  'presets-use': true,
+}
+
 export function isStateCommand(parsed: ParsedCommand): parsed is StateParsedCommand {
-  return stateCommandKinds.includes(parsed.kind as StateParsedCommand['kind'])
+  return parsed.kind in stateCommandKindLookup
 }
 
 export function assertUnreachableCommand(_: never): never {
