@@ -143,6 +143,10 @@ genie-cli/
 - `--quiet`: suppress confirmation-only success chatter
 - `--no-color` and `--no-input`: force non-interactive child-process behavior where supported
 
+### Troubleshooting docs maintenance
+- Update [`docs/TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) whenever provider checks, auth diagnostics, timeout behavior, or user-facing error next-steps change.
+- Keep recovery commands aligned with current CLI help text and actual error messages from provider adapters and `error-format.ts`.
+
 ### Commits
 - Use Conventional Commits format
 - Examples: `feat(cli):`, `fix(providers):`, `refactor(config):`, `test(review):`
