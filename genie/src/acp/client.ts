@@ -1,8 +1,8 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { Readable, Writable } from 'node:stream'
-import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
+import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, RequestError } from '@agentclientprotocol/sdk'
 import type { Client } from '@agentclientprotocol/sdk'
-import { RuntimeProviderError, TimeoutError } from '../errors.js'
+import { AcpProtocolError, RuntimeProviderError, TimeoutError } from '../errors.js'
 import { createGenieClient, type TrustMode } from './host-handlers.js'
 import type { AcpProviderEntry, StreamEvent } from './types.js'
 
@@ -30,6 +30,14 @@ export class AcpClient {
       await this.spawnAndInit()
       await this.createSession()
       return await this.sendPrompt(prompt)
+    } catch (err) {
+      if (err instanceof RequestError) {
+        throw new AcpProtocolError(err.code, err.message, this.entry.id)
+      }
+      if (err instanceof Error && 'code' in err && typeof (err as { code: unknown }).code === 'number') {
+        throw new AcpProtocolError((err as { code: number }).code, err.message, this.entry.id)
+      }
+      throw err
     } finally {
       this.close()
     }
@@ -44,12 +52,18 @@ export class AcpClient {
       env,
     })
 
+    let stderrBuffer = ''
+    this.child.stderr?.on('data', (chunk: Buffer) => {
+      stderrBuffer += chunk.toString()
+    })
+
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => {
         cleanup()
+        const stderrSuffix = stderrBuffer.trim() ? `\nstderr: ${stderrBuffer.trim()}` : ''
         reject(
           new RuntimeProviderError(
-            `ACP agent spawn failed for ${this.entry.id}: ${err.message}`,
+            `ACP agent spawn failed for ${this.entry.id}: ${err.message}${stderrSuffix}`,
           ),
         )
       }
@@ -91,8 +105,9 @@ export class AcpClient {
     })
 
     if (!initResult) {
+      const stderrSuffix = stderrBuffer.trim() ? `\nstderr: ${stderrBuffer.trim()}` : ''
       throw new RuntimeProviderError(
-        `ACP initialization failed for ${this.entry.id}: no response from agent`,
+        `ACP initialization failed for ${this.entry.id}: no response from agent${stderrSuffix}`,
       )
     }
   }
