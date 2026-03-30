@@ -135,6 +135,14 @@ function parsePromptCommandArgs(tokens: string[], kind: 'run' | 'design'): Parse
       continue
     }
 
+    if (token === '--session' || token === '-s') {
+      const value = tokens[index + 1]
+      if (!value) throw new UsageError(`Missing value for ${token}`)
+      options.session = value
+      index += 1
+      continue
+    }
+
     if (token.startsWith('-')) {
       throw new UsageError(`Unknown option '${token}'`)
     }

@@ -7,6 +7,9 @@ vi.mock('../src/acp/client.js', () => {
   const AcpClient = vi.fn()
   AcpClient.prototype.run = vi.fn()
   AcpClient.prototype.close = vi.fn()
+  AcpClient.prototype.getSessionId = vi.fn().mockReturnValue('mock-session-id')
+  AcpClient.prototype.resume = vi.fn().mockResolvedValue(false)
+  AcpClient.prototype.prompt = vi.fn()
   return { AcpClient }
 })
 
