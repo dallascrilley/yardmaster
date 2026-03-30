@@ -71,6 +71,7 @@ export function createDefaultAuthCheck(id: string, binary: string) {
     return {
       ok: false,
       reason: `${id} authentication check failed`,
+      details: result.stderr || result.stdout || undefined,
       hint: result.stderr || result.stdout || 'Authenticate with the provider CLI and retry.',
       authFailure: true,
       timeout: isLikelyTimeout(result),

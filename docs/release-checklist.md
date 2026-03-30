@@ -67,7 +67,7 @@ set -e
 - [ ] Doctor command does not hang and returns actionable hints on failure.
 - [ ] Release notes or checklist explicitly call out optional provider gates:
   - `cursor-agent` is optional for release sign-off; verify it appears in provider inventory and doctor output, then document any auth/workspace-trust prerequisite that prevents a live smoke in the release directory.
-  - If `genie providers doctor --provider cursor-agent --json` times out, open Cursor, confirm sign-in, and trust/approve the release worktree before retrying.
+  - If `genie providers doctor --provider cursor-agent --json` reports an auth failure, sign in through Cursor first; if it times out, open Cursor and trust/approve the release worktree before retrying.
 
 ## 5) Verification commands (required)
 
