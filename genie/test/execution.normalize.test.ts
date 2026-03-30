@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { defaultConfig } from '../src/config/schema.js'
+import { defaultConfig, mergeConfig } from '../src/config/schema.js'
 import { UsageError } from '../src/errors.js'
-import { normalizeRequest, resolveProviderOrder } from '../src/execution/normalize.js'
+import {
+  normalizeRequest,
+  resolveProviderExecutionPlan,
+  resolveProviderOrder,
+} from '../src/execution/normalize.js'
 
 const withHistory = {
   ...defaultConfig,
@@ -42,5 +46,23 @@ describe('request normalization', () => {
     expect(() => {
       normalizeRequest({ prompt: 'x', provider: 'invalid' }, withHistory)
     }).toThrow()
+  })
+
+  it('dedupes pi and gemini into a single gemini execution slot', () => {
+    const withPi = mergeConfig(defaultConfig, {
+      provider: {
+        default: 'pi',
+        fallbackOrder: ['gemini', 'claude', 'codex', 'cursor-agent'],
+      },
+    })
+    const { slots } = resolveProviderExecutionPlan(withPi, undefined, false)
+    expect(slots.map((s) => s.provider)).toEqual(['gemini', 'claude', 'codex', 'cursor-agent'])
+    expect(slots.filter((s) => s.provider === 'gemini')).toHaveLength(1)
+  })
+
+  it('accepts pi as explicit provider token in resolveProviderOrder', () => {
+    const { order } = resolveProviderOrder(withHistory, 'pi')
+    expect(order[0]).toBe('gemini')
+    expect(order.filter((id) => id === 'gemini')).toHaveLength(1)
   })
 })

@@ -1,12 +1,15 @@
-import { modeIds, providerIds, type ProviderId, type ProviderOutputFormat } from '../types.js'
+import { isConfigProviderId } from '../execution/provider-aliases.js'
+import { configProviderIds, modeIds, type ConfigProviderId, type ProviderOutputFormat } from '../types.js'
 import { UsageError } from '../errors.js'
 
-export function parseProvider(value: string, flag: string): ProviderId {
+export function parseProvider(value: string, flag: string): ConfigProviderId {
   const normalized = value.trim().toLowerCase()
-  if (!providerIds.includes(normalized as ProviderId)) {
-    throw new UsageError(`Unknown provider '${value}' for ${flag}`)
+  if (!isConfigProviderId(normalized)) {
+    throw new UsageError(
+      `Unknown provider '${value}' for ${flag}. Expected one of: ${configProviderIds.join(', ')}`,
+    )
   }
-  return normalized as ProviderId
+  return normalized
 }
 
 export function parseOutputFormat(value: string, flag: string): ProviderOutputFormat {

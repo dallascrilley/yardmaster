@@ -1,4 +1,4 @@
-import { providerIds } from '../../types.js'
+import { configProviderIds } from '../../types.js'
 
 export function buildRootHelp(): string {
   return [
@@ -80,6 +80,6 @@ export function buildRootHelp(): string {
     '  genie help update',
     '  genie help completion',
     '',
-    `Providers: ${providerIds.join(', ')}`,
+    `Providers: ${configProviderIds.join(', ')} (pi uses the Gemini CLI; set GENIE_PI_MODEL for its default model).`,
   ].join('\n')
 }

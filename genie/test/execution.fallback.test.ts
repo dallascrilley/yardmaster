@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import { defaultConfig } from '../src/config/schema.js'
 import { AggregatedProviderError } from '../src/errors.js'
-import type { NormalizedRequest, ProviderAdapter } from '../src/types.js'
 import { executeWithFallback } from '../src/execution/fallback.js'
+import type { NormalizedRequest, ProviderAdapter } from '../src/types.js'
 
 const request: NormalizedRequest = {
   prompt: 'hello',
@@ -45,8 +46,9 @@ describe('fallback execution', () => {
 
     const result = await executeWithFallback({
       providers,
-      order: ['claude', 'codex'],
+      slots: [{ provider: 'claude' }, { provider: 'codex' }],
       request,
+      config: defaultConfig,
       runner: async () => ({ code: 0, stdout: '', stderr: '' }),
     })
 
@@ -69,8 +71,9 @@ describe('fallback execution', () => {
     await expect(
       executeWithFallback({
         providers,
-        order: ['claude'],
+        slots: [{ provider: 'claude' }],
         request,
+        config: defaultConfig,
         runner: async () => ({ code: 0, stdout: '', stderr: '' }),
       }),
     ).rejects.toBeInstanceOf(AggregatedProviderError)
@@ -91,8 +94,9 @@ describe('fallback execution', () => {
     await expect(
       executeWithFallback({
         providers,
-        order: ['claude'],
+        slots: [{ provider: 'claude' }],
         request,
+        config: defaultConfig,
         runner: async () => ({ code: 0, stdout: '', stderr: '' }),
       }),
     ).rejects.toMatchObject({

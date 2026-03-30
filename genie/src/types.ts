@@ -1,9 +1,13 @@
 import { z } from 'zod'
 
 export const providerIds = ['claude', 'codex', 'cursor-agent', 'gemini'] as const
+export const providerAliasIds = ['pi'] as const
+export const configProviderIds = [...providerIds, ...providerAliasIds] as const
 export const modeIds = ['default', 'read-only', 'danger-full-access', 'ask', 'plan', 'freeform'] as const
 
 export type ProviderId = (typeof providerIds)[number]
+export type ProviderAliasId = (typeof providerAliasIds)[number]
+export type ConfigProviderId = (typeof configProviderIds)[number]
 export type ModeId = (typeof modeIds)[number]
 
 export const cliOutputModeSchema = z.enum(['auto', 'pretty', 'json', 'plain'])
@@ -13,7 +17,7 @@ export type CliFormat = 'json' | 'pretty' | 'plain'
 export type ProviderOutputFormat = 'text' | 'json' | 'stream-json'
 
 export type ProviderPreset = {
-  provider?: ProviderId
+  provider?: ConfigProviderId
   model?: string
   mode?: string
   trust?: boolean

@@ -1,11 +1,11 @@
 import { UsageError } from '../errors.js'
-import { providerIds, type ProviderId } from '../types.js'
+import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
 import { getProviderAdapter, providerAdapters } from './registry.js'
 import { runCommand } from './base.js'
 import type { ProviderDoctorStatus } from './doctor-types.js'
 
 export function resolveDoctorTargets(provider?: string) {
-  if (provider && !providerIds.includes(provider as ProviderId)) {
+  if (provider && !isConfigProviderId(provider)) {
     throw new UsageError(`Unknown provider '${provider}'`)
   }
 
@@ -13,7 +13,8 @@ export function resolveDoctorTargets(provider?: string) {
     return providerAdapters
   }
 
-  const adapter = getProviderAdapter(provider as ProviderId)
+  const canonical = resolveConfigProviderToken(provider).provider
+  const adapter = getProviderAdapter(canonical)
   if (!adapter) {
     throw new UsageError(`No adapter registered for '${provider}'`)
   }

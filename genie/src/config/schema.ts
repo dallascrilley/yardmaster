@@ -1,10 +1,13 @@
 import { z } from 'zod'
-import { cliOutputModeSchema, providerIds } from '../types.js'
+
+import { cliOutputModeSchema, configProviderIds, providerIds } from '../types.js'
+
+const configProviderEnum = z.enum(configProviderIds)
 
 export const modelMapSchema = z.record(z.string(), z.string()).default({})
 export const providerOutputFormatSchema = z.enum(['text', 'json', 'stream-json'])
 export const presetSchema = z.object({
-  provider: z.enum(providerIds).optional(),
+  provider: configProviderEnum.optional(),
   model: z.string().trim().min(1).optional(),
   mode: z.string().trim().min(1).optional(),
   trust: z.boolean().optional(),
@@ -18,10 +21,8 @@ export const presetSchema = z.object({
 
 export const genieConfigSchema = z.object({
   provider: z.object({
-    default: z.enum(providerIds).default('claude'),
-    fallbackOrder: z
-      .array(z.enum(providerIds))
-      .default([...providerIds]),
+    default: configProviderEnum.default('claude'),
+    fallbackOrder: z.array(configProviderEnum).default([...providerIds]),
   }),
   model: z.object({ byProvider: modelMapSchema }),
   mode: z.object({

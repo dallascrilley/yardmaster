@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs'
 
 import { UsageError } from '../errors.js'
-import { modeIds, providerIds, type ProviderId } from '../types.js'
+import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
+import { configProviderIds, modeIds, type ConfigProviderId } from '../types.js'
 import { defaultConfig, genieConfigSchema, type GenieConfig } from './schema.js'
 import { initUserConfig, loadConfig, loadUserConfig, resolveProjectConfigPath, resolveUserConfigPath, updateConfig } from './store.js'
 
@@ -22,23 +23,24 @@ export function isConfigKey(value: string): value is ConfigKey {
   return (configKeys as readonly string[]).includes(value)
 }
 
-function parseProvider(value: string): ProviderId {
-  if (!providerIds.includes(value as ProviderId)) {
-    throw new UsageError(`Invalid provider '${value}'. Expected one of: ${providerIds.join(', ')}`)
+function parseConfigProviderValue(value: string): ConfigProviderId {
+  const normalized = value.trim().toLowerCase()
+  if (!isConfigProviderId(normalized)) {
+    throw new UsageError(`Invalid provider '${value}'. Expected one of: ${configProviderIds.join(', ')}`)
   }
-  return value as ProviderId
+  return normalized
 }
 
 function parseValueByKey(key: ConfigKey, value: string): unknown {
   switch (key) {
     case 'provider.default':
-      return parseProvider(value)
+      return parseConfigProviderValue(value)
     case 'provider.fallbackOrder': {
       const ids = value
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean)
-        .map(parseProvider)
+        .map(parseConfigProviderValue)
       if (ids.length === 0) {
         throw new UsageError('provider.fallbackOrder requires at least one provider')
       }
@@ -55,7 +57,8 @@ function parseValueByKey(key: ConfigKey, value: string): unknown {
         if (!provider || !model) {
           throw new UsageError('model.byProvider must use provider=model pairs separated by commas')
         }
-        parsed[parseProvider(provider)] = model
+        const canonical = resolveConfigProviderToken(parseConfigProviderValue(provider)).provider
+        parsed[canonical] = model
       }
       return parsed
     }

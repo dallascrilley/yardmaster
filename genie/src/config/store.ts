@@ -3,7 +3,8 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 
-import { type CliOutputMode, providerIds, type ProviderId } from '../types.js'
+import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
+import { type CliOutputMode, type ConfigProviderId } from '../types.js'
 import { genieConfigSchema, type GenieConfig, defaultConfig, mergeConfig } from './schema.js'
 
 function recoverValidConfigSections(parsed: Record<string, unknown>): Partial<GenieConfig> {
@@ -26,7 +27,7 @@ export type ConfigStorageOptions = {
 }
 
 export type ConfigFlagOverrides = {
-  provider?: ProviderId
+  provider?: ConfigProviderId
   model?: string
   mode?: string
   workspace?: string
@@ -114,13 +115,13 @@ function toEnvOutput(value: string | undefined): CliOutputMode | undefined {
   return undefined
 }
 
-function toEnvProvider(value: string | undefined): ProviderId | undefined {
+function toEnvProvider(value: string | undefined): ConfigProviderId | undefined {
   if (!value) return undefined
   const normalized = value.trim().toLowerCase()
-  if (providerIds.includes(normalized as ProviderId)) {
-    return normalized as ProviderId
+  if (!isConfigProviderId(normalized)) {
+    return undefined
   }
-  return undefined
+  return normalized
 }
 
 function toEnvTimeout(value: string | undefined): number | undefined {
@@ -140,6 +141,7 @@ export function envConfigFromProcess(env: NodeJS.ProcessEnv = process.env): Part
   const trust = toEnvBool(env.GENIE_TRUST)
   const timeoutMs = toEnvTimeout(env.GENIE_TIMEOUT_MS)
   const output = toEnvOutput(env.GENIE_OUTPUT)
+  const modelKey = provider ? resolveConfigProviderToken(provider).provider : undefined
 
   return {
     ...(provider
@@ -150,7 +152,7 @@ export function envConfigFromProcess(env: NodeJS.ProcessEnv = process.env): Part
           },
         }
       : {}),
-    ...(model ? { model: { byProvider: provider ? { [provider]: model } : {} } } : {}),
+    ...(model && modelKey ? { model: { byProvider: { [modelKey]: model } } } : {}),
     ...(mode ? { mode: { default: mode } } : {}),
     ...(workspace ? { workspace: { last: workspace } } : {}),
     ...(typeof trust === 'boolean' ? { trust: { default: trust } } : {}),
@@ -189,7 +191,9 @@ export async function loadConfig(params?: ConfigStorageOptions & { flags?: Confi
     ...(params?.flags?.model
       ? {
           model: {
-            byProvider: params.flags.provider ? { [params.flags.provider]: params.flags.model } : {},
+            byProvider: params.flags.provider
+              ? { [resolveConfigProviderToken(String(params.flags.provider)).provider]: params.flags.model }
+              : {},
           },
         }
       : {}),
