@@ -149,7 +149,7 @@ export class AcpClient {
         fs: { readTextFile: true, writeTextFile: true },
         terminal: true,
       },
-      clientInfo: { name: 'genie', version: '0.1.0' },
+      clientInfo: { name: 'genie', version: '0.2.0' },
     })
 
     if (!initResult) {

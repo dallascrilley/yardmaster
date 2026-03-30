@@ -116,6 +116,14 @@ genie providers doctor --provider cursor-agent --json
 
 If checks still time out, restart Cursor and run the doctor command again.
 
+## Smoke tests (local and CI)
+
+Optional real-LLM smoke: from `genie/`, `bun run test:smoke` exercises `run` and `commit` across installed providers. It can run for a long time.
+
+- Limit providers: `GENIE_SMOKE_PROVIDERS=gemini` (comma-separated list). Unavailable providers are skipped using `genie providers doctor` results.
+- Shorter default: `bun run test:smoke:preflight` (Gemini-only filter).
+- In **GitHub Actions**, workflow [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) requires the **`GEMINI_API_KEY`** repository secret; scheduled runs and manual `workflow_dispatch` only.
+
 ## Timeout handling and slow providers
 
 `genie` returns exit code `124` when provider execution or checks time out.

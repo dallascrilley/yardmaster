@@ -1,6 +1,6 @@
 # API Reference
 
-> TypeScript types, interfaces, and JSON contracts for genie-cli v0.1.0.
+> TypeScript types, interfaces, and JSON contracts for genie-cli v0.2.0.
 
 ## Core types
 
