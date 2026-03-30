@@ -15,7 +15,10 @@ package-lock.json
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 bun-error.log*
+**/.npm/_logs/
+.eslintcache
 /.review-runs/
 
 # Nightshift local monitoring
