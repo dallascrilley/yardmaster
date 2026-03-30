@@ -2,8 +2,12 @@ import {
   type CommandRunner,
   type ProviderCheckResult,
   type ProviderInvocation,
+  type CommandResult,
 } from '../types.js'
-import { isLikelyTimeout } from './command-runner.js'
+
+function isLikelyTimeout(result: CommandResult): boolean {
+  return result.code === 124 || result.code === null || result.code === undefined
+}
 
 const DEFAULT_AVAILABILITY_TIMEOUT_MS = 3_000
 const RETRY_AVAILABILITY_TIMEOUT_MS = 6_000

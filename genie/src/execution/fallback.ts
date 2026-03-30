@@ -5,10 +5,8 @@ import {
   type ProviderFailureReason,
 } from '../types.js'
 import type { GenieConfig } from '../config/schema.js'
-import { runPreflight } from './preflight.js'
 import {
   appendExecutionFailure,
-  appendPreflightFailures,
   throwForFailures,
   toFailureReasonForMissingProvider,
   toMissingProviderAttempt,
@@ -60,21 +58,6 @@ export async function executeWithFallback(params: {
     const attemptRequest: NormalizedRequest = {
       ...params.request,
       ...(attemptModel !== undefined ? { model: attemptModel } : {}),
-    }
-
-    const preflightStartedAt = Date.now()
-    const preflightFailures = await runPreflight(provider, params.runner, {
-      workspace: attemptRequest.workspace,
-    })
-    if (preflightFailures.length > 0) {
-      appendPreflightFailures({
-        failures,
-        attempts,
-        providerId: provider.id,
-        durationMs: Date.now() - preflightStartedAt,
-        preflightFailures,
-      })
-      continue
     }
 
     const executionStartedAt = Date.now()
