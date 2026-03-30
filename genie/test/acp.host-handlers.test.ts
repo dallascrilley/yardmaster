@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
+import { existsSync, rmSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { createGenieClient } from '../src/acp/host-handlers.js'
 import type { StreamEvent } from '../src/acp/types.js'
 
@@ -259,6 +262,49 @@ describe('createGenieClient', () => {
           sessionId: 'test-session',
         }),
       ).rejects.toThrow(/Write denied/)
+    })
+
+    it('rejects path traversal attempt (../../etc/passwd) as outside workspace', async () => {
+      const client = createGenieClient({
+        workspace: '/tmp/my-workspace',
+        trustMode: 'trust',
+        onEvent: () => {},
+      })
+
+      await expect(
+        client.writeTextFile!({
+          path: '/tmp/my-workspace/../../etc/passwd',
+          content: 'malicious',
+          sessionId: 'test-session',
+        }),
+      ).rejects.toThrow(/Write denied/)
+    })
+
+    it('creates parent directories when writing to a nested path', async () => {
+      const testWorkspace = `/tmp/genie-test-workspace-${Date.now()}`
+      const nestedPath = join(testWorkspace, 'src', 'new-dir', 'file.ts')
+
+      try {
+        const client = createGenieClient({
+          workspace: testWorkspace,
+          trustMode: 'yolo',
+          onEvent: () => {},
+        })
+
+        await client.writeTextFile!({
+          path: nestedPath,
+          content: 'export const x = 1',
+          sessionId: 'test-session',
+        })
+
+        expect(existsSync(nestedPath)).toBe(true)
+        const contents = await readFile(nestedPath, 'utf-8')
+        expect(contents).toBe('export const x = 1')
+      } finally {
+        if (existsSync(testWorkspace)) {
+          rmSync(testWorkspace, { recursive: true, force: true })
+        }
+      }
     })
   })
 
