@@ -3,17 +3,17 @@ import type { AcpProviderEntry } from './types.js';
 
 const registry: ReadonlyMap<ProviderId, AcpProviderEntry> = new Map([
   ['claude', {
-    id: 'claude' as ProviderId,
+    id: 'claude',
     agentCommand: 'npx',
     args: ['@zed-industries/claude-agent-acp'],
   }],
   ['codex', {
-    id: 'codex' as ProviderId,
+    id: 'codex',
     agentCommand: 'npx',
     args: ['@zed-industries/codex-acp'],
   }],
   ['gemini', {
-    id: 'gemini' as ProviderId,
+    id: 'gemini',
     agentCommand: 'gemini',
     resolveEnv: (): Record<string, string> => {
       const key = process.env.GEMINI_API_KEY;
