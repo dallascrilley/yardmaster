@@ -151,10 +151,14 @@ export type GenieResponseEnvelope = {
   } | null
 }
 
+export type ProviderAuthContext = {
+  workspace?: string
+}
+
 export interface ProviderAdapter {
   id: ProviderId
   isAvailable(runner?: CommandRunner): Promise<ProviderCheckResult>
-  isAuthenticated(runner?: CommandRunner): Promise<ProviderCheckResult>
+  isAuthenticated(runner?: CommandRunner, context?: ProviderAuthContext): Promise<ProviderCheckResult>
   buildInvocation(request: NormalizedRequest): ProviderInvocation
   execute(request: NormalizedRequest, runner?: CommandRunner): Promise<ProviderParseResult>
   parse(result: CommandResult): ProviderParseResult

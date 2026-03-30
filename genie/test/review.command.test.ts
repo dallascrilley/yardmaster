@@ -141,7 +141,8 @@ describe('review command', () => {
       expect(result.agents).toEqual(['codex', 'claude', 'gemini', 'cursor'])
       expect(seenProviders).toEqual(['codex', 'claude', 'gemini', 'cursor-agent'])
       expect(seenTimeouts).toEqual([120000, 120000, 120000, 120000])
-      expect(seenWorkspaces.every((workspace) => workspace === process.cwd())).toBe(true)
+      expect(seenWorkspaces).toHaveLength(4)
+      expect(new Set(seenWorkspaces).size).toBe(1)
       expect(result.cwd.length).toBeGreaterThan(0)
       expect(result.summary).toEqual({ total: 4, succeeded: 3, failed: 1 })
       expect(result.exitCode).toBe(0)
@@ -187,7 +188,7 @@ describe('review command', () => {
     expect(result.summary).toEqual({ total: 1, succeeded: 1, failed: 0 })
   })
 
-  it('uses git workspace root for branch reviews and current cwd for diff files', async () => {
+  it('uses git workspace root for branch reviews and diff-file reviews when available', async () => {
     const seenWorkspaces: string[] = []
     const gitService: GitService = {
       read: () => '',
@@ -231,7 +232,7 @@ describe('review command', () => {
     }
 
     expect(seenWorkspaces[0]).toBe('/repo/root')
-    expect(seenWorkspaces[1]).toBe(process.cwd())
+    expect(seenWorkspaces[1]).toBe('/repo/root')
   })
 
   it('fails on empty diff file', async () => {

@@ -23,9 +23,12 @@ export class AuthConfigurationError extends Error {
 }
 
 export class TimeoutError extends Error {
-  constructor(message: string) {
+  public readonly reasons?: ProviderFailureReason[]
+
+  constructor(message: string, reasons?: ProviderFailureReason[]) {
     super(message)
     this.name = 'TimeoutError'
+    this.reasons = reasons
   }
 }
 
@@ -38,7 +41,7 @@ export class AggregatedProviderError extends Error {
     this.name = 'AggregatedProviderError'
   }
 
-  hasOnlyAuthOrConfigFailures(): boolean {
+  hasOnlyAuthFailures(): boolean {
     return this.reasons.length > 0 && this.reasons.every((item) => item.authFailure)
   }
 
@@ -61,7 +64,7 @@ export function getExitCode(error: unknown): number {
   }
 
   if (error instanceof AggregatedProviderError) {
-    if (error.hasOnlyAuthOrConfigFailures()) {
+    if (error.hasOnlyAuthFailures()) {
       return 3
     }
     if (error.hasTimeoutFailure()) {
@@ -72,10 +75,6 @@ export function getExitCode(error: unknown): number {
 
   if (error instanceof RuntimeProviderError) {
     return 1
-  }
-
-  if (error instanceof Error && /timed out/i.test(error.message)) {
-    return 124
   }
 
   return 1
@@ -100,9 +99,15 @@ export function formatCliError(error: unknown): string {
     ])
   }
 
-  if (error instanceof TimeoutError || (error instanceof Error && /timed out/i.test(error.message))) {
-    const message = error instanceof Error ? error.message : String(error)
-    return withNextSteps(message, [
+  if (error instanceof TimeoutError) {
+    const lines =
+      error.reasons && error.reasons.length > 0
+        ? error.reasons.map((r) => `- ${r.provider} (${r.stage}): ${r.reason}${r.hint ? ` — ${r.hint}` : ''}`)
+        : []
+    const message = error.message
+    const body =
+      lines.length > 0 ? [message, ...lines].join('\n') : message
+    return withNextSteps(body, [
       'Retry with a higher timeout using `--timeout-ms <n>` if the provider is slow.',
       'Retry with `--no-fallback` to isolate one provider while debugging.',
     ])

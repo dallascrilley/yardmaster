@@ -35,7 +35,9 @@ export async function executeWithFallback(params: {
     }
 
     const preflightStartedAt = Date.now()
-    const preflightFailures = await runPreflight(provider, params.runner)
+    const preflightFailures = await runPreflight(provider, params.runner, {
+      workspace: params.request.workspace,
+    })
     if (preflightFailures.length > 0) {
       appendPreflightFailures({
         failures,

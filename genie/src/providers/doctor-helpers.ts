@@ -26,7 +26,7 @@ export async function doctorProviderStatus(adapter: (typeof providerAdapters)[nu
   const availability = await adapter.isAvailable(runCommand)
   let auth = { ok: false, reason: 'provider unavailable' } as Awaited<ReturnType<typeof adapter.isAuthenticated>>
   if (availability.ok) {
-    auth = await adapter.isAuthenticated(runCommand)
+    auth = await adapter.isAuthenticated(runCommand, { workspace: process.cwd() })
   }
 
   return {

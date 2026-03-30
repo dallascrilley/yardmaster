@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { defaultConfig } from '../src/config/schema.js'
+import { UsageError } from '../src/errors.js'
 import { normalizeRequest, resolveProviderOrder } from '../src/execution/normalize.js'
 
 const withHistory = {
@@ -34,6 +35,7 @@ describe('request normalization', () => {
   })
 
   it('throws when explicit provider order input is invalid', () => {
+    expect(() => resolveProviderOrder(withHistory, 'not-a-provider')).toThrow(UsageError)
     expect(() => resolveProviderOrder(withHistory, 'not-a-provider')).toThrow("Unknown provider 'not-a-provider'")
   })
 

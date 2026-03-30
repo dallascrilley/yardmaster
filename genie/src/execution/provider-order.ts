@@ -1,5 +1,6 @@
 import { providerIds, type ProviderId } from '../types.js'
 import type { GenieConfig } from '../config/schema.js'
+import { UsageError } from '../errors.js'
 
 export function resolveProviderOrder(
   config: GenieConfig,
@@ -13,7 +14,7 @@ export function resolveProviderOrder(
   const includes = (value: string): value is ProviderId => providerIds.includes(value as ProviderId)
 
   if (explicitProvider && !includes(explicitProvider)) {
-    throw new Error(`Unknown provider '${explicit}'`)
+    throw new UsageError(`Unknown provider '${explicit}'`)
   }
 
   const baseOrder = (() => {

@@ -2,6 +2,7 @@ import {
   type CommandRunner,
   type NormalizedRequest,
   type ProviderAdapter,
+  type ProviderAuthContext,
   type ProviderInvocation,
   type ProviderParseResult,
   type CommandResult,
@@ -19,7 +20,7 @@ export type ProviderFactoryParams = {
   parse: (result: CommandResult) => ProviderParseResult
   availabilityInvocation?: ProviderInvocation
   availabilityCheck?: (runner: CommandRunner) => Promise<ProviderCheckResult>
-  authCheck?: (runner: CommandRunner) => Promise<ProviderCheckResult>
+  authCheck?: (runner: CommandRunner, context?: ProviderAuthContext) => Promise<ProviderCheckResult>
 }
 
 const DEFAULT_EXECUTION_TIMEOUT_MS = 120_000
@@ -54,8 +55,8 @@ export function createProviderAdapter(params: ProviderFactoryParams): ProviderAd
     isAvailable: async (runner = runCommand) => {
       return availabilityCheck((invocation) => runWithRunner(runner, invocation))
     },
-    isAuthenticated: async (runner = runCommand) => {
-      return authCheck((invocation) => runWithRunner(runner, invocation))
+    isAuthenticated: async (runner = runCommand, context?: ProviderAuthContext) => {
+      return authCheck((invocation) => runWithRunner(runner, invocation), context)
     },
     buildInvocation: params.buildInvocation,
     execute: async (request: NormalizedRequest, runner = runCommand) => {

@@ -46,8 +46,10 @@ function safeParseConfig(raw: string): Partial<GenieConfig> {
   }
   try {
     return genieConfigSchema.parse(parsed)
-  } catch {
-    return parsed as Partial<GenieConfig>
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`Warning: config file failed validation; using defaults instead. ${detail}\n`)
+    return {}
   }
 }
 

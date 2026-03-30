@@ -26,27 +26,6 @@ export const geminiAdapter = createProviderAdapter({
   binary: 'gemini',
   buildInvocation,
   parse,
-  availabilityCheck: async (runner) => {
-    const result = await runner({
-      command: 'which',
-      args: ['gemini'],
-      timeoutMs: 1_500,
-    })
-
-    if (result.code === 0) {
-      return {
-        ok: true,
-        details: result.stdout.trim() || 'gemini found on PATH',
-      }
-    }
-
-    return {
-      ok: false,
-      reason: 'gemini is not available on PATH',
-      hint: result.stderr || result.stdout || 'Install Gemini CLI and ensure gemini is on PATH.',
-      timeout: result.code === 124,
-    }
-  },
   authCheck: async () => {
     const apiKey = process.env.GEMINI_API_KEY?.trim()
     if (apiKey) {
