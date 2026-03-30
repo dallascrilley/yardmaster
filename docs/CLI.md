@@ -374,7 +374,7 @@ genie completion fish > ~/.config/fish/completions/genie.fish
 
 ## JSON output notes
 
-- Prompt commands (`run`, `design`, `debug`) use the response envelope documented in [docs/API.md](/Users/rncnadmin2023/Code/genie-cli/docs/API.md).
+- Prompt commands (`run`, `design`, `debug`) use the response envelope documented in [API.md](API.md).
 - State and mutation commands use stable envelopes with `kind`, `version`, `ok`, `exitCode`, and `error`.
 - `genie review --json` emits the `review_result` envelope, and `genie review --json-schema` prints the matching JSON Schema.
 
