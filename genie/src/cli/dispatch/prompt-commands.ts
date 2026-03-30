@@ -3,11 +3,12 @@ import { loadConfig } from '../../config/store.js'
 import { type CliOutputMode } from '../../types.js'
 import { resolveWorkspacePath } from '../../runtime/workspace.js'
 import { resolveRuntimeState } from '../../runtime/tty.js'
-import { buildDebugPrompt, readDebugInput } from '../../debug/command.js'
-import { buildDesignPrompt } from '../../design/command.js'
+import { buildDebugPrompt, DEBUG_SYSTEM_PROMPT, readDebugInput } from '../../debug/command.js'
+import { buildDesignPrompt, DESIGN_SYSTEM_PROMPT } from '../../design/command.js'
 import {
   applyCommitMessage,
   buildCommitPrompt,
+  COMMIT_SYSTEM_PROMPT,
   createGitExec,
   createGitRead,
   normalizeCommitMessage,
@@ -19,6 +20,8 @@ import {
   type RunRequestInput,
 } from '../../execution/run-request.js'
 import { runViaAcp } from '../../acp/run.js'
+import { runAcpCommand } from '../../acp/command-runner.js'
+import type { TrustMode } from '../../acp/host-handlers.js'
 import { toCliJsonSuccessEnvelope } from '../json.js'
 import {
   shouldUseJson,
@@ -132,33 +135,28 @@ export async function handleDesignCommand(parsed: Extract<ParsedCommand, { kind:
 
   const effectiveOptions = mergeRunOptionsWithPreset(parsed.options, preset)
   const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
-  const result = await runRequest({
-    input: {
-      prompt: buildDesignPrompt(resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile)),
-      provider: effectiveOptions.provider,
-      model: effectiveOptions.model,
-      workspace,
-      mode: effectiveOptions.mode,
-      trust: effectiveOptions.trust,
-      output: 'plain',
-      timeoutMs: effectiveOptions.timeoutMs,
-      noFallback: effectiveOptions.noFallback,
-      yolo: effectiveOptions.yolo,
-      outputFormat: 'text',
-      headless: true,
-    },
+  
+  const trustMode: TrustMode = effectiveOptions.yolo ? 'yolo' : effectiveOptions.trust ? 'trust' : 'default'
+  const response = await runAcpCommand({
+    systemPrompt: DESIGN_SYSTEM_PROMPT,
+    userPrompt: buildDesignPrompt(resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile)),
+    provider: effectiveOptions.provider,
+    model: effectiveOptions.model,
+    workspace,
+    trustMode,
+    timeoutMs: effectiveOptions.timeoutMs ?? config.runtime.timeoutMs,
     config,
-    persistLastUsed: false,
+    noFallback: effectiveOptions.noFallback,
   })
 
   if (shouldUseJson(parsed.globals)) {
-    writeJson(toCliJsonSuccessEnvelope('design_result', toResponseEnvelope(result)))
+    writeJson(toCliJsonSuccessEnvelope('design_result', { response }))
   } else {
-    writeLine(result.response)
+    writeLine(response)
   }
   writeVerbose(
     parsed.globals,
-    `[genie] command=design provider=${result.provider} fallback=${String(result.fallbackUsed)} totalMs=${result.timings.totalMs}`,
+    `[genie] command=design provider=${effectiveOptions.provider ?? config.provider.default}`,
   )
 }
 
@@ -172,29 +170,26 @@ export async function handleCommitCommand(parsed: Extract<ParsedCommand, { kind:
 
   const effectiveOptions = mergeRunOptionsWithPreset(parsed.options, preset)
   const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
-  const gitRead = createGitRead({ cwd: workspace })
   const gitExec = createGitExec({ cwd: workspace })
-  const diff = readStagedDiff(gitRead)
-  const result = await runRequest({
-    input: {
-      prompt: buildCommitPrompt(diff),
-      provider: effectiveOptions.provider,
-      model: effectiveOptions.model,
-      workspace,
-      mode: effectiveOptions.mode,
-      trust: effectiveOptions.trust,
-      output: 'plain',
-      timeoutMs: effectiveOptions.timeoutMs,
-      noFallback: effectiveOptions.noFallback,
-      yolo: effectiveOptions.yolo,
-      outputFormat: 'text',
-      headless: true,
-    },
+  
+  // Verify there are staged changes
+  const gitRead = createGitRead({ cwd: workspace })
+  readStagedDiff(gitRead)
+  
+  const trustMode: TrustMode = effectiveOptions.yolo ? 'yolo' : effectiveOptions.trust ? 'trust' : 'default'
+  const response = await runAcpCommand({
+    systemPrompt: COMMIT_SYSTEM_PROMPT,
+    userPrompt: buildCommitPrompt(),
+    provider: effectiveOptions.provider,
+    model: effectiveOptions.model,
+    workspace,
+    trustMode,
+    timeoutMs: effectiveOptions.timeoutMs ?? config.runtime.timeoutMs,
     config,
-    persistLastUsed: false,
+    noFallback: effectiveOptions.noFallback,
   })
 
-  const message = normalizeCommitMessage(result.response)
+  const message = normalizeCommitMessage(response)
   if (parsed.options.apply) {
     applyCommitMessage(message, gitExec)
   }
@@ -202,7 +197,7 @@ export async function handleCommitCommand(parsed: Extract<ParsedCommand, { kind:
   writeLine(message)
   writeVerbose(
     parsed.globals,
-    `[genie] command=commit provider=${result.provider} apply=${String(parsed.options.apply)} fallback=${String(result.fallbackUsed)} totalMs=${result.timings.totalMs}`,
+    `[genie] command=commit provider=${effectiveOptions.provider ?? config.provider.default} apply=${String(parsed.options.apply)}`,
   )
 }
 
@@ -217,32 +212,27 @@ export async function handleDebugCommand(parsed: Extract<ParsedCommand, { kind: 
   const effectiveOptions = mergeRunOptionsWithPreset(parsed.options, preset)
   const input = readDebugInput(parsed.options.inputFile)
   const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
-  const result = await runRequest({
-    input: {
-      prompt: buildDebugPrompt(input),
-      provider: effectiveOptions.provider,
-      model: effectiveOptions.model,
-      workspace,
-      mode: effectiveOptions.mode,
-      trust: effectiveOptions.trust,
-      output: 'plain',
-      timeoutMs: effectiveOptions.timeoutMs,
-      noFallback: effectiveOptions.noFallback,
-      yolo: effectiveOptions.yolo,
-      outputFormat: 'text',
-      headless: true,
-    },
+  
+  const trustMode: TrustMode = effectiveOptions.yolo ? 'yolo' : effectiveOptions.trust ? 'trust' : 'default'
+  const response = await runAcpCommand({
+    systemPrompt: DEBUG_SYSTEM_PROMPT,
+    userPrompt: buildDebugPrompt(input),
+    provider: effectiveOptions.provider,
+    model: effectiveOptions.model,
+    workspace,
+    trustMode,
+    timeoutMs: effectiveOptions.timeoutMs ?? config.runtime.timeoutMs,
     config,
-    persistLastUsed: false,
+    noFallback: effectiveOptions.noFallback,
   })
 
   if (shouldUseJson(parsed.globals)) {
-    writeJson(toCliJsonSuccessEnvelope('debug_result', toResponseEnvelope(result)))
+    writeJson(toCliJsonSuccessEnvelope('debug_result', { response }))
   } else {
-    writeLine(result.response)
+    writeLine(response)
   }
   writeVerbose(
     parsed.globals,
-    `[genie] command=debug provider=${result.provider} fallback=${String(result.fallbackUsed)} totalMs=${result.timings.totalMs}`,
+    `[genie] command=debug provider=${effectiveOptions.provider ?? config.provider.default}`,
   )
 }
