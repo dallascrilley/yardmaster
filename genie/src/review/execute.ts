@@ -1,5 +1,4 @@
 import { type GenieConfig } from '../config/schema.js'
-import { runRequest, type RunRequestInput } from '../execution/run-request.js'
 import type {
   ReviewExecutionResult,
   ReviewProviderResult,
@@ -8,6 +7,8 @@ import { parseUnifiedDiffStats, mapAgentToProvider } from './format.js'
 import { resolveReviewTargets, type ReviewAgentId } from './select.js'
 import { resolveReviewDiffSource, ensureNonEmptyDiff } from './diff-source.js'
 import { createGitService, type GitService } from './git-service.js'
+import { runAcpCommand } from '../acp/command-runner.js'
+import type { TrustMode } from '../acp/host-handlers.js'
 
 const DEFAULT_REVIEW_TIMEOUT_MS = 300_000
 const MAX_REVIEW_TIMEOUT_MS = 900_000
@@ -38,21 +39,15 @@ export type ExecuteReviewCommandParams = {
   base?: string
   config: GenieConfig
   onProgress?: (progress: ReviewAgentProgress) => void
-  requestRunner?: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{
-    response: string
-    model?: string
-  }>
   gitService?: GitService
 }
 
+const REVIEW_SYSTEM_PROMPT = `You are a code reviewer. Analyze the provided diff and identify issues.
+Focus on: correctness risks, regressions, missing tests, and maintainability concerns.
+Return findings ordered by severity with file and line references when possible.`
+
 function buildReviewPrompt(diffText: string): string {
-  return [
-    'Perform a code review of this unified diff.',
-    'Return findings ordered by severity with file and line references when possible.',
-    'Focus on correctness risks, regressions, missing tests, and maintainability concerns.',
-    '',
-    diffText,
-  ].join('\n')
+  return `Perform a code review of this unified diff:\n\n${diffText}`
 }
 
 function formatProviderError(error: unknown): string {
@@ -68,31 +63,29 @@ async function runReviewForAgent(params: {
   config: GenieConfig
   workspace: string
   reviewTimeoutMs: number
-  requestRunner: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{ response: string; model?: string }>
 }): Promise<ReviewProviderResult> {
   const startedAt = Date.now()
   const provider = mapAgentToProvider(params.agent)
   try {
-    const result = await params.requestRunner({
-      input: {
-        prompt: params.prompt,
-        provider,
-        workspace: params.workspace,
-        noFallback: true,
-        output: 'plain',
-        timeoutMs: params.reviewTimeoutMs,
-      },
+    const response = await runAcpCommand({
+      systemPrompt: REVIEW_SYSTEM_PROMPT,
+      userPrompt: params.prompt,
+      provider,
+      workspace: params.workspace,
+      trustMode: 'default' as TrustMode,
+      timeoutMs: params.reviewTimeoutMs,
       config: params.config,
+      noFallback: true,
     })
 
     return {
       agent: params.agent,
       provider,
-      model: result.model ?? null,
+      model: null,
       status: 'ok',
       latencyMs: Date.now() - startedAt,
-      responseChars: result.response.length,
-      review: result.response,
+      responseChars: response.length,
+      review: response,
     }
   } catch (error) {
     const message = formatProviderError(error)
@@ -123,11 +116,6 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
   const git = gitService.resolveContext()
   const workspace = gitService.resolveWorkspace?.() ?? cwd
   const reviewTimeoutMs = resolveReviewTimeoutMs()
-  const runner = params.requestRunner ?? ((requestParams: { input: RunRequestInput; config: GenieConfig }) =>
-    runRequest({
-      ...requestParams,
-      persistLastUsed: false,
-    }))
 
   const tasks = agents.map((agent) => {
     params.onProgress?.({ agent, event: 'started' })
@@ -137,7 +125,6 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
       config: params.config,
       workspace,
       reviewTimeoutMs,
-      requestRunner: runner,
     }).then((result) => {
       params.onProgress?.({ agent, event: 'settled', result })
       return result

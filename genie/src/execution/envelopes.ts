@@ -1,7 +1,4 @@
 import { type GenieResponseEnvelope, type GenieRunResult } from '../types.js'
-import { defaultConfig } from '../config/schema.js'
-import { normalizeRequest, type NormalizedPromptRequest } from './normalize.js'
-import type { RunRequestInput } from './run-request.js'
 
 export function toResponseEnvelope(result: GenieRunResult): GenieResponseEnvelope {
   return {
@@ -25,17 +22,5 @@ export function toErrorEnvelope(error: { code: string; message: string }, timing
       attempts: [],
     },
     error,
-  }
-}
-
-export function isNormalizedPromptRequest(value: unknown): value is NormalizedPromptRequest {
-  if (value === null || typeof value !== 'object') {
-    return false
-  }
-  try {
-    normalizeRequest(value as RunRequestInput, defaultConfig)
-    return true
-  } catch {
-    return false
   }
 }

@@ -14,11 +14,6 @@ import {
   normalizeCommitMessage,
   readStagedDiff,
 } from '../../commit/command.js'
-import {
-  runRequest,
-  toResponseEnvelope,
-  type RunRequestInput,
-} from '../../execution/run-request.js'
 import { runViaAcp } from '../../acp/run.js'
 import { runAcpCommand } from '../../acp/command-runner.js'
 import type { TrustMode } from '../../acp/host-handlers.js'
@@ -33,8 +28,6 @@ import type { ParsedCommand } from '../types.js'
 import { mergeRunOptionsWithPreset, resolveRunPrompt } from './shared.js'
 
 export async function handleRunCommand(parsed: Extract<ParsedCommand, { kind: 'run' }>): Promise<void> {
-  const useAcp = process.env.GENIE_USE_ACP !== '0'
-
   const explicitOutput: CliOutputMode | undefined = parsed.globals.json
     ? 'json'
     : parsed.globals.plain
@@ -63,65 +56,27 @@ export async function handleRunCommand(parsed: Extract<ParsedCommand, { kind: 'r
     disableColor: parsed.globals.noColor,
   })
 
-  if (useAcp) {
-    const acpResult = await runViaAcp({
-      prompt: resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile),
-      config,
-      provider: effectiveOptions.provider,
-      model: effectiveOptions.model,
-      workspace,
-      trust: effectiveOptions.trust,
-      yolo: effectiveOptions.yolo,
-      timeoutMs: effectiveOptions.timeoutMs,
-      noFallback: effectiveOptions.noFallback,
-      outputFormat: runtime.outputMode,
-      session: effectiveOptions.session,
-    })
-
-    if (runtime.ttyAwareMode === 'json') {
-      writeJson(toCliJsonSuccessEnvelope('run_result', { provider: acpResult.provider, stopReason: acpResult.stopReason }))
-    }
-
-    writeVerbose(
-      parsed.globals,
-      `[genie] command=run provider=${acpResult.provider} acp=true stopReason=${acpResult.stopReason}`,
-    )
-    return
-  }
-
-  const request: RunRequestInput = {
+  const acpResult = await runViaAcp({
     prompt: resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile),
+    config,
     provider: effectiveOptions.provider,
     model: effectiveOptions.model,
     workspace,
-    mode: effectiveOptions.mode,
     trust: effectiveOptions.trust,
-    output: runtime.outputMode,
+    yolo: effectiveOptions.yolo,
     timeoutMs: effectiveOptions.timeoutMs,
     noFallback: effectiveOptions.noFallback,
-    yolo: effectiveOptions.yolo,
-    includeDirectories: effectiveOptions.includeDirectories,
-    outputFormat: effectiveOptions.outputFormat,
-    headless: effectiveOptions.headless,
-    extensions: effectiveOptions.extensions,
-    mcp: effectiveOptions.mcp,
-  }
-
-  const result = await runRequest({
-    input: request,
-    config,
+    outputFormat: runtime.outputMode,
+    session: effectiveOptions.session,
   })
 
-  const envelope = toCliJsonSuccessEnvelope('run_result', toResponseEnvelope(result))
   if (runtime.ttyAwareMode === 'json') {
-    writeJson(envelope)
-  } else {
-    writeLine(result.response)
+    writeJson(toCliJsonSuccessEnvelope('run_result', { provider: acpResult.provider, stopReason: acpResult.stopReason }))
   }
 
   writeVerbose(
     parsed.globals,
-    `[genie] command=run provider=${result.provider} fallback=${String(result.fallbackUsed)} totalMs=${result.timings.totalMs}`,
+    `[genie] command=run provider=${acpResult.provider} acp=true stopReason=${acpResult.stopReason}`,
   )
 }
 
