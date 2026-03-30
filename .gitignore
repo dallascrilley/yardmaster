@@ -11,6 +11,11 @@ package-lock.json
 /.omcodex/
 /error.log
 /genie/error.log
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-error.log*
 /.review-runs/
 
 # Nightshift local monitoring
