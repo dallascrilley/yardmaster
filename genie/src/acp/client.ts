@@ -5,6 +5,7 @@ import type { Client } from '@agentclientprotocol/sdk'
 import { AcpProtocolError, RuntimeProviderError, TimeoutError } from '../errors.js'
 import { createGenieClient, type TrustMode } from './host-handlers.js'
 import type { AcpProviderEntry, StreamEvent } from './types.js'
+import { modelEnvVars } from './provider-registry.js'
 
 export type AcpClientOptions = {
   workspace: string
@@ -12,6 +13,7 @@ export type AcpClientOptions = {
   timeoutMs: number
   onEvent: (event: StreamEvent) => void
   mcpServers?: unknown[]
+  model?: string
 }
 
 export class AcpClient {
@@ -33,7 +35,7 @@ export class AcpClient {
   async run(prompt: string): Promise<string> {
     try {
       await this.spawnAndInit()
-      await this.createSession()
+      await this.createSession(this.options.model)
       return await this.sendPrompt(prompt)
     } catch (err) {
       if (err instanceof RequestError) {
@@ -82,8 +84,16 @@ export class AcpClient {
   }
 
   private async spawnAndInit(): Promise<void> {
-    const { agentCommand, args = [], resolveEnv } = this.entry
-    const env = { ...process.env, ...(resolveEnv?.() ?? {}) }
+    const { agentCommand, args = [], resolveEnv, id } = this.entry
+    const env: NodeJS.ProcessEnv = { ...process.env, ...(resolveEnv?.() ?? {}) }
+    
+    // Set model via env var as fallback for adapters that don't support session/model
+    if (this.options.model) {
+      const modelEnvVar = modelEnvVars[id]
+      if (modelEnvVar) {
+        env[modelEnvVar] = this.options.model
+      }
+    }
 
     this.child = spawn(agentCommand, [...args], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -150,7 +160,7 @@ export class AcpClient {
     }
   }
 
-  private async createSession(): Promise<void> {
+  private async createSession(model?: string): Promise<void> {
     if (!this.connection) throw new Error('Not initialized')
 
     const result = await this.connection.newSession({
@@ -161,6 +171,29 @@ export class AcpClient {
     })
 
     this.sessionId = result.sessionId
+
+    // Try to set model if provided and supported
+    if (model && this.sessionId) {
+      await this.setModel(model).catch(() => {
+        // Ignore errors - model selection is optional
+      })
+    }
+  }
+
+  /**
+   * Set the model for the current session.
+   * Uses unstable_setSessionModel if available.
+   */
+  private async setModel(model: string): Promise<void> {
+    if (!this.connection || !this.sessionId) throw new Error('No active session')
+
+    // Check if the connection supports setSessionModel
+    if ('unstable_setSessionModel' in this.connection) {
+      const setModelFn = (this.connection as unknown as { unstable_setSessionModel?: (params: { sessionId: string; modelId: string }) => Promise<unknown> }).unstable_setSessionModel
+      if (setModelFn) {
+        await setModelFn({ sessionId: this.sessionId, modelId: model })
+      }
+    }
   }
 
   private async sendPrompt(text: string): Promise<string> {

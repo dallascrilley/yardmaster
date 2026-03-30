@@ -13,6 +13,7 @@ export type RunViaAcpInput = {
   prompt: string
   config: GenieConfig
   provider?: string
+  model?: string
   workspace?: string
   trust?: boolean
   yolo?: boolean
@@ -38,6 +39,7 @@ export async function runViaAcp(input: RunViaAcpInput): Promise<AcpFallbackResul
     mcpServers,
     onEvent,
     session: sessionName,
+    model,
   } = input
 
   const explicitCanonical = explicitProvider
@@ -77,6 +79,7 @@ export async function runViaAcp(input: RunViaAcpInput): Promise<AcpFallbackResul
     onEvent: handleEvent,
     mcpServers,
     existingSessionId,
+    model,
   })
 
   // Save session if name provided
