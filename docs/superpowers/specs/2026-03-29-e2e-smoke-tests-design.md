@@ -14,7 +14,7 @@ Add a real-LLM smoke test layer that verifies basic round-trip functionality aga
 |----------|--------|-----------|
 | Scope | Basic run + commit per provider | These two cover the core plumbing (arg building, spawning, output parsing). Other commands share the same spawn path. |
 | Provider coverage | All four (Claude, Codex, Gemini, Cursor Agent) | Full coverage. Tests skip gracefully if a provider isn't available. |
-| CI mandatory provider | Gemini only | Gemini authenticates via `GEMINI_API_KEY` env var — trivial to set as a CI secret. The other three use interactive CLI auth flows that are awkward in CI. |
+| CI mandatory provider | Gemini only | Gemini authenticates via `GEMINI_API_KEY` env var — trivial to set as a CI secret. The other three use interactive CLI auth flows that are awkward in CI. In GitHub Actions, Vitest `globalSetup` runs before workers: it requires `GEMINI_API_KEY`, a successful `providers doctor --json`, a non-empty provider list, and `gemini` available+authenticated — so the workflow cannot succeed with all smoke tests skipped or with doctor/key misconfiguration. |
 | Mock E2E changes | None | Existing 20+ integration tests with mock binaries are sufficient. |
 | CI trigger for smoke | `workflow_dispatch` + nightly cron | Mock tests on every push (existing). Real-LLM smoke on-demand or nightly. No per-commit LLM cost. |
 | Test framework | Vitest (same as existing) | Consistent tooling, rich assertions, built-in skip/retry. |
@@ -28,8 +28,8 @@ Add a real-LLM smoke test layer that verifies basic round-trip functionality aga
 genie/
   test/
     smoke/
-      smoke.run.test.ts          # Basic prompt round-trip per provider
-      smoke.commit.test.ts       # Commit message generation per provider
+      smoke.e2e.test.ts          # Run + commit smoke per provider (single file avoids Vitest worker RPC timeouts)
+      global-setup.ts            # GitHub Actions preflight (doctor + gemini + GEMINI_API_KEY)
       support/
         provider-check.ts        # Shared provider availability detection
   vitest.smoke.config.ts         # Smoke-only Vitest config
@@ -51,14 +51,16 @@ export async function checkProvider(
 ```
 
 Implementation:
-1. Spawns `genie providers doctor --json` once per test run (result cached in module scope).
+1. Spawns `bun <repo>/src/bin/genie.ts providers doctor --json` with `cwd` set to the `genie/` package root once per test run (async `spawn`, result cached in module scope) so the Vitest worker event loop stays responsive during long CLI calls.
 2. Parses the JSON output to extract per-provider availability and auth status.
 3. Returns `{ available: true }` if the provider binary is present and authenticated.
 4. Returns `{ available: false, reason: "..." }` otherwise.
 
-This exercises genie as a black box (the real linked binary), not imported TypeScript modules.
+This exercises genie as a black box via the same Bun + source entrypoint the smoke tests use for `run` and `commit`, not imported application modules.
 
-### Run Smoke Test (`smoke.run.test.ts`)
+**Gemini availability:** the gemini adapter relies on the shared default availability check (`gemini --version` with retries), not a custom `which`-only probe.
+
+### Run Smoke Test (`smoke.e2e.test.ts` — `smoke: run`)
 
 For each provider (`claude`, `codex`, `gemini`, `cursor-agent`):
 
@@ -68,14 +70,14 @@ For each provider (`claude`, `codex`, `gemini`, `cursor-agent`):
 
 The prompt is designed for minimal tokens and deterministic-enough output.
 
-### Commit Smoke Test (`smoke.commit.test.ts`)
+### Commit Smoke Test (`smoke.e2e.test.ts` — `smoke: commit`)
 
 For each provider:
 
 1. Check provider availability. Skip if unavailable.
 2. Create a temp git repo (reuse `createCliHarness()` workspace utilities).
 3. Create and stage a one-line file change.
-4. Spawn: `genie commit --provider <id>` from the workspace directory.
+4. Spawn: `genie commit --provider <id> --workspace <repo>` (the temp repo path) so commit runs against that git tree.
 5. Assert: exit code 0, stdout is non-empty and at least 5 characters.
 
 ### Vitest Smoke Config (`vitest.smoke.config.ts`)
@@ -85,10 +87,13 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    globalSetup: ['./test/smoke/global-setup.ts'],
     include: ['test/smoke/**/*.test.ts'],
-    testTimeout: 60_000,    // 60s per test (real LLM calls can be slow)
-    hookTimeout: 30_000,    // 30s for setup/teardown
-    retry: 1,               // One automatic retry for transient failures
+    environment: 'node',
+    passWithNoTests: false,
+    testTimeout: 60_000,
+    hookTimeout: 30_000,
+    retry: 1,
   },
 })
 ```
@@ -110,9 +115,9 @@ export default defineConfig({
 **Steps:**
 1. Checkout repo
 2. Setup Bun
-3. `bun install`
-4. `bun run build && bun link` (smoke tests run against the real linked binary)
-5. `bun run test:smoke`
+3. `bun install` (from the `genie/` package root via workflow `working-directory`)
+4. `bun run build` — compile check before smoke
+5. `bun run test:smoke` — invokes `bun src/bin/genie.ts` for doctor, `run`, and `commit` (same harness as local smoke; no `bun link` required)
 
 **Secrets:**
 - `GEMINI_API_KEY` — required, set as environment variable
@@ -127,9 +132,9 @@ export default defineConfig({
 |---------|-------|-----------|
 | Per-test timeout | 60s | Real LLM calls can take 10-30s |
 | Suite timeout | 5 min | 8 tests with generous headroom |
-| Retry | 1 | Covers transient rate limits / cold starts |
+| Retry | 1 | Covers transient rate limits / cold starts. Smoke uses async `spawn` (not `spawnSync`) for genie invocations so the worker stays responsive to Vitest RPC during long runs. |
 
-If a test fails twice, it's a real signal — either the provider is down or genie broke something.
+If a test fails twice, it is a real signal — either the provider is down or genie regressed.
 
 ## Cost Estimate
 
