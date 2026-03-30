@@ -1,8 +1,47 @@
 import { UsageError } from '../errors.js'
 import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
-import { getProviderAdapter, providerAdapters } from './registry.js'
+import { type ProviderCheckResult, type ProviderId } from '../types.js'
 import { runCommand } from './base.js'
+import { createDefaultAvailabilityCheck, createDefaultAuthCheck } from './default-checks.js'
 import type { ProviderDoctorStatus } from './doctor-types.js'
+
+type DoctorTarget = {
+  id: ProviderId
+  binary: string
+  resolveAuthHint?: (result: Extract<ProviderCheckResult, { ok: false }>) => string | undefined
+}
+
+function resolveCursorAgentAuthHint(result: Extract<ProviderCheckResult, { ok: false }>): string | undefined {
+  const signal = [result.reason, result.details, result.hint]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join('\n')
+    .toLowerCase()
+
+  if (result.timeout || signal.includes('trust') || signal.includes('approve') || signal.includes('workspace')) {
+    return 'cursor-agent did not respond to `auth status`. Open Cursor and trust/approve this workspace for agent access before retrying.'
+  }
+
+  if (signal.includes('login') || signal.includes('log in') || signal.includes('sign in') || signal.includes('authenticated') || signal.includes('auth')) {
+    return 'cursor-agent is not authenticated. Open Cursor, sign in to your account, then retry.'
+  }
+
+  return result.hint
+}
+
+const doctorTargets: DoctorTarget[] = [
+  { id: 'claude', binary: 'claude' },
+  { id: 'codex', binary: 'codex' },
+  {
+    id: 'cursor-agent',
+    binary: 'cursor-agent',
+    resolveAuthHint: resolveCursorAgentAuthHint,
+  },
+  { id: 'gemini', binary: 'gemini' },
+]
+
+function getDoctorTarget(id: ProviderId): DoctorTarget | undefined {
+  return doctorTargets.find((entry) => entry.id === id)
+}
 
 export function resolveDoctorTargets(provider?: string) {
   if (provider && !isConfigProviderId(provider)) {
@@ -10,33 +49,45 @@ export function resolveDoctorTargets(provider?: string) {
   }
 
   if (!provider) {
-    return providerAdapters
+    return doctorTargets
   }
 
   const canonical = resolveConfigProviderToken(provider).provider
-  const adapter = getProviderAdapter(canonical)
-  if (!adapter) {
+  const entry = getDoctorTarget(canonical)
+  if (!entry) {
     throw new UsageError(`No adapter registered for '${provider}'`)
   }
 
-  return [adapter]
+  return [entry]
 }
 
-export async function doctorProviderStatus(adapter: (typeof providerAdapters)[number]): Promise<ProviderDoctorStatus> {
+export async function doctorProviderStatus(entry: DoctorTarget): Promise<ProviderDoctorStatus> {
   const startedAt = Date.now()
-  const availability = await adapter.isAvailable(runCommand)
-  let auth = { ok: false, reason: 'provider unavailable' } as Awaited<ReturnType<typeof adapter.isAuthenticated>>
+  const availability = await createDefaultAvailabilityCheck(entry.binary)(runCommand)
+  let authenticated = false
+  let authDetails: string | undefined
+  let hint = availability.ok ? undefined : availability.hint
+
   if (availability.ok) {
-    auth = await adapter.isAuthenticated(runCommand, { workspace: process.cwd() })
+    const auth = await createDefaultAuthCheck(entry.id, entry.binary)(runCommand)
+    authenticated = auth.ok
+    authDetails = auth.ok
+      ? auth.details
+      : auth.timeout
+        ? auth.hint
+        : auth.details ?? auth.reason
+    if (!auth.ok) {
+      hint = entry.resolveAuthHint?.(auth) ?? auth.hint
+    }
   }
 
   return {
-    provider: adapter.id,
+    provider: entry.id,
     available: availability.ok,
-    authenticated: availability.ok ? auth.ok : false,
-    availabilityDetails: availability.details,
-    authDetails: auth.details,
-    hint: availability.ok ? (auth.ok ? undefined : auth.hint) : availability.hint,
+    authenticated,
+    availabilityDetails: availability.ok ? availability.details : availability.reason,
+    authDetails,
+    hint,
     latencyMs: Date.now() - startedAt,
   }
 }

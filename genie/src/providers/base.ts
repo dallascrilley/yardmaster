@@ -1,78 +1,121 @@
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+
 import {
   type CommandRunner,
-  type NormalizedRequest,
-  type ProviderAdapter,
-  type ProviderAuthContext,
-  type ProviderInvocation,
-  type ProviderParseResult,
   type CommandResult,
-  type ProviderCheckResult,
+  type ProviderInvocation,
 } from '../types.js'
-import { runCommand, runWithRunner } from './command-runner.js'
-import { createDefaultAuthCheck, createDefaultAvailabilityCheck } from './default-checks.js'
 
-export { runCommand } from './command-runner.js'
-
-export type ProviderFactoryParams = {
-  id: ProviderAdapter['id']
-  binary: string
-  buildInvocation: (request: NormalizedRequest) => ProviderInvocation
-  parse: (result: CommandResult) => ProviderParseResult
-  availabilityInvocation?: ProviderInvocation
-  availabilityCheck?: (runner: CommandRunner) => Promise<ProviderCheckResult>
-  authCheck?: (runner: CommandRunner, context?: ProviderAuthContext) => Promise<ProviderCheckResult>
+export const defaultCommandError: CommandResult = {
+  stdout: '',
+  stderr: '',
+  code: 127,
 }
 
-const DEFAULT_EXECUTION_TIMEOUT_MS = 120_000
+export function isCommandNotFound(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === 'ENOENT'
+}
 
-export function extractResponseText(result: CommandResult, fallbackLabel: string): string {
-  const stdout = result.stdout.trim()
-  const stderr = result.stderr.trim()
-  if (stdout) return stdout
+function isCwdError(error: unknown, cwd?: string): boolean {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false
+  return typeof cwd === 'string' && !existsSync(cwd)
+}
 
-  const nonDiagnosticStderr = stderr
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .filter((line) => !/^warning[:\s]/i.test(line))
+function signalExitCode(signal: NodeJS.Signals | null): number {
+  if (!signal) return 1
+  const signalNumbers: Record<string, number> = {
+    SIGHUP: 1,
+    SIGINT: 2,
+    SIGQUIT: 3,
+    SIGTERM: 15,
+    SIGKILL: 9,
+  }
+  return 128 + (signalNumbers[signal] ?? 1)
+}
 
-  if (nonDiagnosticStderr.length > 0) {
-    return nonDiagnosticStderr.join('\n')
+export async function runCommand(invocation: ProviderInvocation, runner?: CommandRunner): Promise<CommandResult> {
+  if (runner) {
+    return runner(invocation)
   }
 
-  return `No response from ${fallbackLabel}`
-}
+  return new Promise<CommandResult>((resolve) => {
+    let didResolve = false
+    const child = spawn(invocation.command, invocation.args, {
+      cwd: invocation.cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(invocation.env ? { env: invocation.env } : {}),
+    })
 
-export function createProviderAdapter(params: ProviderFactoryParams): ProviderAdapter {
-  const availabilityCheck =
-    params.availabilityCheck ??
-    createDefaultAvailabilityCheck(params.binary, params.availabilityInvocation)
+    let stdout = ''
+    let stderr = ''
 
-  const authCheck = params.authCheck ?? createDefaultAuthCheck(params.id, params.binary)
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
 
-  return {
-    id: params.id,
-    isAvailable: async (runner = runCommand) => {
-      return availabilityCheck((invocation) => runWithRunner(runner, invocation))
-    },
-    isAuthenticated: async (runner = runCommand, context?: ProviderAuthContext) => {
-      return authCheck((invocation) => runWithRunner(runner, invocation), context)
-    },
-    buildInvocation: params.buildInvocation,
-    execute: async (request: NormalizedRequest, runner = runCommand) => {
-      const invocation = params.buildInvocation(request)
-      const result = await runWithRunner(runner, {
-        ...invocation,
-        timeoutMs: invocation.timeoutMs ?? request.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS,
-      })
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
 
-      if (result.code !== 0) {
-        const detail = [result.stderr, result.stdout].filter(Boolean).join('\n').trim()
-        throw new Error(`${params.id} execution failed (${result.code}): ${detail || 'no output'}`)
+    const timeoutHandle =
+      typeof invocation.timeoutMs === 'number' && invocation.timeoutMs > 0
+        ? setTimeout(() => {
+            if (didResolve) return
+            didResolve = true
+            child.kill('SIGTERM')
+            setTimeout(() => {
+              child.kill('SIGKILL')
+            }, 250)
+            child.stdout?.destroy()
+            child.stderr?.destroy()
+            child.unref()
+            resolve({
+              stdout,
+              stderr: `${stderr}\nTimed out after ${invocation.timeoutMs}ms`.trim(),
+              code: 124,
+            })
+          }, invocation.timeoutMs)
+        : undefined
+
+    child.on('error', (error) => {
+      if (didResolve) return
+      didResolve = true
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle)
+      }
+      if (isCwdError(error, invocation.cwd)) {
+        resolve({
+          ...defaultCommandError,
+          stderr: `Working directory does not exist: ${invocation.cwd}`,
+        })
+        return
+      }
+      if (isCommandNotFound(error)) {
+        resolve({
+          ...defaultCommandError,
+          stderr: error.message,
+        })
+        return
       }
 
-      return params.parse(result)
-    },
-    parse: params.parse,
-  }
+      resolve({
+        ...defaultCommandError,
+        stderr: String(error),
+      })
+    })
+
+    child.on('close', (code, signal) => {
+      if (didResolve) return
+      didResolve = true
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle)
+      }
+      resolve({
+        stdout,
+        stderr,
+        code: code ?? signalExitCode(signal),
+      })
+    })
+  })
 }

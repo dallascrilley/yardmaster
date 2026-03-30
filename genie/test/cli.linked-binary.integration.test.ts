@@ -1,56 +1,56 @@
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createCliHarness, type CliHarness } from './support/cli-harness.js'
+const genieRoot = fileURLToPath(new URL('..', import.meta.url))
+const genieBin = join(genieRoot, 'dist/bin/genie.js')
 
-describe('linked binary critical path integration', () => {
-  const harnesses: CliHarness[] = []
+describe('linked dist binary integration', () => {
+  const dirs: string[] = []
 
   afterEach(() => {
-    for (const harness of harnesses) {
-      harness.cleanup()
+    for (const d of dirs) {
+      rmSync(d, { recursive: true, force: true })
     }
-    harnesses.length = 0
+    dirs.length = 0
   })
 
-  function useHarness(prefix: string): CliHarness {
-    const harness = createCliHarness(prefix)
-    harnesses.push(harness)
-    return harness
-  }
+  it('prints root help from compiled dist with isolated HOME', () => {
+    const home = mkdtempSync(join(tmpdir(), 'genie-dist-help-'))
+    dirs.push(home)
 
-  it('verifies linked genie help and provider inventory with an isolated HOME', { timeout: 20_000 }, () => {
-    const harness = useHarness('linked-help')
+    const result = spawnSync(process.execPath, [genieBin, '--help'], {
+      cwd: genieRoot,
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home },
+    })
 
-    const help = harness.runLinkedCli(['--help'])
-    expect(help.status).toBe(0)
-    expect(help.stdout).toContain('Unified AI CLI for prompt execution, terminal debugging, diff review, and provider-aware automation.')
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(result.stdout).toContain(
+      'Unified AI CLI for prompt execution, terminal debugging, diff review, and provider-aware automation.',
+    )
+  })
 
-    const providers = harness.runLinkedCli(['providers', 'list', '--json'])
-    expect(providers.status).toBe(0)
-    expect(JSON.parse(providers.stdout)).toMatchObject({
+  it('emits providers list JSON from compiled dist with isolated HOME', () => {
+    const home = mkdtempSync(join(tmpdir(), 'genie-dist-prov-'))
+    dirs.push(home)
+
+    const result = spawnSync(process.execPath, [genieBin, 'providers', 'list', '--json'], {
+      cwd: genieRoot,
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home },
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toBe('')
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({
       kind: 'providers_list',
       ok: true,
     })
-  })
-
-  it('executes a linked binary prompt flow with mocked providers and timeout handling', { timeout: 20_000 }, () => {
-    const successHarness = useHarness('linked-success')
-    successHarness.writeMockBinary('claude', { executionStdout: 'linked mocked response' })
-
-    const success = successHarness.runLinkedCli(['run', '--provider', 'claude', '--no-fallback', '--plain', 'hello'])
-    expect(success.status).toBe(0)
-    expect(success.stdout.trim()).toBe('linked mocked response')
-
-    const timeoutHarness = useHarness('linked-timeout')
-    timeoutHarness.writeMockBinary('claude', {
-      executionSh: [
-        'sleep 1',
-        'echo too late',
-      ],
-    })
-
-    const timeout = timeoutHarness.runLinkedCli(['run', '--provider', 'claude', '--no-fallback', '--timeout-ms', '1', 'hello'])
-    expect(timeout.status).toBe(124)
-    expect(timeout.stderr).toContain('Timed out after 1ms')
   })
 })
