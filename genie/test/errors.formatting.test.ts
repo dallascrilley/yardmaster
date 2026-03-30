@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AggregatedProviderError, UsageError, formatCliError } from '../src/errors.js'
+import { AcpProtocolError, AggregatedProviderError, UsageError, formatCliError, getExitCode } from '../src/errors.js'
 
 describe('cli error formatting', () => {
   it('adds next steps for unknown commands', () => {
@@ -34,5 +34,31 @@ describe('cli error formatting', () => {
     expect(formatted).toContain('All providers failed.')
     expect(formatted).toContain('Run `genie providers doctor`')
     expect(formatted).toContain('Retry with `genie run --provider <id> --no-fallback "<prompt>"`')
+  })
+})
+
+describe('AcpProtocolError', () => {
+  it('wraps JSON-RPC error code', () => {
+    const err = new AcpProtocolError(-32000, 'Auth required', 'claude')
+    expect(err.code).toBe(-32000)
+    expect(err.providerId).toBe('claude')
+    expect(err.message).toContain('Auth required')
+  })
+
+  it('maps -32000 to exit code 3 (auth)', () => {
+    const err = new AcpProtocolError(-32000, 'Auth required', 'claude')
+    expect(getExitCode(err)).toBe(3)
+  })
+
+  it('maps -32603 to exit code 1 (runtime)', () => {
+    const err = new AcpProtocolError(-32603, 'Internal error', 'codex')
+    expect(getExitCode(err)).toBe(1)
+  })
+
+  it('formats with next steps', () => {
+    const err = new AcpProtocolError(-32000, 'Auth required', 'claude')
+    const formatted = formatCliError(err)
+    expect(formatted).toContain('ACP protocol error')
+    expect(formatted).toContain('genie providers doctor')
   })
 })
