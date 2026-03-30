@@ -55,19 +55,15 @@ export function readStagedDiff(gitRead: GitReadFn = defaultGitRead): string {
   }
 }
 
-export function buildCommitPrompt(diff: string): string {
-  return [
-    'Write a single Conventional Commits message for the staged git diff.',
-    'Use Conventional Commits syntax such as feat:, fix:, chore:, refactor:, docs:, test:, or ci:.',
-    'Return only the commit message text.',
-    'Do not wrap the message in markdown or code fences.',
-    'Keep it concise and specific to the staged changes.',
-    '',
-    'Staged diff:',
-    '```diff',
-    diff,
-    '```',
-  ].join('\n')
+export const COMMIT_SYSTEM_PROMPT = `You are a commit message generator. Follow these rules:
+1. Use Conventional Commits syntax (feat:, fix:, chore:, refactor:, docs:, test:, ci:)
+2. Return ONLY the commit message, no markdown or code fences
+3. Be concise and specific to the changes
+4. Run 'git diff --staged' to see the changes
+5. Write a single commit message based on the diff`
+
+export function buildCommitPrompt(): string {
+  return 'Generate a Conventional Commits message for the staged changes.'
 }
 
 export function normalizeCommitMessage(raw: string): string {

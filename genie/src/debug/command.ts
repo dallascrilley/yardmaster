@@ -19,20 +19,19 @@ export function readDebugInput(inputFile?: string): string {
   return normalizeDebugInput(readTextInput(inputFile))
 }
 
+export const DEBUG_SYSTEM_PROMPT = `You are diagnosing terminal output from a developer workflow.
+Identify the single most likely root cause from the provided terminal output.
+Return a concise response with these sections:
+1. Root cause
+2. Why it happened
+3. Next step
+4. Confidence
+Do not quote the entire log back. If the log is ambiguous or incomplete, say so explicitly and avoid certainty.`
+
 export function buildDebugPrompt(input: string): string {
-  return [
-    'You are diagnosing terminal output from a developer workflow.',
-    'Identify the single most likely root cause from the provided terminal output.',
-    'Return a concise response with these sections:',
-    '1. Root cause',
-    '2. Why it happened',
-    '3. Next step',
-    '4. Confidence',
-    'Do not quote the entire log back. If the log is ambiguous or incomplete, say so explicitly and avoid certainty.',
-    '',
-    'Terminal output:',
-    '```text',
-    input,
-    '```',
-  ].join('\n')
+  return `Analyze this terminal output and identify the root cause:
+
+\`\`\`text
+${input}
+\`\`\``
 }
