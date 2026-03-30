@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { toCliJsonErrorEnvelope, toCliJsonSuccessEnvelope } from '../src/cli/json.js'
-import { toErrorEnvelope, toResponseEnvelope } from '../src/execution/run-request.js'
+import { toErrorEnvelope, toResponseEnvelope } from '../src/execution/envelopes.js'
 
 describe('output contract', () => {
   it('uses deterministic response envelope keys', () => {

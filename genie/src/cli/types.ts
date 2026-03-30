@@ -36,6 +36,7 @@ export type RunOptions = {
   mcp?: string[]
   promptFile?: string
   inputFile?: string
+  session?: string
 }
 
 type CommitSharedOptions = Pick<

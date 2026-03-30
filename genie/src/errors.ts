@@ -32,6 +32,17 @@ export class TimeoutError extends Error {
   }
 }
 
+export class AcpProtocolError extends Error {
+  constructor(
+    public readonly code: number,
+    message: string,
+    public readonly providerId: string,
+  ) {
+    super(`ACP error ${code} from ${providerId}: ${message}`)
+    this.name = 'AcpProtocolError'
+  }
+}
+
 export class AggregatedProviderError extends Error {
   constructor(public readonly reasons: ProviderFailureReason[]) {
     const lines = reasons
@@ -70,6 +81,11 @@ export function getExitCode(error: unknown): number {
     if (error.hasTimeoutFailure()) {
       return 124
     }
+    return 1
+  }
+
+  if (error instanceof AcpProtocolError) {
+    if (error.code === -32000) return 3  // auth required
     return 1
   }
 
@@ -115,6 +131,13 @@ export function formatCliError(error: unknown): string {
 
   if (error instanceof UsageError) {
     return withNextSteps(error.message, usageSuggestions(error.message))
+  }
+
+  if (error instanceof AcpProtocolError) {
+    return withNextSteps(`ACP protocol error from ${error.providerId}: ${error.message}`, [
+      'Run `genie providers doctor` to check adapter health.',
+      'Retry with `--provider <id>` to try a different provider.',
+    ])
   }
 
   if (error instanceof Error) {
