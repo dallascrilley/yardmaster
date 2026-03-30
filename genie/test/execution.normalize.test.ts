@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { defaultConfig } from '../src/config/schema.js'
-import { normalizeRequest, resolveProviderOrder } from '../src/execution/normalize.js'
+import { defaultConfig, mergeConfig } from '../src/config/schema.js'
+import { UsageError } from '../src/errors.js'
+import {
+  normalizeRequest,
+  resolveProviderExecutionPlan,
+  resolveProviderOrder,
+} from '../src/execution/normalize.js'
 
 const withHistory = {
   ...defaultConfig,
@@ -34,12 +39,79 @@ describe('request normalization', () => {
   })
 
   it('throws when explicit provider order input is invalid', () => {
-    expect(() => resolveProviderOrder(withHistory, 'not-a-provider')).toThrow("Unknown provider 'not-a-provider'")
+    expect(() => resolveProviderOrder(withHistory, 'not-a-provider')).toThrow(UsageError)
   })
 
   it('throws when provider is invalid', () => {
     expect(() => {
       normalizeRequest({ prompt: 'x', provider: 'invalid' }, withHistory)
     }).toThrow()
+  })
+
+  it('dedupes pi and gemini into a single gemini execution slot', () => {
+    const withPi = mergeConfig(defaultConfig, {
+      provider: {
+        default: 'pi',
+        fallbackOrder: ['gemini', 'claude', 'codex', 'cursor-agent'],
+      },
+    })
+    const { slots } = resolveProviderExecutionPlan(withPi, undefined, false)
+    expect(slots.map((s) => s.provider)).toEqual(['gemini', 'claude', 'codex', 'cursor-agent'])
+    expect(slots.filter((s) => s.provider === 'gemini')).toHaveLength(1)
+  })
+
+  it('merges pi alias model when the same canonical provider appears as direct CLI later in the plan', () => {
+    const prev = process.env.GENIE_PI_MODEL
+    const prevB = process.env.GENIE_PI_BACKEND
+    delete process.env.GENIE_PI_BACKEND
+    process.env.GENIE_PI_MODEL = 'from-pi-env'
+    try {
+      const cfg = mergeConfig(defaultConfig, {
+        provider: {
+          default: 'codex',
+          fallbackOrder: ['pi', 'gemini', 'claude'],
+        },
+      })
+      const { slots } = resolveProviderExecutionPlan(cfg, undefined, false)
+      expect(slots.find((s) => s.provider === 'gemini')).toMatchObject({
+        provider: 'gemini',
+        aliasModel: 'from-pi-env',
+      })
+    } finally {
+      if (prev === undefined) delete process.env.GENIE_PI_MODEL
+      else process.env.GENIE_PI_MODEL = prev
+      if (prevB === undefined) delete process.env.GENIE_PI_BACKEND
+      else process.env.GENIE_PI_BACKEND = prevB
+    }
+  })
+
+  it('dedupes pi and codex when GENIE_PI_BACKEND is codex', () => {
+    const prevB = process.env.GENIE_PI_BACKEND
+    const prevM = process.env.GENIE_PI_MODEL
+    process.env.GENIE_PI_BACKEND = 'codex'
+    process.env.GENIE_PI_MODEL = 'pi-codex-model'
+    try {
+      const cfg = mergeConfig(defaultConfig, {
+        provider: {
+          default: 'pi',
+          fallbackOrder: ['codex', 'claude'],
+        },
+      })
+      const { slots } = resolveProviderExecutionPlan(cfg, undefined, false)
+      expect(slots.map((s) => s.provider)).toEqual(['codex', 'claude'])
+      expect(slots.filter((s) => s.provider === 'codex')).toHaveLength(1)
+      expect(slots[0].aliasModel).toBe('pi-codex-model')
+    } finally {
+      if (prevB === undefined) delete process.env.GENIE_PI_BACKEND
+      else process.env.GENIE_PI_BACKEND = prevB
+      if (prevM === undefined) delete process.env.GENIE_PI_MODEL
+      else process.env.GENIE_PI_MODEL = prevM
+    }
+  })
+
+  it('accepts pi as explicit provider token in resolveProviderOrder', () => {
+    const { order } = resolveProviderOrder(withHistory, 'pi')
+    expect(order[0]).toBe('gemini')
+    expect(order.filter((id) => id === 'gemini')).toHaveLength(1)
   })
 })

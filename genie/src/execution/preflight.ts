@@ -27,6 +27,7 @@ export function formatFailureReason(
 export async function runPreflight(
   provider: ProviderAdapter,
   runner: CommandRunner,
+  authContext?: { workspace?: string },
 ): Promise<ProviderFailureReason[]> {
   const failures: ProviderFailureReason[] = []
 
@@ -36,7 +37,7 @@ export async function runPreflight(
     return failures
   }
 
-  const auth = await provider.isAuthenticated(runner)
+  const auth = await provider.isAuthenticated(runner, authContext)
   if (!auth.ok) {
     failures.push(formatFailureReason(provider.id, auth, 'auth'))
   }

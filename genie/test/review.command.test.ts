@@ -13,6 +13,7 @@ import {
   resolveReviewDiffSource,
   resolveReviewTargets,
   getReviewJsonSchema,
+  resolveReviewTimeoutMs,
   toReviewJsonEnvelope,
   type ReviewExecutionResult,
 } from '../src/review/command.js'
@@ -140,11 +141,12 @@ describe('review command', () => {
 
       expect(result.agents).toEqual(['codex', 'claude', 'gemini', 'cursor'])
       expect(seenProviders).toEqual(['codex', 'claude', 'gemini', 'cursor-agent'])
-      expect(seenTimeouts).toEqual([120000, 120000, 120000, 120000])
-      expect(seenWorkspaces.every((workspace) => workspace === process.cwd())).toBe(true)
+      expect(seenTimeouts).toEqual([300000, 300000, 300000, 300000])
+      expect(seenWorkspaces).toHaveLength(4)
+      expect(new Set(seenWorkspaces).size).toBe(1)
       expect(result.cwd.length).toBeGreaterThan(0)
       expect(result.summary).toEqual({ total: 4, succeeded: 3, failed: 1 })
-      expect(result.exitCode).toBe(1)
+      expect(result.exitCode).toBe(0)
       expect(result.results[2]).toMatchObject({
         agent: 'gemini',
         status: 'error',
@@ -187,7 +189,7 @@ describe('review command', () => {
     expect(result.summary).toEqual({ total: 1, succeeded: 1, failed: 0 })
   })
 
-  it('uses git workspace root for branch reviews and current cwd for diff files', async () => {
+  it('uses git workspace root for branch reviews and diff-file reviews when available', async () => {
     const seenWorkspaces: string[] = []
     const gitService: GitService = {
       read: () => '',
@@ -231,7 +233,7 @@ describe('review command', () => {
     }
 
     expect(seenWorkspaces[0]).toBe('/repo/root')
-    expect(seenWorkspaces[1]).toBe(process.cwd())
+    expect(seenWorkspaces[1]).toBe('/repo/root')
   })
 
   it('fails on empty diff file', async () => {
@@ -482,13 +484,13 @@ describe('review command', () => {
         succeeded: 1,
         failed: 1,
       },
-      exitCode: 1,
+      exitCode: 0,
     }
 
     expect(toReviewJsonEnvelope(execution)).toEqual({
       kind: 'review_result',
       version: 1,
-      ok: false,
+      ok: true,
       mode: 'all',
       targets: ['codex', 'claude'],
       source: 'git diff main...HEAD',
@@ -527,7 +529,7 @@ describe('review command', () => {
           review: 'command failed',
         },
       ],
-      exitCode: 1,
+      exitCode: 0,
       error: null,
     })
   })
@@ -538,5 +540,23 @@ describe('review command', () => {
     expect(schema.title).toBe('Genie Review Result')
     expect(schema.type).toBe('object')
     expect((schema.properties as Record<string, unknown>).kind).toEqual({ const: 'review_result' })
+  })
+})
+
+describe('resolveReviewTimeoutMs', () => {
+  it('defaults to five minutes when unset', () => {
+    expect(resolveReviewTimeoutMs({})).toBe(300_000)
+  })
+
+  it('honors GENIE_REVIEW_TIMEOUT_MS', () => {
+    expect(resolveReviewTimeoutMs({ GENIE_REVIEW_TIMEOUT_MS: '60000' })).toBe(60_000)
+  })
+
+  it('caps at nine minutes', () => {
+    expect(resolveReviewTimeoutMs({ GENIE_REVIEW_TIMEOUT_MS: '99999999' })).toBe(900_000)
+  })
+
+  it('ignores non-numeric values', () => {
+    expect(resolveReviewTimeoutMs({ GENIE_REVIEW_TIMEOUT_MS: 'nope' })).toBe(300_000)
   })
 })

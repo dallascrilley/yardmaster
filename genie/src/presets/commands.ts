@@ -1,9 +1,10 @@
 import { UsageError } from '../errors.js'
-import { providerIds, type ProviderId, type ProviderPreset } from '../types.js'
+import { isConfigProviderId } from '../execution/provider-aliases.js'
+import { type ConfigProviderId, type ProviderPreset } from '../types.js'
 import { updateConfig, loadConfig } from '../config/store.js'
 
 export type PresetSetInput = {
-  provider?: ProviderId
+  provider?: ConfigProviderId
   model?: string
   mode?: string
   trust?: boolean
@@ -22,12 +23,13 @@ function normalizeList(values?: string[]): string[] | undefined {
     .filter(Boolean)
 }
 
-function validateProvider(provider?: string): ProviderId | undefined {
+function validateProvider(provider?: string): ConfigProviderId | undefined {
   if (!provider) return undefined
-  if (!providerIds.includes(provider as ProviderId)) {
-    throw new UsageError(`Invalid provider '${provider}'. Expected one of: ${providerIds.join(', ')}`)
+  const normalized = provider.trim().toLowerCase()
+  if (!isConfigProviderId(normalized)) {
+    throw new UsageError(`Invalid provider '${provider}'`)
   }
-  return provider as ProviderId
+  return normalized
 }
 
 function validatePresetName(name: string): string {

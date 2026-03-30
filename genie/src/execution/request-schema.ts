@@ -1,7 +1,14 @@
 import { z } from 'zod'
 
-import { modeIds, providerIds, type CliOutputMode, type NormalizedRequest } from '../types.js'
 import type { GenieConfig } from '../config/schema.js'
+import { isConfigProviderId, resolveConfigProviderToken } from './provider-aliases.js'
+import {
+  modeIds,
+  providerIds,
+  type CliOutputMode,
+  type NormalizedRequest,
+  type ProviderId,
+} from '../types.js'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 
@@ -47,10 +54,21 @@ export function normalizeRequest(
   input: NormalizeRequestInput,
   config: GenieConfig,
 ): NormalizedRequest {
+  let effectiveProvider = input.provider?.trim().toLowerCase()
+  let effectiveModel = input.model?.trim() || undefined
+
+  if (effectiveProvider && isConfigProviderId(effectiveProvider)) {
+    const { provider, aliasModel } = resolveConfigProviderToken(effectiveProvider)
+    if (!effectiveModel && aliasModel) {
+      effectiveModel = aliasModel
+    }
+    effectiveProvider = provider
+  }
+
   return requestSchema.parse({
     prompt: input.prompt,
-    provider: input.provider,
-    model: input.model,
+    provider: effectiveProvider as ProviderId | undefined,
+    model: effectiveModel,
     workspace: input.workspace || config.workspace.last || process.cwd(),
     mode: input.mode || config.mode.default,
     trust: input.trust ?? config.trust.default,

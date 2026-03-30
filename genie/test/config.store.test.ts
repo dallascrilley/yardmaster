@@ -1,11 +1,11 @@
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 import { describe, expect, it, afterEach } from 'vitest'
 import { defaultConfig, type GenieConfig } from '../src/config/schema.js'
-import { loadConfig, saveConfig, updateConfig } from '../src/config/store.js'
+import { loadConfig, loadUserConfig, resolveUserConfigPath, saveConfig, updateConfig } from '../src/config/store.js'
 
 function createTempHome(): string {
   const home = join(tmpdir(), `genie-config-${randomUUID()}`)
@@ -81,5 +81,33 @@ describe('config store', () => {
 
     expect(updated.workspace.last).toBe('/new/workspace')
     expect(updated.model.byProvider.claude).toBe('claude-3')
+  })
+
+  it('merges valid sections when the file fails full-schema validation', async () => {
+    const home = createTempHome()
+    homes.push(home)
+    const path = resolveUserConfigPath({ home })
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(
+      path,
+      JSON.stringify(
+        {
+          ...defaultConfig,
+          provider: {
+            default: 'not-a-valid-provider',
+            fallbackOrder: ['claude'],
+          },
+          output: { default: 'json' },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    const config = await loadUserConfig({ home })
+
+    expect(config.provider.default).toBe('claude')
+    expect(config.output.default).toBe('json')
   })
 })

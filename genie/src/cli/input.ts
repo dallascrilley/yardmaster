@@ -10,9 +10,10 @@ export function readTextInput(path?: string): string {
       return readFileSync(source, 'utf8')
     }
     return readFileSync(0, 'utf8')
-  } catch {
+  } catch (error) {
     const label = path && path !== '-' ? `input file '${path}'` : 'stdin'
-    throw new UsageError(`Failed to read ${label}`)
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new UsageError(`Failed to read ${label}: ${detail}`)
   }
 }
 
