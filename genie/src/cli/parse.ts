@@ -1,62 +1,14 @@
 import { UsageError } from '../errors.js'
-import type { HelpTopic, ParsedCommand } from './types.js'
+import type { ParsedCommand } from './types.js'
 import {
   aliasCommands,
   isStrictCommandsEnabled,
   looksLikeMistypedRootCommand,
-  parseCommitArgs,
-  parseCompletionArgs,
-  parseConfigArgs,
-  parseDebugArgs,
-  parseDesignArgs,
-  parsePresetsArgs,
-  parseProvidersArgs,
-  parseReviewArgs,
   parseRunLikeArgs,
-  parseUpdateArgs,
   rootCommands,
   shouldPreservePromptShorthand,
 } from './parse/commands.js'
-
-const helpTopicSet = new Set<HelpTopic>([
-  'run',
-  'design',
-  'commit',
-  'debug',
-  'review',
-  'update',
-  'providers',
-  'config',
-  'presets',
-  'completion',
-])
-
-const globalFlagSet = new Set([
-  '--help',
-  '-h',
-  '--json',
-  '--plain',
-  '--no-color',
-  '--no-input',
-  '--quiet',
-  '-q',
-  '--verbose',
-  '-v',
-  '--version',
-])
-
-const rootParsers = new Map<string, (tokens: string[]) => ParsedCommand>([
-  ['run', parseRunLikeArgs],
-  ['design', parseDesignArgs],
-  ['commit', parseCommitArgs],
-  ['debug', parseDebugArgs],
-  ['review', parseReviewArgs],
-  ['update', parseUpdateArgs],
-  ['providers', parseProvidersArgs],
-  ['presets', parsePresetsArgs],
-  ['config', parseConfigArgs],
-  ['completion', parseCompletionArgs],
-])
+import { getPositionalTokens, getRootParser, parseValidatedHelpCommand } from './parse/root.js'
 
 export function parseArgv(argv: string[]): ParsedCommand {
   const tokens = [...argv]
@@ -76,24 +28,11 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return { kind: 'version' }
   }
 
-  const positional: string[] = []
-  for (const token of tokens) {
-    if (globalFlagSet.has(token)) continue
-    positional.push(token)
-  }
+  const positional = getPositionalTokens(tokens)
 
-  if (positional[0] === 'help') {
-    const topic = positional[1]
-    if (!topic) {
-      return { kind: 'help' }
-    }
-    if (helpTopicSet.has(topic as HelpTopic)) {
-      if (positional.length > 2) {
-        throw new UsageError(`Unknown help topic '${positional[2]}'`)
-      }
-      return { kind: 'help', topic: topic as HelpTopic }
-    }
-    throw new UsageError(`Unknown help topic '${topic}'`)
+  const helpCommand = parseValidatedHelpCommand(positional)
+  if (helpCommand) {
+    return helpCommand
   }
 
   const cmd = positional[0]
@@ -103,7 +42,7 @@ export function parseArgv(argv: string[]): ParsedCommand {
     return parseRunLikeArgs(runTokens)
   }
 
-  const parser = rootParsers.get(first)
+  const parser = getRootParser(first)
   if (parser) {
     return parser(tokens.slice(1))
   }

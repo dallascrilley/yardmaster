@@ -2,8 +2,12 @@ import {
   type CommandRunner,
   type ProviderCheckResult,
   type ProviderInvocation,
+  type CommandResult,
 } from '../types.js'
-import { isLikelyTimeout } from './command-runner.js'
+
+function isLikelyTimeout(result: CommandResult): boolean {
+  return result.code === 124 || result.code === null || result.code === undefined
+}
 
 const DEFAULT_AVAILABILITY_TIMEOUT_MS = 3_000
 const RETRY_AVAILABILITY_TIMEOUT_MS = 6_000
@@ -67,6 +71,7 @@ export function createDefaultAuthCheck(id: string, binary: string) {
     return {
       ok: false,
       reason: `${id} authentication check failed`,
+      details: result.stderr || result.stdout || undefined,
       hint: result.stderr || result.stdout || 'Authenticate with the provider CLI and retry.',
       authFailure: true,
       timeout: isLikelyTimeout(result),

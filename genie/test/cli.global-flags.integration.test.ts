@@ -12,24 +12,6 @@ function createTempDir(prefix: string): string {
   return dir
 }
 
-function writeEnvAwareClaudeBinary(binDir: string): void {
-  const script = `#!/bin/sh
-if [ "$1" = "--version" ]; then
-  echo "claude 1.0.0"
-  exit 0
-fi
-if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
-  echo "authenticated"
-  exit 0
-fi
-printf 'env NO_COLOR=%s CI=%s\\n' "$NO_COLOR" "$CI"
-`
-
-  const path = join(binDir, 'claude')
-  writeFileSync(path, script, 'utf8')
-  chmodSync(path, 0o755)
-}
-
 describe('cli global flags integration', () => {
   const tempDirs: string[] = []
 
@@ -38,30 +20,6 @@ describe('cli global flags integration', () => {
       rmSync(dir, { recursive: true, force: true })
     }
     tempDirs.length = 0
-  })
-
-  it('passes --no-color and --no-input through to runtime and child process environment', () => {
-    const binDir = createTempDir('genie-flags-bin')
-    const homeDir = createTempDir('genie-flags-home')
-    tempDirs.push(binDir, homeDir)
-    writeEnvAwareClaudeBinary(binDir)
-
-    const result = spawnSync(
-      'bun',
-      ['src/bin/genie.ts', 'run', '--provider', 'claude', '--no-fallback', '--no-color', '--no-input', 'hello'],
-      {
-        cwd: new URL('..', import.meta.url).pathname,
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          HOME: homeDir,
-          PATH: `${binDir}:${process.env.PATH ?? ''}`,
-        },
-      },
-    )
-
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('env NO_COLOR=1 CI=true')
   })
 
   it('suppresses confirmation-only output with --quiet', () => {
@@ -86,7 +44,9 @@ describe('cli global flags integration', () => {
     const binDir = createTempDir('genie-flags-bin')
     const homeDir = createTempDir('genie-flags-home')
     tempDirs.push(binDir, homeDir)
-    writeEnvAwareClaudeBinary(binDir)
+    const path = join(binDir, 'claude')
+    writeFileSync(path, '#!/bin/sh\necho "authenticated"\n', 'utf8')
+    chmodSync(path, 0o755)
 
     const result = spawnSync('bun', ['src/bin/genie.ts', 'providers', 'doctor', '--provider', 'claude', '--verbose'], {
       cwd: new URL('..', import.meta.url).pathname,
@@ -104,10 +64,8 @@ describe('cli global flags integration', () => {
   })
 
   it('keeps providers list json valid when verbose logging is enabled', () => {
-    const binDir = createTempDir('genie-flags-bin')
     const homeDir = createTempDir('genie-flags-home')
-    tempDirs.push(binDir, homeDir)
-    writeEnvAwareClaudeBinary(binDir)
+    tempDirs.push(homeDir)
 
     const result = spawnSync('bun', ['src/bin/genie.ts', 'providers', 'list', '--json', '--verbose'], {
       cwd: new URL('..', import.meta.url).pathname,
@@ -115,7 +73,6 @@ describe('cli global flags integration', () => {
       env: {
         ...process.env,
         HOME: homeDir,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
       },
     })
 

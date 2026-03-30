@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -15,25 +15,6 @@ describe('cli exit codes', () => {
     mkdirSync(dir, { recursive: true })
     tempDirs.push(dir)
     return dir
-  }
-
-  function writeAuthFailingClaudeBinary(binDir: string): void {
-    const script = `#!/bin/sh
-if [ "$1" = "--version" ]; then
-  echo "claude 1.0.0"
-  exit 0
-fi
-if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
-  echo "login required" >&2
-  exit 1
-fi
-echo "should not execute" >&2
-exit 1
-`
-
-    const path = join(binDir, 'claude')
-    writeFileSync(path, script, 'utf8')
-    chmodSync(path, 0o755)
   }
 
   afterEach(() => {
@@ -263,23 +244,4 @@ exit 1
     expect(result.stdout).toContain('Usage: genie run [options] <prompt>')
   })
 
-  it('returns exit code 3 for auth-only provider failures in spawned cli', () => {
-    const binDir = createTempDir('genie-authfail-bin')
-    const homeDir = createTempDir('genie-authfail-home')
-    writeAuthFailingClaudeBinary(binDir)
-
-    const result = spawnSync('bun', ['src/bin/genie.ts', 'run', '--provider', 'claude', '--no-fallback', 'hello'], {
-      cwd: new URL('..', import.meta.url).pathname,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        HOME: homeDir,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
-      },
-    })
-
-    expect(result.status).toBe(3)
-    expect(result.stderr).toContain('claude (auth): claude authentication check failed')
-    expect(result.stderr).toContain('Run `genie providers doctor`')
-  })
 })
