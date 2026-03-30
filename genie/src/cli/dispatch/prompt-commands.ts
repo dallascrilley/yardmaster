@@ -18,6 +18,7 @@ import {
   toResponseEnvelope,
   type RunRequestInput,
 } from '../../execution/run-request.js'
+import { runViaAcp } from '../../acp/run.js'
 import { toCliJsonSuccessEnvelope } from '../json.js'
 import {
   shouldUseJson,
@@ -29,6 +30,8 @@ import type { ParsedCommand } from '../types.js'
 import { mergeRunOptionsWithPreset, resolveRunPrompt } from './shared.js'
 
 export async function handleRunCommand(parsed: Extract<ParsedCommand, { kind: 'run' }>): Promise<void> {
+  const useAcp = process.env.GENIE_USE_ACP !== '0'
+
   const explicitOutput: CliOutputMode | undefined = parsed.globals.json
     ? 'json'
     : parsed.globals.plain
@@ -56,6 +59,31 @@ export async function handleRunCommand(parsed: Extract<ParsedCommand, { kind: 'r
     forceNonInteractive: parsed.globals.noInput,
     disableColor: parsed.globals.noColor,
   })
+
+  if (useAcp) {
+    const acpResult = await runViaAcp({
+      prompt: resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile),
+      config,
+      provider: effectiveOptions.provider,
+      model: effectiveOptions.model,
+      workspace,
+      trust: effectiveOptions.trust,
+      yolo: effectiveOptions.yolo,
+      timeoutMs: effectiveOptions.timeoutMs,
+      noFallback: effectiveOptions.noFallback,
+      outputFormat: runtime.outputMode,
+    })
+
+    if (runtime.ttyAwareMode === 'json') {
+      writeJson(toCliJsonSuccessEnvelope('run_result', { provider: acpResult.provider, stopReason: acpResult.stopReason }))
+    }
+
+    writeVerbose(
+      parsed.globals,
+      `[genie] command=run provider=${acpResult.provider} acp=true stopReason=${acpResult.stopReason}`,
+    )
+    return
+  }
 
   const request: RunRequestInput = {
     prompt: resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile),

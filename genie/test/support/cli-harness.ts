@@ -56,6 +56,8 @@ export function createCliHarness(prefix = 'genie-cli-harness') {
       ...process.env,
       HOME: homeDir,
       PATH: [mockBinDir, join(homeDir, '.bun', 'bin'), process.env.PATH ?? ''].join(delimiter),
+      // Disable ACP path in integration tests; mock binaries use the legacy subprocess-based runner.
+      GENIE_USE_ACP: '0',
       ...extra,
     }
   }
