@@ -58,11 +58,19 @@ bun run test:critical-path
 
 That suite covers bootstrap help flows, prompt commands, stateful commands, update behavior, and the linked `genie` binary in isolated temp homes and git workspaces.
 
+### Smoke tests (optional, slow)
+
+Real-LLM smoke lives in `genie/test/smoke/` (`bun run test:smoke`). It is **provider-dependent** and can take several minutes when many CLIs are installed.
+
+- **Narrow providers locally**: `GENIE_SMOKE_PROVIDERS=gemini` (comma-separated) limits the matrix; unavailable providers are skipped per `genie providers doctor`.
+- **Quick default (Gemini-only)**: `bun run test:smoke:preflight` sets that filter for you (still needs a working Gemini auth for non-skipped cases).
+- **Scheduled CI**: [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) runs on `workflow_dispatch` and a daily cron; configure the **`GEMINI_API_KEY`** repository secret for the job to pass global setup. Forks do not receive upstream secrets—expect skips or failures unless secrets are provided.
+
 ## CI / GitHub Actions
 
 The gate you care about is [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (`bun install --frozen-lockfile`, `typecheck`, `test`, `build`, `test:critical-path` in `genie/`).
 
-If the Actions tab shows a workflow run with an **empty name**, path **`BuildFailed`**, and **`startup_failure`**, that is a **stale workflow** left registered on the repo after the YAML file was removed. It is not `ci.yml`. A repo admin can remove or fully disable that workflow under **Settings → Actions → General** / workflow management if GitHub keeps enqueueing it; the API may report it as “not active” while runs still appear on PRs.
+The obsolete **`BuildFailed`** workflow (historical id `253562637`) is **`deleted`** in the GitHub Actions API (`state: deleted`). You should only see **CI** and **Smoke Tests** under active workflows. Older PRs may still list historical **`startup_failure`** rows for that deleted workflow; new PRs should surface **`ci.yml`** as the primary check. If an empty-name ghost reappears, a repo admin can clean it under **Settings → Actions**.
 
 ## Project structure
 
@@ -71,11 +79,13 @@ genie-cli/
 ├── genie/                  # Main package
 │   ├── src/                # TypeScript source
 │   │   ├── cli/            # Parsing and dispatch
-│   │   ├── providers/      # Provider adapters
-│   │   ├── execution/      # Request pipeline
+│   │   ├── acp/            # ACP client (run, design, commit, debug)
+│   │   ├── output/         # Stream rendering for ACP
+│   │   ├── providers/      # Adapters for doctor, review, legacy spawn surfaces
+│   │   ├── execution/      # Envelopes, provider order, fallback helpers
 │   │   ├── config/         # Configuration
-│   │   ├── review/         # Code review system
-│   │   ├── commit/         # Commit message generation
+│   │   ├── review/         # Code review (spawn-based multi-agent path)
+│   │   ├── commit/         # Commit message generation (invoked via ACP from CLI)
 │   │   ├── debug/          # Error diagnosis
 │   │   ├── design/         # Design feedback
 │   │   ├── update/         # Self-update
@@ -90,23 +100,14 @@ genie-cli/
 
 ## Adding a new provider
 
-1. Create `genie/src/providers/<name>.ts`:
-   - Export a `ProviderAdapter` using `createProviderAdapter()` from `base.ts`
-   - Implement custom `availabilityCheck` and `authCheck` if needed
-   - The factory handles shared logic (spawn, timeout, parsing)
+**Prompt commands (`run`, `design`, `commit`, `debug`)** go through ACP:
 
-2. Create `genie/src/providers/mapped-args/<name>.ts`:
-   - Export an `apply<Name>MappedArgs()` function
-   - Map `NormalizedRequest` fields to provider-specific CLI flags
+1. Add an `AcpProviderEntry` in `genie/src/acp/provider-registry.ts` (launcher binary or `npx` package, optional `resolveEnv`).
+2. Extend `ProviderId` and any defaults in `genie/src/types.ts` and `genie/src/config/schema.ts` if the id is new.
+3. Keep **`genie providers doctor`** accurate: add a matching `ProviderAdapter` in `genie/src/providers/<name>.ts`, register it in `genie/src/providers/registry.ts`, and add `genie/src/providers/mapped-args/<name>.ts` if that CLI needs custom flags for **review** or other spawn paths.
+4. Add help text in `genie/src/cli/help/topics.ts` and update `genie/src/cli/completion.ts`.
 
-3. Register in `genie/src/providers/registry.ts`:
-   - Import and add the adapter to the `providerAdapters` array
-
-4. Add the provider ID to `providerIds` in `genie/src/types.ts`
-
-5. Add help text in `genie/src/cli/help/topics.ts`
-
-6. Update shell completions in `genie/src/cli/completion.ts`
+If the provider is **review-only** or has no ACP agent yet, you can start with steps 3–4 only and omit the `acp/` entry until an ACP launcher exists (see `docs/specs/2026-03-30-acp-rewrite-design.md` § cursor-agent).
 
 ## Adding a new command
 

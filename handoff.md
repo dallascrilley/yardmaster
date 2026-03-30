@@ -32,7 +32,7 @@ Replaced genie's CLI-spawn provider layer with ACP (Agent Client Protocol) for `
 
 ## Known issues
 
-- **Ghost workflow**: Deleted "BuildFailed" workflow (ID 253562637) fires `startup_failure` on some PR events. Real CI (`ci.yml`) validates on push to `main` and on PRs touching non-ignored paths.
+- **Ghost workflow (historical)**: Workflow id `253562637` (`BuildFailed`) is **`deleted`** in the GitHub API. Old PRs may still show past `startup_failure` runs; active workflows are **CI** (`ci.yml`) and **Smoke Tests** (`smoke.yml`).
 
 ## Key docs
 

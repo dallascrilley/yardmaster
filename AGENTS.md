@@ -31,7 +31,7 @@ bun run build
 bun run test:critical-path
 ```
 
-Optional real-LLM smoke (secrets + provider CLIs): `bun run test:smoke`. There is no separate `lint` script; **`typecheck` is the static analysis gate**.
+Optional real-LLM smoke (secrets + provider CLIs): `bun run test:smoke` (slow); quicker subset: `bun run test:smoke:preflight` or `GENIE_SMOKE_PROVIDERS=gemini bun run test:smoke`. There is no separate `lint` script; **`typecheck` is the static analysis gate**.
 
 ## Docs Merge Policy
 

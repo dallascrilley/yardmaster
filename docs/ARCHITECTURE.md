@@ -1,6 +1,6 @@
 # Architecture
 
-> Internal architecture reference for genie-cli v0.1.0.
+> Internal architecture reference for genie-cli (genie package version in `genie/package.json`).
 
 ## System overview
 
@@ -11,27 +11,30 @@
 │  Tokenizes argv, routes to command handlers         │
 └──────────────┬──────────────────────────────────────┘
                │
-┌──────────────▼──────────────────────────────────────┐
-│                  Execution Layer                    │
-│  run-request.ts → normalize.ts → fallback.ts        │
-│  Normalizes input, resolves provider order,         │
-│  executes with fallback chain                       │
-└──────────────┬──────────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────────┐
-│                  Provider Layer                     │
-│  registry.ts → base.ts → command-runner.ts          │
-│  Adapter pattern: claude, codex, cursor-agent,      │
-│  gemini — each maps args and parses output          │
-└──────────────┬──────────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────────┐
+       ┌───────┴────────┐
+       │                │
+┌──────▼──────┐  ┌──────▼──────────────────────────────┐
+│  ACP path   │  │  Legacy / auxiliary paths            │
+│  (run,      │  │  review → spawn + parse              │
+│  design,    │  │  providers doctor → registry +       │
+│  commit,    │  │  availability checks                 │
+│  debug)     │  │                                      │
+│  acp/run →  │  │  execution/: envelopes, fallback     │
+│  client →   │  │  helpers still used where needed     │
+│  registry   │  │                                      │
+└──────┬──────┘  └──────────────┬──────────────────────┘
+       │                        │
+       └──────────┬─────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────┐
 │                  Config Layer                       │
 │  schema.ts → store.ts                               │
 │  Zod-validated config with 5-level precedence       │
 │  flags > env > project > user > defaults            │
 └─────────────────────────────────────────────────────┘
 ```
+
+Prompt commands use **ACP** (`acp/client.ts`, `acp/provider-registry.ts`, `acp/fallback.ts`) to spawn ACP agent processes and stream JSON-RPC. **`review`** still uses the older multi-agent path in `review/` with provider adapters. **`genie providers`** (list, doctor) still uses `providers/registry.ts` and related doctor modules.
 
 ## Module map
 
@@ -40,8 +43,22 @@ genie/src/
 ├── index.ts                 # Entry point — delegates to cli()
 ├── cli.ts                   # Top-level orchestrator: parse → dispatch → exit
 ├── types.ts                 # Core types: ProviderId, RequestInput, NormalizedRequest, ProviderAdapter
-├── errors.ts                # Error hierarchy: UsageError, RuntimeProviderError, AuthConfigurationError, TimeoutError, AggregatedProviderError
+├── errors.ts                # Error hierarchy: UsageError, RuntimeProviderError, AuthConfigurationError, TimeoutError, AggregatedProviderError, AcpProtocolError
 ├── error-format.ts          # User-facing error formatting with next-step suggestions
+│
+├── acp/                     # ACP client: prompt commands (run, design, commit, debug)
+│   ├── client.ts            # Spawn agent, initialize, session, prompt, close
+│   ├── run.ts               # runViaAcp() entry from dispatch
+│   ├── command-runner.ts    # Shared ACP invocation helper for non-run flows
+│   ├── provider-registry.ts # claude / codex / gemini ACP launchers (cursor-agent ID exists in types; no ACP slot yet)
+│   ├── session-store.ts     # Named session persistence
+│   ├── fallback.ts          # Provider order + ACP retries
+│   ├── host-handlers.ts     # Filesystem, terminal, permission delegation
+│   ├── parallel-runner.ts   # Parallel ACP work where used
+│   └── types.ts             # ACP-specific types
+│
+├── output/
+│   └── stream-renderer.ts   # Terminal rendering for streamed ACP events
 │
 ├── cli/
 │   ├── parse.ts             # argv → ParsedCommand router
@@ -90,16 +107,13 @@ genie/src/
 │       └── gemini.ts        # Gemini flag mapping
 │
 ├── execution/
-│   ├── run-request.ts       # Top-level request executor
-│   ├── normalize.ts         # RequestInput → NormalizedRequest
-│   ├── request-schema.ts    # Zod schema for request validation
-│   ├── fallback.ts          # executeWithFallback() — retry chain
+│   ├── request-schema.ts    # Zod schema for request validation (shared)
+│   ├── fallback.ts          # Fallback helpers used outside the old run-request path
 │   ├── fallback-helpers.ts  # Fallback utility functions
-│   ├── preflight.ts         # Provider availability + auth preflight checks
 │   ├── provider-order.ts    # resolveProviderOrder() — config-aware ordering
+│   ├── provider-aliases.ts  # Provider alias resolution (e.g. pi → backend)
 │   ├── envelopes.ts         # Response envelope construction
-│   ├── persist.ts           # Result persistence utilities
-│   └── normalize.ts         # Request normalization logic
+│   └── persist.ts           # Result persistence utilities
 │
 ├── config/
 │   ├── schema.ts            # GenieConfig Zod schema, defaults, mergeConfig()
@@ -157,7 +171,7 @@ genie/src/
 4. loadConfig()
    │  Merge: defaults ← user config ← project config ← env vars ← CLI flags
    │
-5. normalizeRequest()
+5. normalizeRequest() (where applicable)
    │  Validate with Zod, apply config defaults, resolve workspace
    │  → NormalizedRequest (all fields required)
    │
@@ -165,12 +179,11 @@ genie/src/
    │  Determine provider attempt sequence from config + explicit flag
    │  → ProviderId[] (e.g. ['codex', 'claude', 'gemini', 'cursor-agent'])
    │
-7. executeWithFallback()
-   │  For each provider in order:
-   │  ├── runPreflight() → availability check + auth check
-   │  ├── buildInvocation() → provider-specific CLI command
-   │  ├── runCommand() → spawn with timeout handling
-   │  └── parse() → extract response text
+7. ACP execution (prompt commands)
+   │  runViaAcp() / runAcpCommand()
+   │  ├── Spawn ACP agent from provider-registry entry (or skip slot if no ACP adapter)
+   │  ├── initialize → session → prompt (stream) → close
+   │  └── Map protocol errors to error hierarchy
    │
 8. Output
    ├── --json → GenieResponseEnvelope (structured)
@@ -178,9 +191,9 @@ genie/src/
    └── default → formatted response
 ```
 
-## Provider adapter interface
+## Provider adapter interface (doctor, review, non-ACP surfaces)
 
-Each provider implements `ProviderAdapter` from `types.ts`:
+Each provider implements `ProviderAdapter` from `types.ts` for paths that still spawn CLIs directly (notably **review** and **providers doctor**):
 
 ```typescript
 interface ProviderAdapter {
@@ -195,7 +208,9 @@ interface ProviderAdapter {
 
 Providers are created via `createProviderAdapter()` in `base.ts`, which wires shared logic (spawn, timeout, result parsing) and accepts optional custom availability/auth checks.
 
-### Registered providers
+### Registered providers (adapter registry)
+
+ACP-backed prompt commands use **`acp/provider-registry.ts`** (currently **claude**, **codex**, **gemini**). The table below describes the **spawn-based adapters** still registered in `providers/registry.ts` for doctor/review and related checks:
 
 | Provider | Binary | Auth method | Key flags |
 |----------|--------|-------------|-----------|
@@ -266,7 +281,7 @@ genie review [--all | --agent <id>] [--diff-file | --staged | --base <ref>]
                      │
                      ▼
               Execute in parallel
-              (each agent → mapped provider → spawn → parse)
+              (each agent → provider adapter → spawn CLI → parse; not the ACP client path)
                      │
                      ▼
               ReviewExecutionResult
@@ -285,11 +300,12 @@ Review agents: `codex`, `claude`, `gemini`, `cursor`
 | Discriminated Union | `ParsedCommand` variants | Type-safe command dispatch |
 | Chain of Responsibility | Config loading from 5 sources | Precedence-based merging |
 | Strategy | Provider selection at runtime | Swappable AI backends |
-| Fallback/Retry | `executeWithFallback()` | Fault-tolerant execution |
+| Fallback/Retry | `acp/fallback.ts` + `execution/fallback.ts` | ACP and legacy retry helpers |
 
 ## Extension points
 
-1. **New provider**: Create adapter in `providers/`, add to registry, add mapped-args module
-2. **New command**: Add parser in `cli/parse/`, dispatcher in `cli/dispatch/`, help in `cli/help/topics.ts`
-3. **Config option**: Extend Zod schema in `config/schema.ts`, add loading in `config/store.ts`
-4. **New error type**: Create in `errors.ts`, add exit code mapping, add formatting in `error-format.ts`
+1. **New ACP-backed provider** (prompt commands): Add an entry to `acp/provider-registry.ts`, extend `ProviderId` / config as needed, and ensure `providers/registry.ts` doctor adapter stays aligned for `genie providers doctor`.
+2. **New spawn-only surface** (e.g. review): Create adapter in `providers/`, add to `providers/registry.ts`, add `providers/mapped-args/` if the CLI needs custom flags
+3. **New command**: Add parser in `cli/parse/`, dispatcher in `cli/dispatch/`, help in `cli/help/topics.ts`
+4. **Config option**: Extend Zod schema in `config/schema.ts`, add loading in `config/store.ts`
+5. **New error type**: Create in `errors.ts`, add exit code mapping, add formatting in `error-format.ts`

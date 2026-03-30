@@ -4,6 +4,7 @@ Use this checklist before cutting a release tag for `genie`.
 
 ## 1) Pre-release checks
 
+- [ ] `genie/CHANGELOG.md` **Unreleased** section is updated (or versioned) with user-visible behavior changes, especially ACP default path and review/doctor caveats.
 - [ ] Working tree is clean for release-intended files (`git status --short`); local logs, agent session dirs, and package-manager debug logs are covered by root `.gitignore` (see `*.log`, `.omc/`, `.omcodex/`, etc.).
 - [ ] Fresh worktree dependencies are installed before verification (`cd genie && bun install --frozen-lockfile`).
 - [ ] `README.md` usage, flags, exit codes, and examples match current CLI behavior.

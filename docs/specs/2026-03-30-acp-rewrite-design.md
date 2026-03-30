@@ -46,6 +46,16 @@ genie CLI
         └── stream-renderer.ts
 ```
 
+### Implementation status (main, post-merge)
+
+Tracked here so contributors can compare this spec to the tree on `main`:
+
+- **Prompt commands** (`run`, `design`, `commit`, `debug`): Implemented via `acp/run.ts`, `acp/client.ts`, `acp/fallback.ts`, and `acp/provider-registry.ts`. Named sessions use `acp/session-store.ts`. Streaming uses `output/stream-renderer.ts`.
+- **ACP registry entries**: **claude**, **codex**, and **gemini** only. **`cursor-agent`** remains a valid `ProviderId` and appears in doctor/review adapters; there is still **no** ACP launcher row for it (see § `cursor-agent` deprecation below).
+- **`review`**: **Not migrated** — still `review/execute.ts` and spawn-based provider adapters. Next large milestone is to align review with the ACP session model (parallel agents, error mapping, integration tests) or to amend this spec if the legacy path stays intentional.
+- **`execution/`**: No longer contains `run-request.ts` / `normalize.ts` / `preflight.ts` as top-level modules; remaining files support envelopes, provider order, aliases, and fallback helpers.
+- **`providers/`**: Still present for **doctor**, **review**, and shared adapter types — not fully deleted as in the original “What is deleted” list below (that section describes the target end-state; the bullets above describe current `main`).
+
 ### What is deleted
 
 - `providers/claude.ts`, `codex.ts`, `gemini.ts`, `cursor-agent.ts` — 4 adapter files

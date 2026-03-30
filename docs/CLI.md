@@ -1,6 +1,6 @@
 # CLI Reference
 
-> Complete command reference for genie v0.1.0.
+> Complete command reference for genie v0.2.0.
 
 For failure recovery patterns (install/PATH fixes, provider auth and trust checks, timeout tuning, and output mode pitfalls), see [Troubleshooting](./TROUBLESHOOTING.md).
 
