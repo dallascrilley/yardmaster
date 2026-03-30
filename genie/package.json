@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:critical-path": "vitest run test/cli.critical-path.integration.test.ts test/cli.linked-binary.integration.test.ts",
+    "test:critical-path": "vitest run test/cli.help.integration.test.ts test/cli.exit-codes.integration.test.ts test/cli.review-json.integration.test.ts test/cli.linked-binary.integration.test.ts",
     "test:smoke": "vitest run --config vitest.smoke.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "doctor:flake": "bun run scripts/quantify-doctor-flake.ts"
