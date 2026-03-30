@@ -18,6 +18,7 @@ import { runViaAcp } from '../../acp/run.js'
 import { runAcpCommand } from '../../acp/command-runner.js'
 import type { TrustMode } from '../../acp/host-handlers.js'
 import { toCliJsonSuccessEnvelope } from '../json.js'
+import { toResponseEnvelope } from '../../execution/envelopes.js'
 import {
   shouldUseJson,
   writeJson,
@@ -71,12 +72,28 @@ export async function handleRunCommand(parsed: Extract<ParsedCommand, { kind: 'r
   })
 
   if (runtime.ttyAwareMode === 'json') {
-    writeJson(toCliJsonSuccessEnvelope('run_result', { provider: acpResult.provider, stopReason: acpResult.stopReason }))
+    writeJson(
+      toCliJsonSuccessEnvelope('run_result', {
+        ...toResponseEnvelope({
+          provider: acpResult.provider,
+          model: acpResult.model ?? undefined,
+          mode: config.mode.default,
+          workspace,
+          trust: effectiveOptions.trust ?? false,
+          response: acpResult.response,
+          raw: { code: 0, stdout: acpResult.response, stderr: '' },
+          fallbackUsed: acpResult.fallbackUsed,
+          timings: acpResult.timings,
+        }),
+      }),
+    )
+  } else {
+    writeLine(acpResult.response)
   }
 
   writeVerbose(
     parsed.globals,
-    `[genie] command=run provider=${acpResult.provider} acp=true stopReason=${acpResult.stopReason}`,
+    `[genie] command=run provider=${acpResult.provider} acp=true fallback=${String(acpResult.fallbackUsed)} totalMs=${acpResult.timings.totalMs} stopReason=${acpResult.stopReason}`,
   )
 }
 
@@ -92,7 +109,7 @@ export async function handleDesignCommand(parsed: Extract<ParsedCommand, { kind:
   const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
   
   const trustMode: TrustMode = effectiveOptions.yolo ? 'yolo' : effectiveOptions.trust ? 'trust' : 'default'
-  const response = await runAcpCommand({
+  const result = await runAcpCommand({
     systemPrompt: DESIGN_SYSTEM_PROMPT,
     userPrompt: buildDesignPrompt(resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile)),
     provider: effectiveOptions.provider,
@@ -105,13 +122,18 @@ export async function handleDesignCommand(parsed: Extract<ParsedCommand, { kind:
   })
 
   if (shouldUseJson(parsed.globals)) {
-    writeJson(toCliJsonSuccessEnvelope('design_result', { response }))
+    writeJson(
+      toCliJsonSuccessEnvelope('design_result', {
+        provider: result.provider,
+        response: result.response,
+      }),
+    )
   } else {
-    writeLine(response)
+    writeLine(result.response)
   }
   writeVerbose(
     parsed.globals,
-    `[genie] command=design provider=${effectiveOptions.provider ?? config.provider.default}`,
+    `[genie] command=design provider=${result.provider} fallback=${String(result.fallbackUsed)} stopReason=${result.stopReason}`,
   )
 }
 
@@ -132,7 +154,7 @@ export async function handleCommitCommand(parsed: Extract<ParsedCommand, { kind:
   readStagedDiff(gitRead)
   
   const trustMode: TrustMode = effectiveOptions.yolo ? 'yolo' : effectiveOptions.trust ? 'trust' : 'default'
-  const response = await runAcpCommand({
+  const result = await runAcpCommand({
     systemPrompt: COMMIT_SYSTEM_PROMPT,
     userPrompt: buildCommitPrompt(),
     provider: effectiveOptions.provider,
@@ -144,7 +166,7 @@ export async function handleCommitCommand(parsed: Extract<ParsedCommand, { kind:
     noFallback: effectiveOptions.noFallback,
   })
 
-  const message = normalizeCommitMessage(response)
+  const message = normalizeCommitMessage(result.response)
   if (parsed.options.apply) {
     applyCommitMessage(message, gitExec)
   }
@@ -152,7 +174,7 @@ export async function handleCommitCommand(parsed: Extract<ParsedCommand, { kind:
   writeLine(message)
   writeVerbose(
     parsed.globals,
-    `[genie] command=commit provider=${effectiveOptions.provider ?? config.provider.default} apply=${String(parsed.options.apply)}`,
+    `[genie] command=commit provider=${result.provider} apply=${String(parsed.options.apply)} fallback=${String(result.fallbackUsed)} stopReason=${result.stopReason}`,
   )
 }
 
@@ -169,7 +191,7 @@ export async function handleDebugCommand(parsed: Extract<ParsedCommand, { kind: 
   const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
   
   const trustMode: TrustMode = effectiveOptions.yolo ? 'yolo' : effectiveOptions.trust ? 'trust' : 'default'
-  const response = await runAcpCommand({
+  const result = await runAcpCommand({
     systemPrompt: DEBUG_SYSTEM_PROMPT,
     userPrompt: buildDebugPrompt(input),
     provider: effectiveOptions.provider,
@@ -182,12 +204,17 @@ export async function handleDebugCommand(parsed: Extract<ParsedCommand, { kind: 
   })
 
   if (shouldUseJson(parsed.globals)) {
-    writeJson(toCliJsonSuccessEnvelope('debug_result', { response }))
+    writeJson(
+      toCliJsonSuccessEnvelope('debug_result', {
+        provider: result.provider,
+        response: result.response,
+      }),
+    )
   } else {
-    writeLine(response)
+    writeLine(result.response)
   }
   writeVerbose(
     parsed.globals,
-    `[genie] command=debug provider=${effectiveOptions.provider ?? config.provider.default}`,
+    `[genie] command=debug provider=${result.provider} fallback=${String(result.fallbackUsed)} stopReason=${result.stopReason}`,
   )
 }

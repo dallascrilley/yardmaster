@@ -1,7 +1,31 @@
 import { UsageError } from '../errors.js'
 import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
-import { getAcpProvider, listAcpProviders } from '../acp/provider-registry.js'
+import { type ProviderId } from '../types.js'
+import { runCommand } from './base.js'
+import { createDefaultAvailabilityCheck, createDefaultAuthCheck } from './default-checks.js'
 import type { ProviderDoctorStatus } from './doctor-types.js'
+
+type DoctorTarget = {
+  id: ProviderId
+  binary: string
+  authHint?: string
+}
+
+const doctorTargets: DoctorTarget[] = [
+  { id: 'claude', binary: 'claude' },
+  { id: 'codex', binary: 'codex' },
+  {
+    id: 'cursor-agent',
+    binary: 'cursor-agent',
+    authHint:
+      'cursor-agent did not respond to `auth status`. Open Cursor, confirm you are signed in, and trust/approve this workspace for agent access before retrying.',
+  },
+  { id: 'gemini', binary: 'gemini' },
+]
+
+function getDoctorTarget(id: ProviderId): DoctorTarget | undefined {
+  return doctorTargets.find((entry) => entry.id === id)
+}
 
 export function resolveDoctorTargets(provider?: string) {
   if (provider && !isConfigProviderId(provider)) {
@@ -9,31 +33,45 @@ export function resolveDoctorTargets(provider?: string) {
   }
 
   if (!provider) {
-    return listAcpProviders()
+    return doctorTargets
   }
 
   const canonical = resolveConfigProviderToken(provider).provider
-  const entry = getAcpProvider(canonical)
+  const entry = getDoctorTarget(canonical)
   if (!entry) {
-    throw new UsageError(`No ACP adapter registered for '${provider}'`)
+    throw new UsageError(`No adapter registered for '${provider}'`)
   }
 
   return [entry]
 }
 
-export async function doctorProviderStatus(entry: ReturnType<typeof listAcpProviders>[number]): Promise<ProviderDoctorStatus> {
+export async function doctorProviderStatus(entry: DoctorTarget): Promise<ProviderDoctorStatus> {
   const startedAt = Date.now()
-  
-  // For ACP adapters, we check if the command exists in PATH
-  // This is a simplified check - full implementation would try to spawn and initialize
-  const isAvailable = true // Placeholder - would need actual check
-  
+  const availability = await createDefaultAvailabilityCheck(entry.binary)(runCommand)
+  let authenticated = false
+  let authDetails: string | undefined
+  let hint = availability.ok ? undefined : availability.hint
+
+  if (availability.ok) {
+    const auth = await createDefaultAuthCheck(entry.id, entry.binary)(runCommand)
+    authenticated = auth.ok
+    authDetails = auth.ok
+      ? auth.details
+      : auth.timeout
+        ? auth.hint
+        : auth.details ?? auth.reason
+    if (!auth.ok) {
+      hint = entry.authHint ?? auth.hint
+    }
+  }
+
   return {
     provider: entry.id,
-    available: isAvailable,
-    authenticated: false, // ACP adapters handle auth via env vars
-    availabilityDetails: `ACP adapter: ${entry.agentCommand}`,
-    hint: isAvailable ? undefined : `Ensure ${entry.agentCommand} is available in PATH`,
+    available: availability.ok,
+    authenticated,
+    availabilityDetails: availability.ok ? availability.details : availability.reason,
+    authDetails,
+    hint,
     latencyMs: Date.now() - startedAt,
   }
 }

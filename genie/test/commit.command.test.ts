@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyCommitMessage, buildCommitPrompt, normalizeCommitMessage } from '../src/commit/command.js'
+import { applyCommitMessage, buildCommitPrompt, COMMIT_SYSTEM_PROMPT, normalizeCommitMessage } from '../src/commit/command.js'
 import { UsageError } from '../src/errors.js'
 
 describe('commit command helpers', () => {
   it('builds a prompt that enforces conventional commits', () => {
-    const prompt = buildCommitPrompt('diff --git a/file.ts b/file.ts\n+console.log("hi")\n')
-    expect(prompt).toContain('Conventional Commits')
-    expect(prompt).toContain('Return only the commit message')
-    expect(prompt).toContain('diff --git a/file.ts b/file.ts')
+    const prompt = buildCommitPrompt()
+    expect(COMMIT_SYSTEM_PROMPT).toContain('Conventional Commits syntax')
+    expect(COMMIT_SYSTEM_PROMPT).toContain('Return ONLY the commit message')
+    expect(COMMIT_SYSTEM_PROMPT).toContain("Run 'git diff --staged' to see the changes")
+    expect(prompt).toBe('Generate a Conventional Commits message for the staged changes.')
   })
 
   it('strips markdown fences and validates non-empty messages', () => {

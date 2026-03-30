@@ -13,8 +13,8 @@ describe('debug command helpers', () => {
     expect(input).toBe('TypeError: fetch failed')
 
     const prompt = buildDebugPrompt(input)
-    expect(prompt).toContain('Identify the single most likely root cause')
+    expect(prompt).toContain('Analyze this terminal output and identify the root cause')
     expect(prompt).toContain('TypeError: fetch failed')
-    expect(prompt).toContain('4. Confidence')
+    expect(prompt).toContain('```text')
   })
 })

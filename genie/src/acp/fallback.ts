@@ -22,6 +22,7 @@ export type AcpFallbackResult = {
   provider: ProviderId
   stopReason: string
   sessionId?: string
+  response: string
 }
 
 export async function executeAcpFallback(params: AcpFallbackParams): Promise<AcpFallbackResult> {
@@ -53,7 +54,14 @@ export async function executeAcpFallback(params: AcpFallbackParams): Promise<Acp
     }
 
     const options: AcpClientOptions = { workspace, trustMode, timeoutMs, onEvent, mcpServers, model }
-    const client = new AcpClient(entry, options)
+    let response = ''
+    const collectEvent = (event: StreamEvent) => {
+      if (event.kind === 'content') {
+        response += event.text
+      }
+      onEvent(event)
+    }
+    const client = new AcpClient(entry, { ...options, onEvent: collectEvent })
 
     try {
       let stopReason: string
@@ -73,7 +81,12 @@ export async function executeAcpFallback(params: AcpFallbackParams): Promise<Acp
         stopReason = await client.run(prompt)
       }
       
-      return { provider: slot.provider, stopReason, sessionId: client.getSessionId() ?? undefined }
+      return {
+        provider: slot.provider,
+        stopReason,
+        sessionId: client.getSessionId() ?? undefined,
+        response: response.trim(),
+      }
     } catch (err) {
       const isAuthError = err instanceof AcpProtocolError && err.code === -32000
       const stage = isAuthError ? 'auth' : 'execution'
@@ -84,6 +97,8 @@ export async function executeAcpFallback(params: AcpFallbackParams): Promise<Acp
         authFailure: isAuthError,
         timeout: err instanceof TimeoutError,
       })
+    } finally {
+      client.close()
     }
   }
 

@@ -2,10 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { defaultConfig } from '../src/config/schema.js'
 import { UsageError } from '../src/errors.js'
+import { runAcpCommand } from '../src/acp/command-runner.js'
 import {
   executeReviewCommand,
   formatReviewReport,
@@ -19,7 +20,15 @@ import {
 } from '../src/review/command.js'
 import type { GitService } from '../src/review/git-service.js'
 
+vi.mock('../src/acp/command-runner.js', () => ({
+  runAcpCommand: vi.fn(),
+}))
+
 describe('review command', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('validates target selection', () => {
     expect(() => resolveReviewTargets(true, 'codex')).toThrow('--all cannot be used with --agent')
     expect(() => resolveReviewTargets(false, undefined)).toThrow(
@@ -121,22 +130,25 @@ describe('review command', () => {
     const seenProviders: string[] = []
     const seenTimeouts: number[] = []
     const seenWorkspaces: string[] = []
+    vi.mocked(runAcpCommand).mockImplementation(async (input) => {
+      seenProviders.push(String(input.provider))
+      seenTimeouts.push(Number(input.timeoutMs))
+      seenWorkspaces.push(String(input.workspace))
+      if (input.provider === 'gemini') {
+        throw new Error('gemini unavailable')
+      }
+      return {
+        provider: String(input.provider ?? 'unknown'),
+        response: `${input.provider} review`,
+        fallbackUsed: false,
+        stopReason: 'end_turn',
+      }
+    })
     try {
       const result = await executeReviewCommand({
         all: true,
         diffFile,
         config: defaultConfig,
-        requestRunner: async ({ input }) => {
-          seenProviders.push(String(input.provider))
-          seenTimeouts.push(Number(input.timeoutMs))
-          seenWorkspaces.push(String(input.workspace))
-          if (input.provider === 'gemini') {
-            throw new Error('gemini unavailable')
-          }
-          return {
-            response: `${input.provider} review`,
-          }
-        },
       })
 
       expect(result.agents).toEqual(['codex', 'claude', 'gemini', 'cursor'])
@@ -160,6 +172,12 @@ describe('review command', () => {
   })
 
   it('supports injecting a GitService for isolated review execution tests', async () => {
+    vi.mocked(runAcpCommand).mockResolvedValue({
+      provider: 'codex',
+      response: 'ok',
+      fallbackUsed: false,
+      stopReason: 'end_turn',
+    })
     const gitService: GitService = {
       read: () => '',
       resolveContext: () => ({ branch: 'test-branch', head: 'abc1234' }),
@@ -175,9 +193,6 @@ describe('review command', () => {
       agent: 'codex',
       config: defaultConfig,
       gitService,
-      requestRunner: async () => ({
-        response: 'ok',
-      }),
     })
 
     expect(result.source).toBe('git diff HEAD')
@@ -191,6 +206,15 @@ describe('review command', () => {
 
   it('uses git workspace root for branch reviews and diff-file reviews when available', async () => {
     const seenWorkspaces: string[] = []
+    vi.mocked(runAcpCommand).mockImplementation(async (input) => {
+      seenWorkspaces.push(String(input.workspace))
+      return {
+        provider: String(input.provider ?? 'codex'),
+        response: 'ok',
+        fallbackUsed: false,
+        stopReason: 'end_turn',
+      }
+    })
     const gitService: GitService = {
       read: () => '',
       resolveContext: () => ({ branch: 'workspace-test', head: 'abc1234' }),
@@ -211,10 +235,6 @@ describe('review command', () => {
         agent: 'codex',
         config: defaultConfig,
         gitService,
-        requestRunner: async ({ input }) => {
-          seenWorkspaces.push(String(input.workspace))
-          return { response: 'ok' }
-        },
       })
 
       await executeReviewCommand({
@@ -223,10 +243,6 @@ describe('review command', () => {
         diffFile,
         config: defaultConfig,
         gitService,
-        requestRunner: async ({ input }) => {
-          seenWorkspaces.push(String(input.workspace))
-          return { response: 'ok' }
-        },
       })
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
@@ -248,7 +264,6 @@ describe('review command', () => {
           agent: 'codex',
           diffFile,
           config: defaultConfig,
-          requestRunner: async () => ({ response: 'unused' }),
         }),
       ).rejects.toBeInstanceOf(UsageError)
     } finally {

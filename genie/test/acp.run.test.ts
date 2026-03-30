@@ -3,16 +3,30 @@ import { runViaAcp } from '../src/acp/run.js'
 import { defaultConfig } from '../src/config/schema.js'
 import type { AcpFallbackResult } from '../src/acp/fallback.js'
 
+vi.mock('../src/acp/session-store.js', () => ({
+  loadSession: vi.fn(),
+  saveSession: vi.fn(),
+}))
+
 vi.mock('../src/acp/fallback.js', () => ({
   executeAcpFallback: vi.fn().mockResolvedValue({
     provider: 'claude',
     stopReason: 'end_turn',
+    response: 'hello back',
   } satisfies AcpFallbackResult),
 }))
 
 async function getExecuteAcpFallback() {
   const mod = await import('../src/acp/fallback.js')
   return vi.mocked(mod.executeAcpFallback)
+}
+
+async function getSessionStoreMocks() {
+  const mod = await import('../src/acp/session-store.js')
+  return {
+    loadSession: vi.mocked(mod.loadSession),
+    saveSession: vi.mocked(mod.saveSession),
+  }
 }
 
 describe('runViaAcp', () => {
@@ -26,7 +40,14 @@ describe('runViaAcp', () => {
       config: defaultConfig,
     })
 
-    expect(result).toEqual({ provider: 'claude', stopReason: 'end_turn' })
+    expect(result).toMatchObject({
+      provider: 'claude',
+      stopReason: 'end_turn',
+      response: 'hello back',
+      fallbackUsed: false,
+      model: null,
+    })
+    expect(result.timings.totalMs).toBeTypeOf('number')
   })
 
   it('passes resolved slots to executeAcpFallback', async () => {
@@ -148,5 +169,43 @@ describe('runViaAcp', () => {
 
     const callArgs = executeAcpFallback.mock.calls[0][0]
     expect(callArgs.mcpServers).toBe(mcpServers)
+  })
+
+  it('loads and saves named sessions when a session flag is provided', async () => {
+    const executeAcpFallback = await getExecuteAcpFallback()
+    const { loadSession, saveSession } = await getSessionStoreMocks()
+    loadSession.mockResolvedValue({
+      sessionId: 'saved-session-1',
+      agentCommand: '/tmp/codex-acp',
+      cwd: '/tmp/workspace',
+      provider: 'codex',
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+    })
+    executeAcpFallback.mockResolvedValueOnce({
+      provider: 'codex',
+      stopReason: 'end_turn',
+      response: 'persist me',
+      sessionId: 'saved-session-2',
+    })
+
+    await runViaAcp({
+      prompt: 'resume this',
+      config: defaultConfig,
+      workspace: '/tmp/workspace',
+      session: 'demo',
+      provider: 'codex',
+    })
+
+    expect(loadSession).toHaveBeenCalledWith('demo')
+    expect(executeAcpFallback.mock.calls[0]?.[0].existingSessionId).toBe('saved-session-1')
+    expect(saveSession).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({
+        sessionId: 'saved-session-2',
+        provider: 'codex',
+        cwd: '/tmp/workspace',
+      }),
+    )
   })
 })
