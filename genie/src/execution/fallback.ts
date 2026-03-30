@@ -34,6 +34,15 @@ export type ExecuteWithFallbackResult = FallbackResult & {
   winningRequest?: NormalizedRequest
 }
 
+/**
+ * Try each provider in order until one succeeds. For each provider the pipeline
+ * runs preflight checks (availability + auth) then execution. Failures are
+ * recorded and the next provider is attempted. If all providers fail, throws
+ * an {@link AggregatedProviderError} with the collected failure reasons.
+ * @param params - Provider list, ordered IDs, normalized request, and command runner.
+ * @returns The first successful {@link FallbackResult}.
+ * @throws {AggregatedProviderError} When every provider in the order fails.
+ */
 export async function executeWithFallback(params: {
   providers: ProviderAdapter[]
   slots: ProviderExecutionSlot[]

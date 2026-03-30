@@ -83,6 +83,17 @@ export function resolveProviderExecutionPlan(
   }
 }
 
+/**
+ * Determine the ordered list of providers to attempt for a request.
+ * If an explicit provider is given it leads the order; otherwise the
+ * configured default leads. When `noFallback` is true the list is
+ * truncated to just the first provider.
+ * @param config - The resolved genie configuration.
+ * @param explicit - Optional explicit provider ID from the user.
+ * @param noFallback - When true, disable fallback and use only the first provider.
+ * @returns The ordered provider list and whether an explicit provider was used.
+ * @throws {Error} If `explicit` is not a recognized provider ID.
+ */
 export function resolveProviderOrder(
   config: GenieConfig,
   explicit?: string,

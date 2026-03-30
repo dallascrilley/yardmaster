@@ -1,6 +1,7 @@
 import { type ProviderFailureReason } from './types.js'
 import { usageSuggestions, withNextSteps } from './error-format.js'
 
+/** Thrown when the user supplies invalid CLI arguments or an unknown command. */
 export class UsageError extends Error {
   constructor(message: string) {
     super(message)
@@ -8,6 +9,7 @@ export class UsageError extends Error {
   }
 }
 
+/** Thrown when a provider CLI fails during execution (non-zero exit, unexpected output). */
 export class RuntimeProviderError extends Error {
   constructor(message: string) {
     super(message)
@@ -15,6 +17,7 @@ export class RuntimeProviderError extends Error {
   }
 }
 
+/** Thrown when a provider's authentication or configuration check fails. */
 export class AuthConfigurationError extends Error {
   constructor(message: string) {
     super(message)
@@ -22,6 +25,7 @@ export class AuthConfigurationError extends Error {
   }
 }
 
+/** Thrown when a provider command exceeds its configured timeout. */
 export class TimeoutError extends Error {
   public readonly reasons?: ProviderFailureReason[]
 
@@ -43,6 +47,10 @@ export class AcpProtocolError extends Error {
   }
 }
 
+/**
+ * Thrown when every provider in the fallback chain fails. Collects
+ * individual {@link ProviderFailureReason} entries for diagnostics.
+ */
 export class AggregatedProviderError extends Error {
   constructor(public readonly reasons: ProviderFailureReason[]) {
     const lines = reasons
@@ -52,15 +60,22 @@ export class AggregatedProviderError extends Error {
     this.name = 'AggregatedProviderError'
   }
 
+  /** Returns `true` when every failure in the chain was auth-related. */
   hasOnlyAuthFailures(): boolean {
     return this.reasons.length > 0 && this.reasons.every((item) => item.authFailure)
   }
 
+  /** Returns `true` if at least one provider timed out. */
   hasTimeoutFailure(): boolean {
     return this.reasons.some((item) => item.timeout)
   }
 }
 
+/**
+ * Map an error to the appropriate CLI exit code.
+ * @param error - The caught error instance.
+ * @returns A numeric exit code (2 = usage, 3 = auth, 124 = timeout, 1 = general).
+ */
 export function getExitCode(error: unknown): number {
   if (error instanceof UsageError) {
     return 2
@@ -96,6 +111,11 @@ export function getExitCode(error: unknown): number {
   return 1
 }
 
+/**
+ * Format an error into a user-facing CLI message with contextual next-step suggestions.
+ * @param error - The caught error instance.
+ * @returns A formatted multi-line string suitable for stderr output.
+ */
 export function formatCliError(error: unknown): string {
   if (error instanceof AggregatedProviderError) {
     const lines = [
