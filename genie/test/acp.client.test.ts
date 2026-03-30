@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { RequestError } from '@agentclientprotocol/sdk'
 import { AcpClient } from '../src/acp/client.js'
-import { RuntimeProviderError } from '../src/errors.js'
+import { AcpProtocolError, RuntimeProviderError } from '../src/errors.js'
 import type { AcpProviderEntry } from '../src/acp/types.js'
 import type { StreamEvent } from '../src/acp/types.js'
 
@@ -26,6 +27,17 @@ function makeOptions(overrides: Partial<Parameters<typeof AcpClient.prototype.ru
     ...overrides,
   }
 }
+
+describe('AcpProtocolError wrapping', () => {
+  it('AcpProtocolError carries the SDK error code and provider id', () => {
+    const sdkErr = new RequestError(-32000, 'Authentication required')
+    const wrapped = new AcpProtocolError(sdkErr.code, sdkErr.message, 'my-provider')
+    expect(wrapped).toBeInstanceOf(AcpProtocolError)
+    expect(wrapped.code).toBe(-32000)
+    expect(wrapped.providerId).toBe('my-provider')
+    expect(wrapped.message).toContain('Authentication required')
+  })
+})
 
 describe('AcpClient', () => {
   it('constructs without throwing', () => {
