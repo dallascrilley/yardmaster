@@ -26,25 +26,30 @@ describe('getAcpProvider', () => {
     }
   })
 
-  it('returns gemini entry with agentCommand gemini', () => {
+  it('returns gemini entry with --acp for documented ACP mode', () => {
     const entry = getAcpProvider('gemini')
     expect(entry).toBeDefined()
     expect(entry?.agentCommand).toBe('gemini')
+    expect(entry?.args).toEqual(['--acp'])
   })
 
-  it('returns undefined for cursor-agent', () => {
+  it('returns cursor-agent entry with agent acp and cursor_login', () => {
     const entry = getAcpProvider('cursor-agent')
-    expect(entry).toBeUndefined()
+    expect(entry).toBeDefined()
+    expect(entry?.args).toEqual(['acp'])
+    expect(entry?.acpAuthenticateMethodId).toBe('cursor_login')
+    expect(entry?.agentCommand).toBeTruthy()
   })
 })
 
 describe('listAcpProviders', () => {
-  it('returns 3 entries with ids claude, codex, and gemini', () => {
+  it('returns 4 entries including claude, codex, gemini, and cursor-agent', () => {
     const providers = listAcpProviders()
-    expect(providers).toHaveLength(3)
+    expect(providers).toHaveLength(4)
     const ids = providers.map((p) => p.id)
     expect(ids).toContain('claude')
     expect(ids).toContain('codex')
     expect(ids).toContain('gemini')
+    expect(ids).toContain('cursor-agent')
   })
 })

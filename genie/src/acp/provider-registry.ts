@@ -82,10 +82,26 @@ const registry: ReadonlyMap<ProviderId, AcpProviderEntry> = new Map([
   ['gemini', {
     id: 'gemini',
     agentCommand: 'gemini',
+    args: ['--acp'],
     resolveEnv: (): Record<string, string> => {
       const key = process.env.GEMINI_API_KEY
       return key ? { GEMINI_API_KEY: key } : {}
     },
+  }],
+  ['cursor-agent', {
+    id: 'cursor-agent',
+    ...(() => {
+      const envOverride = process.env.GENIE_CURSOR_ACP_BIN?.trim()
+      if (envOverride) {
+        return { agentCommand: envOverride, args: ['acp'] as const }
+      }
+      const binaryPath = resolveBinaryFromPath('agent')
+      if (binaryPath) {
+        return { agentCommand: binaryPath, args: ['acp'] as const }
+      }
+      return { agentCommand: 'agent', args: ['acp'] as const }
+    })(),
+    acpAuthenticateMethodId: 'cursor_login',
   }],
 ])
 
