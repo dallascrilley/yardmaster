@@ -3,8 +3,8 @@ import {
   type ProviderAdapter,
   type NormalizedRequest,
   type ProviderFailureReason,
-  type ProviderId,
 } from '../types.js'
+import type { GenieConfig } from '../config/schema.js'
 import { runPreflight } from './preflight.js'
 import {
   appendExecutionFailure,
@@ -15,27 +15,57 @@ import {
   toSuccessResult,
   type FallbackResult,
 } from './fallback-helpers.js'
+import type { ProviderExecutionSlot } from './provider-order.js'
+
+function modelForAttempt(
+  request: NormalizedRequest,
+  slot: ProviderExecutionSlot,
+  config: GenieConfig,
+): string | undefined {
+  if (request.model) {
+    return request.model
+  }
+  if (slot.aliasModel) {
+    return slot.aliasModel
+  }
+  const fromConfig = config.model.byProvider[slot.provider]
+  return fromConfig && fromConfig.length > 0 ? fromConfig : undefined
+}
+
+export type ExecuteWithFallbackResult = FallbackResult & {
+  winningRequest?: NormalizedRequest
+}
 
 export async function executeWithFallback(params: {
   providers: ProviderAdapter[]
-  order: ProviderId[]
+  slots: ProviderExecutionSlot[]
   request: NormalizedRequest
+  config: GenieConfig
   runner: CommandRunner
-}): Promise<FallbackResult> {
+}): Promise<ExecuteWithFallbackResult> {
   const failures: ProviderFailureReason[] = []
   const attempts: FallbackResult['result']['timings']['attempts'] = []
   const requestStartedAt = Date.now()
+  const order = params.slots.map((s) => s.provider)
 
-  for (const providerId of params.order) {
-    const provider = params.providers.find((entry) => entry.id === providerId)
+  for (const slot of params.slots) {
+    const provider = params.providers.find((entry) => entry.id === slot.provider)
     if (!provider) {
-      failures.push(toFailureReasonForMissingProvider(providerId))
-      attempts.push(toMissingProviderAttempt(providerId))
+      failures.push(toFailureReasonForMissingProvider(slot.provider))
+      attempts.push(toMissingProviderAttempt(slot.provider))
       continue
     }
 
+    const attemptModel = modelForAttempt(params.request, slot, params.config)
+    const attemptRequest: NormalizedRequest = {
+      ...params.request,
+      ...(attemptModel !== undefined ? { model: attemptModel } : {}),
+    }
+
     const preflightStartedAt = Date.now()
-    const preflightFailures = await runPreflight(provider, params.runner)
+    const preflightFailures = await runPreflight(provider, params.runner, {
+      workspace: attemptRequest.workspace,
+    })
     if (preflightFailures.length > 0) {
       appendPreflightFailures({
         failures,
@@ -49,7 +79,7 @@ export async function executeWithFallback(params: {
 
     const executionStartedAt = Date.now()
     try {
-      const parsed = await provider.execute(params.request, params.runner)
+      const parsed = await provider.execute(attemptRequest, params.runner)
       attempts.push({
         provider: provider.id,
         stage: 'success',
@@ -57,14 +87,19 @@ export async function executeWithFallback(params: {
         ok: true,
       })
 
-      return toSuccessResult({
+      const success = toSuccessResult({
         provider,
-        request: params.request,
+        request: attemptRequest,
         response: parsed,
-        order: params.order,
+        order,
         attempts,
         requestStartedAt,
       })
+
+      return {
+        ...success,
+        winningRequest: attemptRequest,
+      }
     } catch (error) {
       appendExecutionFailure({
         failures,

@@ -103,7 +103,7 @@ exit 1
     expect(parsed.error.message).toContain('Run `genie help` for usage.')
   })
 
-  it('does not treat positional --json after -- as json mode', () => {
+  it('does not treat positional --json after -- as json mode for top-level errors', () => {
     const result = spawnSync('bun', ['src/bin/genie.ts', 'run', '--provider', 'nope', '--', '--json'], {
       cwd: new URL('..', import.meta.url).pathname,
       encoding: 'utf8',

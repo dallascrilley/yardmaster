@@ -39,12 +39,6 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
     return runner(invocation)
   }
 
-  // #region agent log
-  if (invocation.command === 'cursor-agent') {
-    fetch('http://127.0.0.1:7245/ingest/deedbb81-19f4-481d-a235-c804fadbd424', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '69e54e' }, body: JSON.stringify({ sessionId: '69e54e', location: 'command-runner.ts:runCommand', message: 'runCommand cursor-agent', data: { command: invocation.command, args: invocation.args, timeoutMs: invocation.timeoutMs, cwd: invocation.cwd }, timestamp: Date.now(), hypothesisId: 'H2' }) }).catch(() => {})
-  }
-  // #endregion
-
   return new Promise<CommandResult>((resolve) => {
     let didResolve = false
     const child = spawn(invocation.command, invocation.args, {
@@ -69,11 +63,6 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
         ? setTimeout(() => {
             if (didResolve) return
             didResolve = true
-            // #region agent log
-            if (invocation.command === 'cursor-agent') {
-              fetch('http://127.0.0.1:7245/ingest/deedbb81-19f4-481d-a235-c804fadbd424', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '69e54e' }, body: JSON.stringify({ sessionId: '69e54e', location: 'command-runner.ts:timeout', message: 'runCommand resolved by timeout', data: { command: invocation.command, code: 124, timeoutMs: invocation.timeoutMs }, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(() => {})
-            }
-            // #endregion
             child.kill('SIGTERM')
             setTimeout(() => {
               child.kill('SIGKILL')
@@ -119,11 +108,6 @@ export async function runCommand(invocation: ProviderInvocation, runner?: Comman
     child.on('close', (code, signal) => {
       if (didResolve) return
       didResolve = true
-      // #region agent log
-      if (invocation.command === 'cursor-agent') {
-        fetch('http://127.0.0.1:7245/ingest/deedbb81-19f4-481d-a235-c804fadbd424', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '69e54e' }, body: JSON.stringify({ sessionId: '69e54e', location: 'command-runner.ts:close', message: 'runCommand resolved by close', data: { command: invocation.command, code: code ?? null, signal: signal ?? null }, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(() => {})
-      }
-      // #endregion
       if (timeoutHandle) {
         clearTimeout(timeoutHandle)
       }

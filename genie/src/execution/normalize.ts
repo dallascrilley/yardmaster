@@ -4,4 +4,4 @@ export {
   type NormalizeRequestInput,
   type NormalizedPromptRequest,
 } from './request-schema.js'
-export { resolveProviderOrder } from './provider-order.js'
+export { resolveProviderExecutionPlan, resolveProviderOrder } from './provider-order.js'
