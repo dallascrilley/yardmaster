@@ -1,6 +1,7 @@
 import type { ProviderExecutionSlot } from '../execution/provider-order.js'
 import type { ProviderId, ProviderFailureReason } from '../types.js'
 import { AggregatedProviderError, AcpProtocolError, TimeoutError } from '../errors.js'
+import { formatAcpFailureForUi } from './normalize-sdk-rejection.js'
 import { AcpClient, type AcpClientOptions } from './client.js'
 import { getAcpProvider } from './provider-registry.js'
 import type { TrustMode } from './host-handlers.js'
@@ -93,7 +94,7 @@ export async function executeAcpFallback(params: AcpFallbackParams): Promise<Acp
       failures.push({
         provider: slot.provider,
         stage,
-        reason: err instanceof Error ? err.message : String(err),
+        reason: formatAcpFailureForUi(err),
         authFailure: isAuthError,
         timeout: err instanceof TimeoutError,
       })

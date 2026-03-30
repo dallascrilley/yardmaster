@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { Readable, Writable } from 'node:stream'
-import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, RequestError } from '@agentclientprotocol/sdk'
+import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import type { Client } from '@agentclientprotocol/sdk'
-import { AcpProtocolError, RuntimeProviderError, TimeoutError } from '../errors.js'
+import { RuntimeProviderError, TimeoutError } from '../errors.js'
+import { normalizeAcpSdkRejection } from './normalize-sdk-rejection.js'
 import { createGenieClient, type TrustMode } from './host-handlers.js'
 import type { AcpProviderEntry, StreamEvent } from './types.js'
 import { modelEnvVars } from './provider-registry.js'
@@ -38,13 +39,7 @@ export class AcpClient {
       await this.createSession(this.options.model)
       return await this.sendPrompt(prompt)
     } catch (err) {
-      if (err instanceof RequestError) {
-        throw new AcpProtocolError(err.code, err.message, this.entry.id)
-      }
-      if (err instanceof Error && 'code' in err && typeof (err as { code: unknown }).code === 'number') {
-        throw new AcpProtocolError((err as { code: number }).code, err.message, this.entry.id)
-      }
-      throw err
+      throw normalizeAcpSdkRejection(err, this.entry.id)
     } finally {
       this.close()
     }
