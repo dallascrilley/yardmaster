@@ -1,6 +1,6 @@
 import { UsageError } from '../errors.js'
 import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
-import { type ProviderId } from '../types.js'
+import { type ProviderCheckResult, type ProviderId } from '../types.js'
 import { runCommand } from './base.js'
 import { createDefaultAvailabilityCheck, createDefaultAuthCheck } from './default-checks.js'
 import type { ProviderDoctorStatus } from './doctor-types.js'
@@ -8,7 +8,24 @@ import type { ProviderDoctorStatus } from './doctor-types.js'
 type DoctorTarget = {
   id: ProviderId
   binary: string
-  authHint?: string
+  resolveAuthHint?: (result: Extract<ProviderCheckResult, { ok: false }>) => string | undefined
+}
+
+function resolveCursorAgentAuthHint(result: Extract<ProviderCheckResult, { ok: false }>): string | undefined {
+  const signal = [result.reason, result.details, result.hint]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join('\n')
+    .toLowerCase()
+
+  if (result.timeout || signal.includes('trust') || signal.includes('approve') || signal.includes('workspace')) {
+    return 'cursor-agent did not respond to `auth status`. Open Cursor and trust/approve this workspace for agent access before retrying.'
+  }
+
+  if (signal.includes('login') || signal.includes('log in') || signal.includes('sign in') || signal.includes('authenticated') || signal.includes('auth')) {
+    return 'cursor-agent is not authenticated. Open Cursor, sign in to your account, then retry.'
+  }
+
+  return result.hint
 }
 
 const doctorTargets: DoctorTarget[] = [
@@ -17,8 +34,7 @@ const doctorTargets: DoctorTarget[] = [
   {
     id: 'cursor-agent',
     binary: 'cursor-agent',
-    authHint:
-      'cursor-agent did not respond to `auth status`. Open Cursor, confirm you are signed in, and trust/approve this workspace for agent access before retrying.',
+    resolveAuthHint: resolveCursorAgentAuthHint,
   },
   { id: 'gemini', binary: 'gemini' },
 ]
@@ -61,7 +77,7 @@ export async function doctorProviderStatus(entry: DoctorTarget): Promise<Provide
         ? auth.hint
         : auth.details ?? auth.reason
     if (!auth.ok) {
-      hint = entry.authHint ?? auth.hint
+      hint = entry.resolveAuthHint?.(auth) ?? auth.hint
     }
   }
 

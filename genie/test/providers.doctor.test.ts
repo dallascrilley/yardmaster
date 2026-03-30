@@ -101,7 +101,33 @@ describe('providers doctor', () => {
       available: true,
       authenticated: false,
       authDetails: 'Timed out after 4000ms',
-      hint: 'cursor-agent did not respond to `auth status`. Open Cursor, confirm you are signed in, and trust/approve this workspace for agent access before retrying.',
+      hint: 'cursor-agent did not respond to `auth status`. Open Cursor and trust/approve this workspace for agent access before retrying.',
+    })
+
+    spy.mockRestore()
+  })
+
+  it('returns actionable cursor-agent auth guidance when auth status reports sign-in failure', async () => {
+    const spy = vi
+      .spyOn(base, 'runCommand')
+      .mockResolvedValueOnce({
+        code: 0,
+        stdout: '2026.02.27-e7d2ef6',
+        stderr: '',
+      })
+      .mockResolvedValueOnce({
+        code: 1,
+        stdout: '',
+        stderr: 'Not authenticated. Please sign in.',
+      })
+
+    const report = await doctorProviders('cursor-agent')
+    expect(report[0]).toMatchObject({
+      provider: 'cursor-agent',
+      available: true,
+      authenticated: false,
+      authDetails: 'Not authenticated. Please sign in.',
+      hint: 'cursor-agent is not authenticated. Open Cursor, sign in to your account, then retry.',
     })
 
     spy.mockRestore()

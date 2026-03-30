@@ -460,7 +460,7 @@ Each command keeps its command-specific payload fields alongside that shared met
 - `claude`: installed and authenticated via Claude Code
 - `codex`: installed and authenticated via `codex auth` or `~/.codex/auth.json`
 - `gemini`: installed and authenticated via `GEMINI_API_KEY`
-- `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `genie providers doctor --provider cursor-agent --json` times out, open Cursor, confirm sign-in, and trust/approve the current workspace for agent access before retrying
+- `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `genie providers doctor --provider cursor-agent --json` reports an auth failure, sign in through Cursor first; if it times out, open Cursor and trust/approve the current workspace for agent access before retrying
 
 Use `genie providers doctor` for a quick health check before relying on any provider in automation or release smoke tests.
 
