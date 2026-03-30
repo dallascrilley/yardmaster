@@ -2,6 +2,16 @@
 
 Repository scope: this file applies to the entire `genie-cli` repository.
 
+## Start Here for Agents
+
+Welcome to the `genie-cli` repository. This project provides a unified AI CLI with deterministic provider routing and robust execution.
+
+### Key Onboarding Path
+1. **Architecture**: Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) to understand the system design, module map, and request lifecycle.
+2. **Contributing**: See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for development setup, conventions, and extension guides.
+3. **Capabilities**: Explore the [genie-dispatch skill](.claude/skills/genie-dispatch/SKILL.md) for provider strengths and decision trees.
+4. **Specifications**: Review the [specs/](specs/) directory for detailed feature requirements and design decisions.
+
 ## MANDATORY: Use TD for Task Management
 
 - Use `td` as the source of truth for task tracking in this repo.

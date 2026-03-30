@@ -28,6 +28,7 @@ export function defaultGitRead(args: string[]): string {
   return execFileSync('git', args, {
     encoding: 'utf8',
     maxBuffer: GIT_MAX_BUFFER_BYTES,
+    stdio: ['pipe', 'pipe', 'pipe'],
   })
 }
 

@@ -16,6 +16,7 @@ export function createDefaultAvailabilityCheck(binary: string, invocation?: Prov
           args: invocation.args,
           cwd: invocation.cwd,
           timeoutMs: invocation.timeoutMs ?? DEFAULT_AVAILABILITY_TIMEOUT_MS,
+          env: invocation.env,
         }
       : {
           command: binary,

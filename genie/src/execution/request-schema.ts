@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { modeIds, providerIds, type CliOutputMode, type NormalizedRequest } from '../types.js'
 import type { GenieConfig } from '../config/schema.js'
 
-const DEFAULT_TIMEOUT_MS = 30_000
+const DEFAULT_TIMEOUT_MS = 120_000
 
 export const requestSchema = z.object({
   prompt: z.string().trim().min(1),

@@ -22,7 +22,7 @@ export type ProviderFactoryParams = {
   authCheck?: (runner: CommandRunner) => Promise<ProviderCheckResult>
 }
 
-const DEFAULT_EXECUTION_TIMEOUT_MS = 30_000
+const DEFAULT_EXECUTION_TIMEOUT_MS = 120_000
 
 export function extractResponseText(result: CommandResult, fallbackLabel: string): string {
   const stdout = result.stdout.trim()
