@@ -5,8 +5,28 @@ import {
   getReviewJsonSchema,
   toReviewJsonEnvelope,
 } from '../../../review/command.js'
+import type { ReviewAgentProgress } from '../../../review/command.js'
 import { shouldUseJson, writeJson, writeLine, writeVerbose } from '../../output.js'
 import type { ParsedCommand } from '../../types.js'
+
+function formatElapsed(ms: number): string {
+  return ms < 1000 ? `${ms}ms` : `${Math.round(ms / 1000)}s`
+}
+
+function writeProgress(parsed: Extract<ParsedCommand, { kind: 'review' }>, progress: ReviewAgentProgress): void {
+  if (shouldUseJson(parsed.globals)) return
+  if (progress.event === 'started') {
+    process.stderr.write(`  ${progress.agent}: reviewing...\n`)
+  } else if (progress.event === 'settled' && progress.result) {
+    const r = progress.result
+    const elapsed = formatElapsed(r.latencyMs)
+    if (r.status === 'ok') {
+      process.stderr.write(`  ${r.agent}: done (${elapsed})\n`)
+    } else {
+      process.stderr.write(`  ${r.agent}: failed (${elapsed})\n`)
+    }
+  }
+}
 
 export async function handleReviewCommand(parsed: Extract<ParsedCommand, { kind: 'review' }>): Promise<void> {
   if (parsed.options.jsonSchema) {
@@ -22,6 +42,7 @@ export async function handleReviewCommand(parsed: Extract<ParsedCommand, { kind:
     staged: parsed.options.staged,
     base: parsed.options.base,
     config,
+    onProgress: (progress) => writeProgress(parsed, progress),
   })
 
   if (shouldUseJson(parsed.globals)) {
