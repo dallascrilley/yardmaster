@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { checkProvider } from './support/provider-check.js'
+import { piSmokeBackends } from './support/pi-smoke.js'
 
 const projectRoot = fileURLToPath(new URL('../..', import.meta.url))
 const bunResult = spawnSync('which', ['bun'], { encoding: 'utf8' })
@@ -41,10 +42,10 @@ describe('smoke: commit', () => {
   })
 
   describe.each(providers)('provider: %s', (providerId) => {
-    it('generates a non-empty commit message', ({ skip }) => {
+    it('generates a non-empty commit message', (ctx) => {
       const status = checkProvider(providerId)
       if (!status.available) {
-        skip(`${providerId} unavailable: ${status.reason}`)
+        ctx.skip(true, `${providerId} unavailable: ${status.reason}`)
         return
       }
 
@@ -58,6 +59,34 @@ describe('smoke: commit', () => {
           encoding: 'utf8',
           timeout: 55_000,
           cwd: repoDir,
+        },
+      )
+
+      expect(result.status, `exit code should be 0. stderr: ${result.stderr}`).toBe(0)
+      const output = (result.stdout + result.stderr).trim()
+      expect(output.length).toBeGreaterThanOrEqual(5)
+    })
+  })
+
+  describe.each(piSmokeBackends)('pi alias (GENIE_PI_BACKEND=%s)', (backend) => {
+    it('generates a non-empty commit message', (ctx) => {
+      const status = checkProvider(backend)
+      if (!status.available) {
+        ctx.skip(true, `${backend} unavailable for pi smoke: ${status.reason}`)
+        return
+      }
+
+      const repoDir = createStagedRepo()
+      tempDirs.push(repoDir)
+
+      const result = spawnSync(
+        bunBinary,
+        [sourceCliPath, 'commit', '--provider', 'pi', '--workspace', repoDir],
+        {
+          encoding: 'utf8',
+          timeout: 55_000,
+          cwd: repoDir,
+          env: { ...process.env, GENIE_PI_BACKEND: backend },
         },
       )
 
