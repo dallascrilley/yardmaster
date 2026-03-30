@@ -144,7 +144,7 @@ describe('review command', () => {
       expect(seenWorkspaces.every((workspace) => workspace === process.cwd())).toBe(true)
       expect(result.cwd.length).toBeGreaterThan(0)
       expect(result.summary).toEqual({ total: 4, succeeded: 3, failed: 1 })
-      expect(result.exitCode).toBe(1)
+      expect(result.exitCode).toBe(0)
       expect(result.results[2]).toMatchObject({
         agent: 'gemini',
         status: 'error',
@@ -482,13 +482,13 @@ describe('review command', () => {
         succeeded: 1,
         failed: 1,
       },
-      exitCode: 1,
+      exitCode: 0,
     }
 
     expect(toReviewJsonEnvelope(execution)).toEqual({
       kind: 'review_result',
       version: 1,
-      ok: false,
+      ok: true,
       mode: 'all',
       targets: ['codex', 'claude'],
       source: 'git diff main...HEAD',
@@ -527,7 +527,7 @@ describe('review command', () => {
           review: 'command failed',
         },
       ],
-      exitCode: 1,
+      exitCode: 0,
       error: null,
     })
   })

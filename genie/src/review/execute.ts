@@ -144,6 +144,6 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
       succeeded,
       failed,
     },
-    exitCode: failed > 0 ? 1 : 0,
+    exitCode: succeeded > 0 ? 0 : 1,
   }
 }
