@@ -45,6 +45,7 @@ export function renderEvent(
 
     default: {
       const _exhaustive: never = event
+      void _exhaustive
       return null
     }
   }
