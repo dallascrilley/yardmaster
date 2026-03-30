@@ -58,6 +58,12 @@ bun run test:critical-path
 
 That suite covers bootstrap help flows, prompt commands, stateful commands, update behavior, and the linked `genie` binary in isolated temp homes and git workspaces.
 
+## CI / GitHub Actions
+
+The gate you care about is [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (`bun install --frozen-lockfile`, `typecheck`, `test`, `build`, `test:critical-path` in `genie/`).
+
+If the Actions tab shows a workflow run with an **empty name**, path **`BuildFailed`**, and **`startup_failure`**, that is a **stale workflow** left registered on the repo after the YAML file was removed. It is not `ci.yml`. A repo admin can remove or fully disable that workflow under **Settings → Actions → General** / workflow management if GitHub keeps enqueueing it; the API may report it as “not active” while runs still appear on PRs.
+
 ## Project structure
 
 ```
