@@ -48,6 +48,7 @@ export type ProviderInvocation = {
   args: string[]
   cwd?: string
   timeoutMs?: number
+  env?: Record<string, string>
 }
 
 export type CommandResult = {

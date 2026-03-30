@@ -27,12 +27,20 @@ export const cursorAgentAdapter = createProviderAdapter({
   buildInvocation,
   parse,
   authCheck: async (runner) => {
+    // #region agent log
+    const authStart = Date.now()
+    const authCwd = process.cwd()
+    fetch('http://127.0.0.1:7245/ingest/deedbb81-19f4-481d-a235-c804fadbd424', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '69e54e' }, body: JSON.stringify({ sessionId: '69e54e', location: 'cursor-agent.ts:authCheck', message: 'cursor-agent authCheck started', data: { cwd: authCwd, timeoutMs: 10_000 }, timestamp: authStart, hypothesisId: 'H1' }) }).catch(() => {})
+    // #endregion
     const result = await runner({
       command: 'cursor-agent',
       args: ['auth', 'status'],
-      timeoutMs: 4_000,
+      timeoutMs: 10_000,
       cwd: process.cwd(),
     })
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/deedbb81-19f4-481d-a235-c804fadbd424', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '69e54e' }, body: JSON.stringify({ sessionId: '69e54e', location: 'cursor-agent.ts:authCheck', message: 'cursor-agent authCheck finished', data: { code: result.code, durationMs: Date.now() - authStart, timeout: result.code === 124, stderrLen: (result.stderr || '').length }, timestamp: Date.now(), hypothesisId: 'H1' }) }).catch(() => {})
+    // #endregion
 
     if (result.code === 0) {
       return {

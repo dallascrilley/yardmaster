@@ -11,6 +11,12 @@ import { createGitService, type GitService } from './git-service.js'
 
 const REVIEW_TIMEOUT_MS = 120_000
 
+export type ReviewAgentProgress = {
+  agent: ReviewAgentId
+  event: 'started' | 'settled'
+  result?: ReviewProviderResult
+}
+
 export type ExecuteReviewCommandParams = {
   all: boolean
   agent?: ReviewAgentId
@@ -18,6 +24,7 @@ export type ExecuteReviewCommandParams = {
   staged?: boolean
   base?: string
   config: GenieConfig
+  onProgress?: (progress: ReviewAgentProgress) => void
   requestRunner?: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{
     response: string
     model?: string
@@ -107,15 +114,19 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
       persistLastUsed: false,
     }))
 
-  const tasks = agents.map((agent) =>
-    runReviewForAgent({
+  const tasks = agents.map((agent) => {
+    params.onProgress?.({ agent, event: 'started' })
+    return runReviewForAgent({
       agent,
       prompt,
       config: params.config,
       workspace,
       requestRunner: runner,
-    }),
-  )
+    }).then((result) => {
+      params.onProgress?.({ agent, event: 'settled', result })
+      return result
+    })
+  })
   const results = await Promise.all(tasks)
   const succeeded = results.filter((item) => item.status === 'ok').length
   const failed = results.length - succeeded

@@ -83,9 +83,16 @@ export function resolveGitDiffSource(gitRead: GitReadFn, params?: { staged?: boo
     return dirtyOrStaged
   }
 
+  const candidates = buildBaseRefCandidates(gitRead)
+  if (candidates.length === 0) {
+    throw new UsageError(
+      'No base branch candidates found. Ensure a remote is configured or a main/master branch exists locally.',
+    )
+  }
+
   const candidateErrors: string[] = []
   let successfulCandidateReads = 0
-  for (const baseRef of buildBaseRefCandidates(gitRead)) {
+  for (const baseRef of candidates) {
     const mergeBaseResult = safeGitRead(gitRead, ['merge-base', 'HEAD', baseRef])
     if (!mergeBaseResult.ok) {
       candidateErrors.push(`${baseRef}: ${mergeBaseResult.error}`)

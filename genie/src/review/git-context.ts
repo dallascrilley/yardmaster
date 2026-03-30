@@ -23,19 +23,24 @@ export function resolveGitContext(gitRead: GitReadFn): GitContext {
 
 export function buildBaseRefCandidates(gitRead: GitReadFn): string[] {
   const candidates: string[] = []
+
   const upstream = safeGitRead(gitRead, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])
   if (upstream.ok && upstream.text.trim()) {
     candidates.push(upstream.text.trim())
   }
-
-  candidates.push('main', 'master', 'origin/main', 'origin/master')
 
   const originHead = safeGitRead(gitRead, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
   if (originHead.ok && originHead.text.trim()) {
     candidates.push(originHead.text.trim())
   }
 
-  return [...new Set(candidates)]
+  candidates.push('main', 'master', 'origin/main', 'origin/master')
+
+  const unique = [...new Set(candidates)]
+  return unique.filter((ref) => {
+    const result = safeGitRead(gitRead, ['rev-parse', '--verify', '--quiet', ref])
+    return result.ok
+  })
 }
 
 export { safeGitRead }
