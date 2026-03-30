@@ -15,6 +15,7 @@ export type AcpFallbackParams = {
   onEvent: (event: StreamEvent) => void
   mcpServers?: unknown[]
   existingSessionId?: string
+  model?: string
 }
 
 export type AcpFallbackResult = {
@@ -24,7 +25,7 @@ export type AcpFallbackResult = {
 }
 
 export async function executeAcpFallback(params: AcpFallbackParams): Promise<AcpFallbackResult> {
-  const { slots, prompt, workspace, trustMode, timeoutMs, onEvent, mcpServers, existingSessionId } = params
+  const { slots, prompt, workspace, trustMode, timeoutMs, onEvent, mcpServers, existingSessionId, model } = params
   const failures: ProviderFailureReason[] = []
 
   for (const slot of slots) {
@@ -51,7 +52,7 @@ export async function executeAcpFallback(params: AcpFallbackParams): Promise<Acp
       }
     }
 
-    const options: AcpClientOptions = { workspace, trustMode, timeoutMs, onEvent, mcpServers }
+    const options: AcpClientOptions = { workspace, trustMode, timeoutMs, onEvent, mcpServers, model }
     const client = new AcpClient(entry, options)
 
     try {

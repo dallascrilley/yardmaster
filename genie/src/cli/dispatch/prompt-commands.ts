@@ -65,6 +65,7 @@ export async function handleRunCommand(parsed: Extract<ParsedCommand, { kind: 'r
       prompt: resolveRunPrompt(parsed.prompt, effectiveOptions.promptFile),
       config,
       provider: effectiveOptions.provider,
+      model: effectiveOptions.model,
       workspace,
       trust: effectiveOptions.trust,
       yolo: effectiveOptions.yolo,

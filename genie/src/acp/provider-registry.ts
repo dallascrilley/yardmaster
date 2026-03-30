@@ -1,6 +1,14 @@
 import type { ProviderId } from '../types.js';
 import type { AcpProviderEntry } from './types.js';
 
+/** Environment variable names for model selection per provider. */
+export const modelEnvVars: Record<ProviderId, string> = {
+  claude: 'ANTHROPIC_MODEL',
+  codex: 'OPENAI_MODEL',
+  gemini: 'GEMINI_MODEL',
+  'cursor-agent': 'CURSOR_MODEL',
+};
+
 const registry: ReadonlyMap<ProviderId, AcpProviderEntry> = new Map([
   ['claude', {
     id: 'claude',
