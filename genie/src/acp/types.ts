@@ -1,5 +1,6 @@
 import type { ProviderId } from '../types.js'
 
+/** Registry entry mapping a provider to its ACP agent command. */
 export type AcpProviderEntry = {
   readonly id: ProviderId
   readonly agentCommand: string
