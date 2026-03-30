@@ -10,6 +10,7 @@ Unified AI CLI with deterministic provider routing, script-safe output, and robu
 | [Architecture](docs/ARCHITECTURE.md) | System design, module map, request lifecycle, patterns |
 | [API Reference](docs/API.md) | TypeScript types, interfaces, and JSON contracts |
 | [Contributing](docs/CONTRIBUTING.md) | Development setup, conventions, extension guides |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Operational fixes for install, auth, timeouts, and output modes |
 | [Release Checklist](docs/release-checklist.md) | Pre-release verification steps |
 
 ## Install

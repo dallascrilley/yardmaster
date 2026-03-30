@@ -2,6 +2,8 @@
 
 > Complete command reference for genie v0.1.0.
 
+For failure recovery patterns (install/PATH fixes, provider auth and trust checks, timeout tuning, and output mode pitfalls), see [Troubleshooting](./TROUBLESHOOTING.md).
+
 ## Quick reference
 
 ```bash
@@ -274,6 +276,8 @@ genie providers doctor --provider codex --json
 ```
 
 `--provider <id>` is only supported with `genie providers doctor`.
+
+If provider checks fail or time out (especially `cursor-agent` trust/auth state), use the step-by-step fixes in [Troubleshooting](./TROUBLESHOOTING.md).
 
 ---
 
