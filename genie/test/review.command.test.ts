@@ -396,6 +396,8 @@ describe('review command', () => {
         calls.push(cmd)
         if (cmd === 'diff --no-color HEAD') return ''
         if (cmd === 'rev-parse --abbrev-ref --symbolic-full-name @{upstream}') return ''
+        if (cmd.startsWith('rev-parse --verify --quiet')) return 'abc123\n'
+        if (cmd.startsWith('symbolic-ref --short refs/remotes/origin/HEAD')) return ''
         if (cmd === 'merge-base HEAD main') throw new Error('fatal: no merge base')
         if (cmd === 'merge-base HEAD master') return 'ff11aa\n'
         if (cmd === 'diff --no-color ff11aa...HEAD') {
@@ -417,10 +419,27 @@ describe('review command', () => {
           const cmd = args.join(' ')
           if (cmd === 'diff --no-color HEAD') return ''
           if (cmd === 'rev-parse --abbrev-ref --symbolic-full-name @{upstream}') return ''
+          if (cmd.startsWith('rev-parse --verify --quiet')) return 'abc123\n'
+          if (cmd.startsWith('symbolic-ref --short refs/remotes/origin/HEAD')) return ''
           throw new Error(`fatal: failed ${cmd}`)
         },
       }),
     ).toThrow('Failed to resolve base branch diff candidates:')
+  })
+
+  it('surfaces actionable error when all base ref candidates fail verification', () => {
+    expect(() =>
+      resolveReviewDiffSource({
+        gitRead: (args) => {
+          const cmd = args.join(' ')
+          if (cmd === 'diff --no-color HEAD') return ''
+          if (cmd === 'rev-parse --abbrev-ref --symbolic-full-name @{upstream}') return ''
+          if (cmd.startsWith('symbolic-ref --short refs/remotes/origin/HEAD')) return ''
+          if (cmd.startsWith('rev-parse --verify --quiet')) throw new Error('fatal: not a valid ref')
+          return ''
+        },
+      }),
+    ).toThrow('No base branch candidates found')
   })
 
   it('builds stable review json envelope for machine consumers', () => {

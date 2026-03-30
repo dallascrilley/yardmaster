@@ -37,7 +37,7 @@ export const genieConfigSchema = z.object({
     default: z.boolean().default(false),
   }),
   runtime: z.object({
-    timeoutMs: z.number().int().positive().max(300_000).default(30_000),
+    timeoutMs: z.number().int().positive().max(300_000).default(120_000),
   }),
   presets: z.object({
     default: z.string().trim().min(1).optional(),
@@ -75,7 +75,7 @@ export const defaultConfig: GenieConfig = {
     default: false,
   },
   runtime: {
-    timeoutMs: 30_000,
+    timeoutMs: 120_000,
   },
   presets: {
     default: undefined,
