@@ -15,7 +15,7 @@ const registry: ReadonlyMap<ProviderId, AcpProviderEntry> = new Map([
   ['gemini', {
     id: 'gemini' as ProviderId,
     agentCommand: 'gemini',
-    resolveEnv: () => {
+    resolveEnv: (): Record<string, string> => {
       const key = process.env.GEMINI_API_KEY;
       return key ? { GEMINI_API_KEY: key } : {};
     },
