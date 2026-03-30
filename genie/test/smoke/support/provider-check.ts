@@ -1,9 +1,10 @@
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 const projectRoot = fileURLToPath(new URL('../../..', import.meta.url))
-const bunBinary = execFileSync('which', ['bun'], { encoding: 'utf8' }).trim() || 'bun'
+const bunResult = spawnSync('which', ['bun'], { encoding: 'utf8' })
+const bunBinary = bunResult.status === 0 ? bunResult.stdout.trim() : 'bun'
 const sourceCliPath = join(projectRoot, 'src', 'bin', 'genie.ts')
 
 export type ProviderStatus = { available: boolean; reason?: string }
@@ -26,17 +27,22 @@ function loadStatuses(): Map<string, ProviderStatus> {
 
   cachedStatuses = new Map()
 
-  const result = execFileSync(bunBinary, [sourceCliPath, 'providers', 'doctor', '--json'], {
-    encoding: 'utf8',
-    timeout: 30_000,
-    env: { ...process.env },
-  })
+  let raw: string
+  try {
+    const result = spawnSync(bunBinary, [sourceCliPath, 'providers', 'doctor', '--json'], {
+      encoding: 'utf8',
+      timeout: 30_000,
+    })
+    if (result.status !== 0) return cachedStatuses
+    raw = result.stdout
+  } catch {
+    return cachedStatuses
+  }
 
   let envelope: DoctorEnvelope
   try {
-    envelope = JSON.parse(result)
+    envelope = JSON.parse(raw)
   } catch {
-    // If JSON parsing fails, mark all providers as unavailable
     return cachedStatuses
   }
 

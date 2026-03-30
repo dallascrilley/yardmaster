@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest'
-import { spawnSync, execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os'
 import { checkProvider } from './support/provider-check.js'
 
 const projectRoot = fileURLToPath(new URL('../..', import.meta.url))
-const bunBinary = execFileSync('which', ['bun'], { encoding: 'utf8' }).trim() || 'bun'
+const bunResult = spawnSync('which', ['bun'], { encoding: 'utf8' })
+const bunBinary = bunResult.status === 0 ? bunResult.stdout.trim() : 'bun'
 const sourceCliPath = join(projectRoot, 'src', 'bin', 'genie.ts')
 
 const providers = ['claude', 'codex', 'gemini', 'cursor-agent'] as const
@@ -56,7 +57,6 @@ describe('smoke: commit', () => {
         {
           encoding: 'utf8',
           timeout: 55_000,
-          env: { ...process.env },
           cwd: repoDir,
         },
       )

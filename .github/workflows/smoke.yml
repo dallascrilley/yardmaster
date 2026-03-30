@@ -23,11 +23,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build and link
-        run: |
-          bun run build
-          bun link
-
       - name: Run smoke tests
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
