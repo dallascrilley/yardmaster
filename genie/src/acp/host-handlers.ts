@@ -1,6 +1,7 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { dirname, resolve } from 'node:path'
 import type {
   Client,
   ReadTextFileRequest,
@@ -36,8 +37,9 @@ type TerminalState = {
 }
 
 function isWithinWorkspace(filePath: string, workspace: string): boolean {
-  const norm = filePath.startsWith('/') ? filePath : filePath
-  return norm.startsWith(workspace)
+  const resolved = resolve(filePath)
+  const resolvedWorkspace = resolve(workspace)
+  return resolved === resolvedWorkspace || resolved.startsWith(resolvedWorkspace + '/')
 }
 
 function mapPlanEntries(
@@ -87,7 +89,9 @@ export function createGenieClient(options: GenieClientOptions): Client {
       )
     }
 
-    await writeFile(params.path, params.content, 'utf-8')
+    const resolvedPath = resolve(params.path)
+    await mkdir(dirname(resolvedPath), { recursive: true })
+    await writeFile(resolvedPath, params.content, 'utf-8')
     return {}
   }
 
