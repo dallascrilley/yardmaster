@@ -24,6 +24,11 @@ export class AcpClient {
     private readonly options: AcpClientOptions,
   ) {}
 
+  /** Returns the current session ID if a session is active. */
+  getSessionId(): string | null {
+    return this.sessionId
+  }
+
   /** One-shot: spawn, init, session, prompt, close. Returns the stop reason. */
   async run(prompt: string): Promise<string> {
     try {
@@ -41,6 +46,31 @@ export class AcpClient {
     } finally {
       this.close()
     }
+  }
+
+  /**
+   * Resume a session by ID. Tries session/load first, falls back to session/new.
+   * Must be called after spawnAndInit but before sendPrompt.
+   */
+  async resume(sessionId: string): Promise<boolean> {
+    if (!this.connection) {
+      await this.spawnAndInit()
+    }
+
+    // Try to load existing session
+    try {
+      const result = await this.connection!.loadSession({ sessionId })
+      if (result.sessionId === sessionId) {
+        this.sessionId = sessionId
+        return true
+      }
+    } catch {
+      // Load failed, fall through to create new session
+    }
+
+    // Fallback: create new session
+    await this.createSession()
+    return false
   }
 
   private async spawnAndInit(): Promise<void> {
