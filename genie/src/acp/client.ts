@@ -233,6 +233,5 @@ export class AcpClient {
     }
     this.child = null
     this.connection = null
-    this.sessionId = null
   }
 }

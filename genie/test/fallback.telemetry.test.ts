@@ -28,7 +28,9 @@ describe('fallback telemetry', () => {
         isAvailable: async () => ({ ok: true }),
         isAuthenticated: async () => ({ ok: false, reason: 'auth required', authFailure: true }),
         buildInvocation: () => ({ command: 'claude', args: [] }),
-        execute: async () => ({ text: 'nope', raw: { code: 1, stdout: '', stderr: '' } }),
+        execute: async () => {
+          throw new Error('auth required')
+        },
         parse: (raw) => ({ text: raw.stdout, raw }),
       },
       {
@@ -52,6 +54,7 @@ describe('fallback telemetry', () => {
     expect(result.result.fallbackUsed).toBe(true)
     expect(result.result.timings.attempts.length).toBeGreaterThan(1)
     expect(result.result.timings.attempts[0]?.provider).toBe('claude')
+    expect(result.result.timings.attempts[0]?.ok).toBe(false)
   })
 
   it('respects no-fallback by trying only one provider', async () => {

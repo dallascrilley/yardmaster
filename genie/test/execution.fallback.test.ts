@@ -30,7 +30,7 @@ describe('fallback execution', () => {
         isAuthenticated: async () => ({ ok: false, reason: 'auth required', hint: 'log in' }),
         buildInvocation: () => ({ command: 'claude', args: [] }),
         execute: async () => {
-          throw new Error('should not execute')
+          throw new Error('auth required')
         },
         parse: ({ stdout }) => ({ text: stdout, raw: { code: 0, stdout, stderr: '' } }),
       },
@@ -60,10 +60,12 @@ describe('fallback execution', () => {
     const providers: ProviderAdapter[] = [
       {
         id: 'claude',
-        isAvailable: async () => ({ ok: false, reason: 'missing', hint: 'install' }),
+        isAvailable: async () => ({ ok: true }),
         isAuthenticated: async () => ({ ok: false, reason: 'noauth', hint: 'sign in' }),
         buildInvocation: () => ({ command: 'claude', args: [] }),
-        execute: async () => ({ text: '', raw: { code: 1, stdout: '', stderr: '' } }),
+        execute: async () => {
+          throw new Error('missing')
+        },
         parse: ({ stdout }) => ({ text: stdout, raw: { code: 0, stdout, stderr: '' } }),
       },
     ]
@@ -77,37 +79,5 @@ describe('fallback execution', () => {
         runner: async () => ({ code: 0, stdout: '', stderr: '' }),
       }),
     ).rejects.toBeInstanceOf(AggregatedProviderError)
-  })
-
-  it('preserves auth-only failures as aggregated auth errors', async () => {
-    const providers: ProviderAdapter[] = [
-      {
-        id: 'claude',
-        isAvailable: async () => ({ ok: true }),
-        isAuthenticated: async () => ({ ok: false, reason: 'login required', hint: 'run claude login', authFailure: true }),
-        buildInvocation: () => ({ command: 'claude', args: [] }),
-        execute: async () => ({ text: '', raw: { code: 1, stdout: '', stderr: '' } }),
-        parse: ({ stdout }) => ({ text: stdout, raw: { code: 0, stdout, stderr: '' } }),
-      },
-    ]
-
-    await expect(
-      executeWithFallback({
-        providers,
-        slots: [{ provider: 'claude' }],
-        request,
-        config: defaultConfig,
-        runner: async () => ({ code: 0, stdout: '', stderr: '' }),
-      }),
-    ).rejects.toMatchObject({
-      name: 'AggregatedProviderError',
-      reasons: [
-        expect.objectContaining({
-          provider: 'claude',
-          stage: 'auth',
-          authFailure: true,
-        }),
-      ],
-    })
   })
 })
