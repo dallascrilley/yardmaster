@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderOutputFormat } from '../types.js'
+import type { ConfigProviderId, ProviderOutputFormat } from '../types.js'
 import type { ReviewAgentId } from '../review/command.js'
 
 export type GlobalOptions = {
@@ -20,7 +20,7 @@ export type MutationSafetyOptions = {
 export type CompletionShell = 'bash' | 'zsh' | 'fish'
 
 export type RunOptions = {
-  provider?: ProviderId
+  provider?: ConfigProviderId
   model?: string
   workspace?: string
   mode?: string
@@ -58,7 +58,7 @@ export type ReviewOptions = {
 
 export type PresetsSetOptions = {
   name: string
-  provider?: ProviderId
+  provider?: ConfigProviderId
   model?: string
   mode?: string
   trust?: boolean
@@ -119,7 +119,7 @@ export type ParsedCommand =
     }
   | {
       kind: 'providers-doctor'
-      provider?: ProviderId
+      provider?: ConfigProviderId
       globals: GlobalOptions
     }
   | {

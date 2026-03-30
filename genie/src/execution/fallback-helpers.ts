@@ -11,17 +11,17 @@ export type FallbackResult = {
   provider: ProviderAdapter
 }
 
-export function toFailureReasonForMissingProvider(providerId: string): ProviderFailureReason {
+export function toFailureReasonForMissingProvider(providerId: ProviderId): ProviderFailureReason {
   return {
-    provider: providerId as ProviderId,
+    provider: providerId,
     stage: 'availability',
     reason: `Unknown provider '${providerId}' in configured fallback list`,
   }
 }
 
-export function toMissingProviderAttempt(providerId: string): GenieRunResult['timings']['attempts'][number] {
+export function toMissingProviderAttempt(providerId: ProviderId): GenieRunResult['timings']['attempts'][number] {
   return {
-    provider: providerId as ProviderId,
+    provider: providerId,
     stage: 'availability',
     durationMs: 0,
     ok: false,
@@ -110,7 +110,8 @@ export function appendExecutionFailure(params: {
 
 export function throwForFailures(failures: ProviderFailureReason[]): never {
   if (failures.some((item) => item.timeout)) {
-    throw new TimeoutError(new AggregatedProviderError(failures).message)
+    const aggregated = new AggregatedProviderError(failures)
+    throw new TimeoutError(aggregated.message, failures)
   }
 
   throw new AggregatedProviderError(failures)

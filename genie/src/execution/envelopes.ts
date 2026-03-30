@@ -29,6 +29,9 @@ export function toErrorEnvelope(error: { code: string; message: string }, timing
 }
 
 export function isNormalizedPromptRequest(value: unknown): value is NormalizedPromptRequest {
+  if (value === null || typeof value !== 'object') {
+    return false
+  }
   try {
     normalizeRequest(value as RunRequestInput, defaultConfig)
     return true

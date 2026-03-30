@@ -57,6 +57,7 @@ describe('config precedence', () => {
       join(projectDir, 'config.json'),
       JSON.stringify(
         {
+          ...defaultConfig,
           provider: {
             default: 'gemini',
             fallbackOrder: ['gemini', 'codex', 'claude', 'cursor-agent'],

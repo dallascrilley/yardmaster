@@ -1,5 +1,5 @@
-import { type CommandRunner, type NormalizedRequest, type GenieRunResult, type ProviderId } from '../types.js'
-import { resolveProviderOrder, normalizeRequest } from './normalize.js'
+import { type CommandRunner, type NormalizedRequest, type GenieRunResult } from '../types.js'
+import { normalizeRequest, resolveProviderExecutionPlan } from './normalize.js'
 import { executeWithFallback } from './fallback.js'
 import { providerAdapters } from '../providers/registry.js'
 import { type GenieConfig } from '../config/schema.js'
@@ -9,7 +9,7 @@ import { persistLastUsedConfig, resolveResultModel } from './persist.js'
 
 export type RunRequestInput = {
   prompt: string
-  provider?: ProviderId
+  provider?: string
   model?: string
   workspace?: string
   mode?: string
@@ -34,19 +34,22 @@ export async function runRequest(params: {
   const runner = params.runner ?? runCommand
   const persistLastUsed = params.persistLastUsed ?? true
   const request: NormalizedRequest = normalizeRequest(params.input, params.config)
-  const { order } = resolveProviderOrder(params.config, request.provider, request.noFallback)
+  const { slots } = resolveProviderExecutionPlan(params.config, request.provider, request.noFallback)
 
   const result = await executeWithFallback({
     providers: providerAdapters,
-    order,
+    slots,
     request,
+    config: params.config,
     runner,
   })
+
+  const persistRequest = result.winningRequest ?? request
 
   if (persistLastUsed) {
     try {
       await persistLastUsedConfig({
-        request,
+        request: persistRequest,
         providerId: result.provider.id,
       })
     } catch {
@@ -57,7 +60,7 @@ export async function runRequest(params: {
   return {
     ...result.result,
     model: resolveResultModel({
-      request,
+      request: persistRequest,
       providerId: result.provider.id,
     }),
     workspace: request.workspace,

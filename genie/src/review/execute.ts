@@ -9,7 +9,20 @@ import { resolveReviewTargets, type ReviewAgentId } from './select.js'
 import { resolveReviewDiffSource, ensureNonEmptyDiff } from './diff-source.js'
 import { createGitService, type GitService } from './git-service.js'
 
-const REVIEW_TIMEOUT_MS = 120_000
+const DEFAULT_REVIEW_TIMEOUT_MS = 300_000
+const MAX_REVIEW_TIMEOUT_MS = 900_000
+
+export function resolveReviewTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.GENIE_REVIEW_TIMEOUT_MS?.trim()
+  if (!raw) {
+    return DEFAULT_REVIEW_TIMEOUT_MS
+  }
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return DEFAULT_REVIEW_TIMEOUT_MS
+  }
+  return Math.min(Math.floor(parsed), MAX_REVIEW_TIMEOUT_MS)
+}
 
 export type ReviewAgentProgress = {
   agent: ReviewAgentId
@@ -54,6 +67,7 @@ async function runReviewForAgent(params: {
   prompt: string
   config: GenieConfig
   workspace: string
+  reviewTimeoutMs: number
   requestRunner: (params: { input: RunRequestInput; config: GenieConfig }) => Promise<{ response: string; model?: string }>
 }): Promise<ReviewProviderResult> {
   const startedAt = Date.now()
@@ -66,7 +80,7 @@ async function runReviewForAgent(params: {
         workspace: params.workspace,
         noFallback: true,
         output: 'plain',
-        timeoutMs: REVIEW_TIMEOUT_MS,
+        timeoutMs: params.reviewTimeoutMs,
       },
       config: params.config,
     })
@@ -107,7 +121,8 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
   const diffText = ensureNonEmptyDiff(diff.text)
   const prompt = buildReviewPrompt(diffText)
   const git = gitService.resolveContext()
-  const workspace = params.diffFile ? cwd : (gitService.resolveWorkspace?.() ?? cwd)
+  const workspace = gitService.resolveWorkspace?.() ?? cwd
+  const reviewTimeoutMs = resolveReviewTimeoutMs()
   const runner = params.requestRunner ?? ((requestParams: { input: RunRequestInput; config: GenieConfig }) =>
     runRequest({
       ...requestParams,
@@ -121,6 +136,7 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
       prompt,
       config: params.config,
       workspace,
+      reviewTimeoutMs,
       requestRunner: runner,
     }).then((result) => {
       params.onProgress?.({ agent, event: 'settled', result })
@@ -144,6 +160,6 @@ export async function executeReviewCommand(params: ExecuteReviewCommandParams): 
       succeeded,
       failed,
     },
-    exitCode: failed > 0 ? 1 : 0,
+    exitCode: succeeded > 0 ? 0 : 1,
   }
 }
