@@ -1,6 +1,7 @@
 import type { ConfigProviderId, ProviderOutputFormat } from '../types.js'
 import type { ReviewAgentId } from '../review/command.js'
 
+/** Global CLI flags that apply to every command (help, version, output control, verbosity). */
 export type GlobalOptions = {
   help: boolean
   version: boolean
@@ -12,13 +13,16 @@ export type GlobalOptions = {
   noInput: boolean
 }
 
+/** Safety flags for commands that mutate configuration or state. */
 export type MutationSafetyOptions = {
   dryRun: boolean
   force: boolean
 }
 
+/** Shell targets supported by the `completion` command. */
 export type CompletionShell = 'bash' | 'zsh' | 'fish'
 
+/** Options specific to `genie run` and run-like commands (design, debug). */
 export type RunOptions = {
   provider?: ConfigProviderId
   model?: string
@@ -44,10 +48,12 @@ type CommitSharedOptions = Pick<
   'provider' | 'model' | 'workspace' | 'mode' | 'trust' | 'timeoutMs' | 'noFallback' | 'preset' | 'yolo'
 >
 
+/** Options for the `genie commit` command — shared run options plus an apply flag. */
 export type CommitOptions = CommitSharedOptions & {
   apply: boolean
 }
 
+/** Options for the `genie review` command — diff source, agent selection, and output format. */
 export type ReviewOptions = {
   all: boolean
   agent?: ReviewAgentId
@@ -57,6 +63,7 @@ export type ReviewOptions = {
   jsonSchema: boolean
 }
 
+/** Options for `genie presets set` — the preset name, overrides, and a default flag. */
 export type PresetsSetOptions = {
   name: string
   provider?: ConfigProviderId
@@ -72,8 +79,13 @@ export type PresetsSetOptions = {
   setDefault: boolean
 }
 
+/** Valid help topic names accepted by `genie help <topic>`. */
 export type HelpTopic = 'run' | 'design' | 'commit' | 'debug' | 'review' | 'update' | 'providers' | 'config' | 'presets' | 'completion'
 
+/**
+ * Discriminated union of all parsed CLI commands. Each variant carries the
+ * command kind, its specific options, and the common {@link GlobalOptions}.
+ */
 export type ParsedCommand =
   | { kind: 'help'; topic?: HelpTopic }
   | { kind: 'version' }

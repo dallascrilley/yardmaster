@@ -10,6 +10,14 @@ import {
 } from './parse/commands.js'
 import { getPositionalTokens, getRootParser, parseValidatedHelpCommand } from './parse/root.js'
 
+/**
+ * Parse raw `process.argv` tokens (after the node/binary prefix) into a
+ * structured {@link ParsedCommand}. Handles help/version flags, subcommand
+ * routing, alias expansion, strict-mode validation, and implicit `run`.
+ * @param argv - The argv tokens to parse (typically `process.argv.slice(2)`).
+ * @returns A discriminated union describing the parsed command and its options.
+ * @throws {UsageError} On unknown commands or help topics.
+ */
 export function parseArgv(argv: string[]): ParsedCommand {
   const tokens = [...argv]
   if (tokens.length === 0) {
