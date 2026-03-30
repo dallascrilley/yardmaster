@@ -19,6 +19,20 @@ Welcome to the `genie-cli` repository. This project provides a unified AI CLI wi
 - During execution, keep task state updated in TD instead of ad-hoc notes.
 - Before finishing work, ensure TD reflects current status and next actions.
 
+## Verification (parity with CI)
+
+From `genie/` (matches `.github/workflows/ci.yml`):
+
+```bash
+bun install --frozen-lockfile
+bun run typecheck
+bun run test
+bun run build
+bun run test:critical-path
+```
+
+Optional real-LLM smoke (secrets + provider CLIs): `bun run test:smoke`. There is no separate `lint` script; **`typecheck` is the static analysis gate**.
+
 ## Docs Merge Policy
 
 - Agents may auto-merge docs-only updates after a fresh review when the diff is limited to documentation/config guidance files, CI is green or not applicable, and there are no unresolved review findings.

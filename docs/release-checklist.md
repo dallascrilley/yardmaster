@@ -4,7 +4,7 @@ Use this checklist before cutting a release tag for `genie`.
 
 ## 1) Pre-release checks
 
-- [ ] Working tree is clean for release-intended files (`git status --short`).
+- [ ] Working tree is clean for release-intended files (`git status --short`); local logs, agent session dirs, and package-manager debug logs are covered by root `.gitignore` (see `*.log`, `.omc/`, `.omcodex/`, etc.).
 - [ ] Fresh worktree dependencies are installed before verification (`cd genie && bun install --frozen-lockfile`).
 - [ ] `README.md` usage, flags, exit codes, and examples match current CLI behavior.
 - [ ] `genie --help` and subcommand help output are reviewed for regressions.
@@ -62,7 +62,7 @@ set -e
 
 - [ ] `genie providers list` shows all supported providers:
   - `claude`, `codex`, `cursor-agent`, `gemini`
-- [ ] `genie providers doctor` reports availability/auth/latency details plus actionable hints when checks fail.
+- [ ] `genie providers doctor` reports availability/auth/latency details plus actionable hints when checks fail (for `cursor-agent`, hints distinguish workspace trust vs sign-in when `auth status` stderr is informative).
 - [ ] `genie providers doctor --provider <id>` works for each provider.
 - [ ] Doctor command does not hang and returns actionable hints on failure.
 - [ ] Release notes or checklist explicitly call out optional provider gates:
