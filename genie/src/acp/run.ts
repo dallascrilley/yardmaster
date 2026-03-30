@@ -11,7 +11,6 @@ export type RunViaAcpInput = {
   prompt: string
   config: GenieConfig
   provider?: string
-  model?: string
   workspace?: string
   trust?: boolean
   yolo?: boolean
