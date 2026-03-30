@@ -17,7 +17,14 @@ export type AcpCommandInput = {
   noFallback?: boolean
 }
 
-export async function runAcpCommand(input: AcpCommandInput): Promise<string> {
+export type AcpCommandResult = {
+  provider: string
+  response: string
+  fallbackUsed: boolean
+  stopReason: string
+}
+
+export async function runAcpCommand(input: AcpCommandInput): Promise<AcpCommandResult> {
   const {
     systemPrompt,
     userPrompt,
@@ -41,22 +48,20 @@ export async function runAcpCommand(input: AcpCommandInput): Promise<string> {
     ? `${systemPrompt}\n\n${userPrompt}`
     : userPrompt
 
-  let responseText = ''
-  const onEvent = (event: StreamEvent) => {
-    if (event.kind === 'content') {
-      responseText += event.text
-    }
-  }
-
-  await executeAcpFallback({
+  const result = await executeAcpFallback({
     slots,
     prompt: fullPrompt,
     workspace,
     trustMode,
     timeoutMs,
-    onEvent,
+    onEvent: (_event: StreamEvent) => {},
     model,
   })
 
-  return responseText.trim()
+  return {
+    provider: result.provider,
+    response: result.response,
+    fallbackUsed: slots[0]?.provider !== result.provider,
+    stopReason: result.stopReason,
+  }
 }

@@ -67,7 +67,7 @@ async function runReviewForAgent(params: {
   const startedAt = Date.now()
   const provider = mapAgentToProvider(params.agent)
   try {
-    const response = await runAcpCommand({
+    const result = await runAcpCommand({
       systemPrompt: REVIEW_SYSTEM_PROMPT,
       userPrompt: params.prompt,
       provider,
@@ -84,8 +84,8 @@ async function runReviewForAgent(params: {
       model: null,
       status: 'ok',
       latencyMs: Date.now() - startedAt,
-      responseChars: response.length,
-      review: response,
+      responseChars: result.response.length,
+      review: result.response,
     }
   } catch (error) {
     const message = formatProviderError(error)

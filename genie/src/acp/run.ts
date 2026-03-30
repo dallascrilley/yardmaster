@@ -8,6 +8,8 @@ import type { StreamEvent } from './types.js'
 import { renderEvent } from '../output/stream-renderer.js'
 import { loadSession, saveSession } from './session-store.js'
 import { getAcpProvider } from './provider-registry.js'
+import { persistLastUsedConfig } from '../execution/persist.js'
+import { defaultConfig } from '../config/schema.js'
 
 export type RunViaAcpInput = {
   prompt: string
@@ -25,7 +27,21 @@ export type RunViaAcpInput = {
   session?: string
 }
 
-export async function runViaAcp(input: RunViaAcpInput): Promise<AcpFallbackResult> {
+export type RunViaAcpResult = AcpFallbackResult & {
+  fallbackUsed: boolean
+  model: string | null
+  timings: {
+    totalMs: number
+    attempts: Array<{
+      provider: AcpFallbackResult['provider']
+      stage: 'success'
+      durationMs: number
+      ok: true
+    }>
+  }
+}
+
+export async function runViaAcp(input: RunViaAcpInput): Promise<RunViaAcpResult> {
   const {
     prompt,
     config,
@@ -47,6 +63,7 @@ export async function runViaAcp(input: RunViaAcpInput): Promise<AcpFallbackResul
     : undefined
 
   const { slots } = resolveProviderExecutionPlan(config, explicitCanonical, noFallback)
+  const startedAt = Date.now()
 
   const trustMode: TrustMode = yolo ? 'yolo' : trust ? 'trust' : 'default'
   const isTTY = process.stdout.isTTY ?? false
@@ -82,6 +99,33 @@ export async function runViaAcp(input: RunViaAcpInput): Promise<AcpFallbackResul
     model,
   })
 
+  const totalMs = Date.now() - startedAt
+
+  try {
+    await persistLastUsedConfig({
+      request: {
+        prompt,
+        provider: result.provider,
+        model: model ?? config.model.byProvider[result.provider],
+        workspace,
+        mode: config.mode.default,
+        trust: trustMode !== 'default',
+        output: outputFormat,
+        timeoutMs,
+        noFallback,
+        yolo,
+        includeDirectories: [],
+        outputFormat: 'text',
+        headless: false,
+        extensions: [],
+        mcp: [],
+      },
+      providerId: result.provider,
+    })
+  } catch {
+    process.stderr.write('Warning: failed to persist last-used config\n')
+  }
+
   // Save session if name provided
   if (sessionName && result.sessionId) {
     const entry = getAcpProvider(result.provider)
@@ -96,5 +140,20 @@ export async function runViaAcp(input: RunViaAcpInput): Promise<AcpFallbackResul
     }
   }
 
-  return result
+  return {
+    ...result,
+    fallbackUsed: slots[0]?.provider !== result.provider,
+    model: model ?? config.model.byProvider[result.provider] ?? defaultConfig.model.byProvider[result.provider] ?? null,
+    timings: {
+      totalMs,
+      attempts: [
+        {
+          provider: result.provider,
+          stage: 'success',
+          durationMs: totalMs,
+          ok: true,
+        },
+      ],
+    },
+  }
 }

@@ -4,9 +4,11 @@ import { defaultConfig, mergeConfig } from '../src/config/schema.js'
 import { UsageError } from '../src/errors.js'
 import {
   normalizeRequest,
+} from '../src/execution/request-schema.js'
+import {
   resolveProviderExecutionPlan,
   resolveProviderOrder,
-} from '../src/execution/normalize.js'
+} from '../src/execution/provider-order.js'
 
 const withHistory = {
   ...defaultConfig,
