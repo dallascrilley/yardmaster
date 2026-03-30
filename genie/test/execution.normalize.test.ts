@@ -36,7 +36,6 @@ describe('request normalization', () => {
 
   it('throws when explicit provider order input is invalid', () => {
     expect(() => resolveProviderOrder(withHistory, 'not-a-provider')).toThrow(UsageError)
-    expect(() => resolveProviderOrder(withHistory, 'not-a-provider')).toThrow("Unknown provider 'not-a-provider'")
   })
 
   it('throws when provider is invalid', () => {

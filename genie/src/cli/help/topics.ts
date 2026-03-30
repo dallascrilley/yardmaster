@@ -84,10 +84,14 @@ export const reviewHelp = [
   '  --base <ref>',
   '  --json-schema',
   '',
+  'Environment:',
+  '  GENIE_REVIEW_TIMEOUT_MS — provider execution timeout per review agent (default 300000 ms, max 900000).',
+  '',
   'Recovery tips:',
   '  Choose exactly one target: `--all` or `--agent <id>`.',
   '  Choose one diff source: default git diff, `--staged`, `--base <ref>`, or `--diff-file <path>`.',
   '  Run `git status` first if review says there are no changes or git diff resolution failed.',
+  '  If a provider times out on large diffs, raise GENIE_REVIEW_TIMEOUT_MS and retry.',
 ] as const
 
 export const commitHelp = [

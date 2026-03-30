@@ -59,7 +59,8 @@ export async function cli(argv: string[] = process.argv.slice(2)): Promise<void>
   } catch (error) {
     const code = getExitCode(error)
     const message = formatCliError(error)
-    const wantsJson = argv.includes('--json') && !argv.includes('--plain')
+    const optionArgs = argv.includes('--') ? argv.slice(0, argv.indexOf('--')) : argv
+    const wantsJson = optionArgs.includes('--json') && !optionArgs.includes('--plain')
 
     if (wantsJson) {
       writeJson(toCliJsonErrorEnvelope(code, { code: String(code), message }))

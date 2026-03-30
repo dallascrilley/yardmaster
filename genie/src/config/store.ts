@@ -6,6 +6,20 @@ import { homedir } from 'node:os'
 import { type CliOutputMode, providerIds, type ProviderId } from '../types.js'
 import { genieConfigSchema, type GenieConfig, defaultConfig, mergeConfig } from './schema.js'
 
+function recoverValidConfigSections(parsed: Record<string, unknown>): Partial<GenieConfig> {
+  const updates: Partial<GenieConfig> = {}
+  const shape = genieConfigSchema.shape
+  for (const key of Object.keys(shape) as Array<keyof typeof shape>) {
+    if (!(key in parsed)) continue
+    const fieldSchema = shape[key]
+    const result = fieldSchema.safeParse(parsed[key])
+    if (result.success) {
+      Object.assign(updates, { [key]: result.data } as Partial<GenieConfig>)
+    }
+  }
+  return updates
+}
+
 export type ConfigStorageOptions = {
   home?: string
   cwd?: string
@@ -44,13 +58,21 @@ function safeParseConfig(raw: string): Partial<GenieConfig> {
     process.stderr.write('Warning: config file does not contain a JSON object\n')
     return {}
   }
-  try {
-    return genieConfigSchema.parse(parsed)
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error)
-    process.stderr.write(`Warning: config file failed validation; using defaults instead. ${detail}\n`)
-    return {}
+  const obj = parsed as Record<string, unknown>
+  const full = genieConfigSchema.safeParse(obj)
+  if (full.success) {
+    return full.data
   }
+
+  const partial = recoverValidConfigSections(obj)
+  const detail = full.error.message
+  if (Object.keys(partial).length > 0) {
+    process.stderr.write(`Warning: config file failed full validation; merged valid sections only. ${detail}\n`)
+    return partial
+  }
+
+  process.stderr.write(`Warning: config file failed validation; using defaults instead. ${detail}\n`)
+  return {}
 }
 
 export function resolveUserConfigPath(options?: ConfigStorageOptions): string {

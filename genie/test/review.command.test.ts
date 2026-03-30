@@ -13,6 +13,7 @@ import {
   resolveReviewDiffSource,
   resolveReviewTargets,
   getReviewJsonSchema,
+  resolveReviewTimeoutMs,
   toReviewJsonEnvelope,
   type ReviewExecutionResult,
 } from '../src/review/command.js'
@@ -140,7 +141,7 @@ describe('review command', () => {
 
       expect(result.agents).toEqual(['codex', 'claude', 'gemini', 'cursor'])
       expect(seenProviders).toEqual(['codex', 'claude', 'gemini', 'cursor-agent'])
-      expect(seenTimeouts).toEqual([120000, 120000, 120000, 120000])
+      expect(seenTimeouts).toEqual([300000, 300000, 300000, 300000])
       expect(seenWorkspaces).toHaveLength(4)
       expect(new Set(seenWorkspaces).size).toBe(1)
       expect(result.cwd.length).toBeGreaterThan(0)
@@ -539,5 +540,23 @@ describe('review command', () => {
     expect(schema.title).toBe('Genie Review Result')
     expect(schema.type).toBe('object')
     expect((schema.properties as Record<string, unknown>).kind).toEqual({ const: 'review_result' })
+  })
+})
+
+describe('resolveReviewTimeoutMs', () => {
+  it('defaults to five minutes when unset', () => {
+    expect(resolveReviewTimeoutMs({})).toBe(300_000)
+  })
+
+  it('honors GENIE_REVIEW_TIMEOUT_MS', () => {
+    expect(resolveReviewTimeoutMs({ GENIE_REVIEW_TIMEOUT_MS: '60000' })).toBe(60_000)
+  })
+
+  it('caps at nine minutes', () => {
+    expect(resolveReviewTimeoutMs({ GENIE_REVIEW_TIMEOUT_MS: '99999999' })).toBe(900_000)
+  })
+
+  it('ignores non-numeric values', () => {
+    expect(resolveReviewTimeoutMs({ GENIE_REVIEW_TIMEOUT_MS: 'nope' })).toBe(300_000)
   })
 })

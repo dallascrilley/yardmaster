@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 import { type GenieResponseEnvelope, type GenieRunResult } from '../types.js'
 import { defaultConfig } from '../config/schema.js'
 import { normalizeRequest, type NormalizedPromptRequest } from './normalize.js'
@@ -31,13 +29,13 @@ export function toErrorEnvelope(error: { code: string; message: string }, timing
 }
 
 export function isNormalizedPromptRequest(value: unknown): value is NormalizedPromptRequest {
+  if (value === null || typeof value !== 'object') {
+    return false
+  }
   try {
     normalizeRequest(value as RunRequestInput, defaultConfig)
     return true
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return false
-    }
-    throw error
+  } catch {
+    return false
   }
 }
