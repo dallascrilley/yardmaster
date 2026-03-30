@@ -1,8 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import type { PersistedSession, ProviderId } from './types.js'
+import type { PersistedSession } from './types.js'
 
 const DEFAULT_SESSIONS_FILE = join(homedir(), '.config', 'genie', 'sessions.json')
 
@@ -40,7 +39,7 @@ function isExpired(session: PersistedSession): boolean {
 }
 
 function cleanupExpired(store: SessionStore): SessionStore {
-  const cleaned: SessionStore = {}
+  const cleaned: Record<string, PersistedSession> = {}
   for (const [name, session] of Object.entries(store)) {
     if (!isExpired(session)) {
       cleaned[name] = session

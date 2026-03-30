@@ -71,6 +71,7 @@ export async function handleRunCommand(parsed: Extract<ParsedCommand, { kind: 'r
       timeoutMs: effectiveOptions.timeoutMs,
       noFallback: effectiveOptions.noFallback,
       outputFormat: runtime.outputMode,
+      session: effectiveOptions.session,
     })
 
     if (runtime.ttyAwareMode === 'json') {

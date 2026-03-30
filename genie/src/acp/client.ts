@@ -50,7 +50,7 @@ export class AcpClient {
 
   /**
    * Resume a session by ID. Tries session/load first, falls back to session/new.
-   * Must be called after spawnAndInit but before sendPrompt.
+   * Must be called before prompt().
    */
   async resume(sessionId: string): Promise<boolean> {
     if (!this.connection) {
@@ -71,6 +71,14 @@ export class AcpClient {
     // Fallback: create new session
     await this.createSession()
     return false
+  }
+
+  /**
+   * Send a prompt to the active session.
+   * Must be called after run() or resume() has established a session.
+   */
+  async prompt(text: string): Promise<string> {
+    return this.sendPrompt(text)
   }
 
   private async spawnAndInit(): Promise<void> {

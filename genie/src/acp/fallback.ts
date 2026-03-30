@@ -14,15 +14,17 @@ export type AcpFallbackParams = {
   timeoutMs: number
   onEvent: (event: StreamEvent) => void
   mcpServers?: unknown[]
+  existingSessionId?: string
 }
 
 export type AcpFallbackResult = {
   provider: ProviderId
   stopReason: string
+  sessionId?: string
 }
 
 export async function executeAcpFallback(params: AcpFallbackParams): Promise<AcpFallbackResult> {
-  const { slots, prompt, workspace, trustMode, timeoutMs, onEvent, mcpServers } = params
+  const { slots, prompt, workspace, trustMode, timeoutMs, onEvent, mcpServers, existingSessionId } = params
   const failures: ProviderFailureReason[] = []
 
   for (const slot of slots) {
@@ -53,8 +55,24 @@ export async function executeAcpFallback(params: AcpFallbackParams): Promise<Acp
     const client = new AcpClient(entry, options)
 
     try {
-      const stopReason = await client.run(prompt)
-      return { provider: slot.provider, stopReason }
+      let stopReason: string
+      
+      if (existingSessionId) {
+        // Try to resume existing session
+        const resumed = await client.resume(existingSessionId)
+        if (resumed) {
+          // Session resumed successfully - send prompt
+          stopReason = await client.prompt(prompt)
+          client.close()
+        } else {
+          // Resume failed, create new session with full lifecycle
+          stopReason = await client.run(prompt)
+        }
+      } else {
+        stopReason = await client.run(prompt)
+      }
+      
+      return { provider: slot.provider, stopReason, sessionId: client.getSessionId() ?? undefined }
     } catch (err) {
       const isAuthError = err instanceof AcpProtocolError && err.code === -32000
       const stage = isAuthError ? 'auth' : 'execution'
