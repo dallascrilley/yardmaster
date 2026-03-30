@@ -1,13 +1,12 @@
 import { z } from 'zod'
 
 import type { GenieConfig } from '../config/schema.js'
-import { PROVIDER_ALIAS_REGISTRY } from './provider-aliases.js'
+import { isConfigProviderId, resolveConfigProviderToken } from './provider-aliases.js'
 import {
   modeIds,
   providerIds,
   type CliOutputMode,
   type NormalizedRequest,
-  type ProviderAliasId,
   type ProviderId,
 } from '../types.js'
 
@@ -58,13 +57,12 @@ export function normalizeRequest(
   let effectiveProvider = input.provider?.trim().toLowerCase()
   let effectiveModel = input.model?.trim() || undefined
 
-  if (effectiveProvider && effectiveProvider in PROVIDER_ALIAS_REGISTRY) {
-    const def = PROVIDER_ALIAS_REGISTRY[effectiveProvider as ProviderAliasId]
-    const envModel = def.modelEnvVar ? process.env[def.modelEnvVar]?.trim() : undefined
-    if (!effectiveModel && envModel) {
-      effectiveModel = envModel
+  if (effectiveProvider && isConfigProviderId(effectiveProvider)) {
+    const { provider, aliasModel } = resolveConfigProviderToken(effectiveProvider)
+    if (!effectiveModel && aliasModel) {
+      effectiveModel = aliasModel
     }
-    effectiveProvider = def.target
+    effectiveProvider = provider
   }
 
   return requestSchema.parse({

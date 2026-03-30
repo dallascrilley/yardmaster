@@ -1,7 +1,11 @@
 import type { GenieConfig } from '../config/schema.js'
 import { UsageError } from '../errors.js'
 import { type ProviderId } from '../types.js'
-import { isConfigProviderId, resolveConfigProviderToken } from './provider-aliases.js'
+import {
+  isConfigProviderId,
+  isProviderAliasToken,
+  resolveConfigProviderToken,
+} from './provider-aliases.js'
 
 export type ProviderExecutionSlot = {
   provider: ProviderId
@@ -13,17 +17,37 @@ function withoutSameCanonicalProvider(fallbackTokens: string[], skip: ProviderId
 }
 
 function tokensToSlots(tokens: string[]): ProviderExecutionSlot[] {
-  const seen = new Set<ProviderId>()
-  const slots: ProviderExecutionSlot[] = []
-  for (const token of tokens) {
+  type Entry = { index: number; provider: ProviderId; aliasModel?: string; fromAlias: boolean }
+  const entries: Entry[] = tokens.map((token, index) => {
     const { provider, aliasModel } = resolveConfigProviderToken(token)
-    if (seen.has(provider)) {
-      continue
+    return {
+      index,
+      provider,
+      aliasModel,
+      fromAlias: isProviderAliasToken(token),
     }
-    seen.add(provider)
-    slots.push({ provider, aliasModel })
+  })
+
+  const byProvider = new Map<ProviderId, Entry[]>()
+  for (const entry of entries) {
+    const list = byProvider.get(entry.provider) ?? []
+    list.push(entry)
+    byProvider.set(entry.provider, list)
   }
-  return slots
+
+  const ordered = [...byProvider.entries()]
+    .map(([provider, group]) => {
+      const minIndex = Math.min(...group.map((g) => g.index))
+      const aliasesInOrder = group.filter((g) => g.fromAlias).sort((a, b) => a.index - b.index)
+      const aliasModel =
+        aliasesInOrder.length > 0
+          ? aliasesInOrder.map((g) => g.aliasModel).find((m) => m !== undefined && m.length > 0)
+          : undefined
+      return { provider, aliasModel, minIndex }
+    })
+    .sort((a, b) => a.minIndex - b.minIndex)
+
+  return ordered.map(({ provider, aliasModel }) => ({ provider, aliasModel }))
 }
 
 export function resolveProviderExecutionPlan(

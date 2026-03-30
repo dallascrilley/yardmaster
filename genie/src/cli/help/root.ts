@@ -80,6 +80,6 @@ export function buildRootHelp(): string {
     '  genie help update',
     '  genie help completion',
     '',
-    `Providers: ${configProviderIds.join(', ')} (pi uses the Gemini CLI; set GENIE_PI_MODEL for its default model).`,
+    `Providers: ${configProviderIds.join(', ')} (pi replaces one CLI: set GENIE_PI_BACKEND, GENIE_PI_MODEL).`,
   ].join('\n')
 }
