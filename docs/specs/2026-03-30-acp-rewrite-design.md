@@ -51,7 +51,7 @@ genie CLI
 Tracked here so contributors can compare this spec to the tree on `main`:
 
 - **Prompt commands** (`run`, `design`, `commit`, `debug`): Implemented via `acp/run.ts`, `acp/client.ts`, `acp/fallback.ts`, and `acp/provider-registry.ts`. Named sessions use `acp/session-store.ts`. Streaming uses `output/stream-renderer.ts`.
-- **ACP registry entries**: **claude**, **codex**, and **gemini** only. **`cursor-agent`** remains a valid `ProviderId` and appears in doctor/review adapters; there is still **no** ACP launcher row for it (see § `cursor-agent` deprecation below).
+- **ACP registry entries**: **claude**, **codex**, **gemini** (`gemini --acp`), and **cursor-agent** (spawn **`agent acp`**, then `authenticate` with `cursor_login` per Cursor docs). Override Cursor binary with **`GENIE_CURSOR_ACP_BIN`** if `agent` is not on `PATH`.
 - **`review`**: **Not migrated** — still `review/execute.ts` and spawn-based provider adapters. Next large milestone is to align review with the ACP session model (parallel agents, error mapping, integration tests) or to amend this spec if the legacy path stays intentional.
 - **`execution/`**: No longer contains `run-request.ts` / `normalize.ts` / `preflight.ts` as top-level modules; remaining files support envelopes, provider order, aliases, and fallback helpers.
 - **`providers/`**: Still present for **doctor**, **review**, and shared adapter types — not fully deleted as in the original “What is deleted” list below (that section describes the target end-state; the bullets above describe current `main`).
@@ -170,14 +170,18 @@ const providers: Record<ProviderId, AcpProviderEntry> = {
 
 Model override is passed via `session/new` or `session/config` as a session parameter, eliminating per-provider flag translation.
 
-### `cursor-agent` deprecation
+### `cursor-agent` (ACP via Cursor CLI)
 
-`cursor-agent` is omitted from the ACP registry. To avoid breaking existing configs:
+**Current `main`:** `cursor-agent` maps to spawning the Cursor CLI as **`agent acp`** (see Cursor ACP docs), with `authenticate` using **`cursor_login`**. Set **`GENIE_CURSOR_ACP_BIN`** if the `agent` binary is not on `PATH` (common install: `~/.local/bin/agent`).
 
-- `ProviderId` union keeps `cursor-agent` as a valid value.
-- Config loading emits a warning if `cursor-agent` appears in `provider.default` or `provider.fallbackOrder`: `"cursor-agent does not have an ACP adapter yet — skipping"`.
-- The fallback chain skips it gracefully (same as today's "not available" check).
-- When/if an ACP adapter ships, add a registry entry and remove the warning.
+Older design text below assumed no first-party ACP row; that is **obsolete** for the integrated registry.
+
+<details>
+<summary>Historical note (pre–`agent acp` integration)</summary>
+
+- `ProviderId` kept `cursor-agent`; config could warn or skip when no launcher existed.
+
+</details>
 
 ### `npx` spawn strategy
 

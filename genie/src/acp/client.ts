@@ -158,6 +158,11 @@ export class AcpClient {
         `ACP initialization failed for ${this.entry.id}: no response from agent${stderrSuffix}`,
       )
     }
+
+    const authMethodId = this.entry.acpAuthenticateMethodId
+    if (authMethodId) {
+      await this.connection.authenticate({ methodId: authMethodId })
+    }
   }
 
   private async createSession(model?: string): Promise<void> {

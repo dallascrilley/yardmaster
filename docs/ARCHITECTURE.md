@@ -50,7 +50,7 @@ genie/src/
 │   ├── client.ts            # Spawn agent, initialize, session, prompt, close
 │   ├── run.ts               # runViaAcp() entry from dispatch
 │   ├── command-runner.ts    # Shared ACP invocation helper for non-run flows
-│   ├── provider-registry.ts # claude / codex / gemini ACP launchers (cursor-agent ID exists in types; no ACP slot yet)
+│   ├── provider-registry.ts # claude / codex / gemini (--acp) / cursor-agent (agent acp + cursor_login)
 │   ├── session-store.ts     # Named session persistence
 │   ├── fallback.ts          # Provider order + ACP retries
 │   ├── host-handlers.ts     # Filesystem, terminal, permission delegation

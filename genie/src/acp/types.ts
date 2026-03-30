@@ -7,6 +7,8 @@ export type AcpProviderEntry = {
   readonly args?: readonly string[]
   readonly resolveEnv?: () => Record<string, string>
   readonly authCheck?: () => Promise<boolean>
+  /** When set, `authenticate` is called after `initialize` (e.g. Cursor `cursor_login`). */
+  readonly acpAuthenticateMethodId?: string
 }
 
 export type SessionHandle = {

@@ -12,6 +12,8 @@ Guidelines for developing and extending genie-cli.
 - Node.js 18+
 - Bun (for dependency management and running)
 - At least one provider CLI installed (claude, codex, gemini, or cursor-agent)
+- For **Cursor** ACP (`genie run` / `genie review` with `cursor-agent`): the **`agent`** binary from the Cursor CLI must be on `PATH`, or set **`GENIE_CURSOR_ACP_BIN`** to its full path (often `~/.local/bin/agent`). Run `agent login` (or use `CURSOR_API_KEY` / docs) so `authenticate` can succeed.
+- For **Gemini** ACP, the installed **`gemini`** CLI must support **`--acp`** (current documented mode).
 
 ## Setup
 
