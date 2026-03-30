@@ -1,0 +1,163 @@
+# Troubleshooting
+
+Operational fixes for common `genie` failures in local and CI environments.
+
+## Quick triage
+
+Run a provider health check first:
+
+```bash
+genie providers doctor
+genie providers list --json
+```
+
+Use targeted diagnostics when needed:
+
+```bash
+genie providers doctor --provider codex --json
+genie providers doctor --provider cursor-agent --json
+```
+
+## Install and PATH issues
+
+### `genie: command not found` after install
+
+Build and link again from `genie/`:
+
+```bash
+cd genie
+bun install
+bun run build
+bun link
+```
+
+If the command is still missing, add Bun's global bin directory to your `PATH`:
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+```
+
+Verify:
+
+```bash
+genie --help
+```
+
+### Provider binary missing on PATH
+
+If doctor reports a provider as unavailable, install that provider CLI and confirm it resolves on `PATH`.
+
+```bash
+which claude
+which codex
+which gemini
+which cursor-agent
+```
+
+Then rerun:
+
+```bash
+genie providers doctor
+```
+
+## Provider authentication failures
+
+### Codex auth failures
+
+Common signals:
+- `codex authentication not configured`
+- `codex authentication check failed`
+
+Recovery:
+
+```bash
+codex auth status
+codex login
+```
+
+`genie` also checks `~/.codex/auth.json`. If your Codex CLI does not support `auth status`, ensure a valid token exists there.
+
+### Gemini auth failures
+
+Common signal:
+- `gemini authentication not configured`
+
+Recovery:
+
+```bash
+export GEMINI_API_KEY="<your-key>"
+genie providers doctor --provider gemini --json
+```
+
+### Claude auth failures
+
+If Claude provider checks fail, authenticate with the Claude CLI and retry doctor:
+
+```bash
+claude auth status
+genie providers doctor --provider claude --json
+```
+
+## Cursor Agent workspace trust and auth status timeouts
+
+Common signals:
+- `cursor-agent authentication check timed out`
+- `cursor-agent authentication check failed`
+
+Recovery sequence:
+1. Open Cursor desktop app.
+2. Confirm you are signed in.
+3. Open the same repository/workspace and approve trust prompts.
+4. Retry:
+
+```bash
+genie providers doctor --provider cursor-agent --json
+```
+
+If checks still time out, restart Cursor and run the doctor command again.
+
+## Timeout handling and slow providers
+
+`genie` returns exit code `124` when provider execution or checks time out.
+
+Use a higher timeout for slow responses:
+
+```bash
+genie run --timeout-ms 120000 "<prompt>"
+```
+
+Isolate one provider while debugging fallback chains:
+
+```bash
+genie run --provider codex --no-fallback --timeout-ms 120000 "<prompt>"
+```
+
+## JSON vs plain output confusion
+
+Use global output flags based on the consumer:
+- `--json` for machine-readable envelopes
+- `--plain` for response text only
+
+Examples:
+
+```bash
+genie run --json "summarize this repo"
+genie run --plain "summarize this repo"
+```
+
+Important behavior:
+- `genie commit` rejects `--json`.
+- `genie review --json-schema` cannot be combined with review target flags.
+- `stdout` is payload output; diagnostics and hints are printed to `stderr`.
+
+## Recovery commands reference
+
+```bash
+genie help
+genie help run
+genie help review
+genie providers doctor
+genie providers list --json
+```
+
+If all providers fail, repair one provider end-to-end first, then rerun with `--provider <id> --no-fallback` to confirm a stable baseline.
