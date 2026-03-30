@@ -54,6 +54,7 @@ describe('cli machine-readable json integration', () => {
         ...process.env,
         HOME: homeDir,
         PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`,
+        GENIE_USE_ACP: '0',
       },
     })
 

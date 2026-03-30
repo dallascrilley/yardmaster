@@ -60,6 +60,7 @@ describe('cli input integration', () => {
           ...process.env,
           HOME: homeDir,
           PATH: `${binDir}:${process.env.PATH ?? ''}`,
+          GENIE_USE_ACP: '0',
         },
       },
     )
@@ -86,6 +87,7 @@ describe('cli input integration', () => {
           ...process.env,
           HOME: homeDir,
           PATH: `${binDir}:${process.env.PATH ?? ''}`,
+          GENIE_USE_ACP: '0',
         },
       },
     )
