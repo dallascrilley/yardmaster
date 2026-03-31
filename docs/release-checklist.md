@@ -63,7 +63,7 @@ set -e
 
 - [ ] `genie providers list` shows all supported providers:
   - `claude`, `codex`, `cursor-agent`, `gemini`
-- [ ] `genie providers doctor` reports availability/auth/latency details plus actionable hints when checks fail (for `cursor-agent`, hints distinguish workspace trust vs sign-in when `auth status` stderr is informative).
+- [ ] `genie providers doctor` reports availability/auth/latency details plus actionable hints when checks fail (for `cursor-agent`, hints distinguish workspace trust vs sign-in when `agent status` stderr is informative).
 - [ ] `genie providers doctor --provider <id>` works for each provider.
 - [ ] Doctor command does not hang and returns actionable hints on failure.
 - [ ] Release notes or checklist explicitly call out optional provider gates:
