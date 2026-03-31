@@ -81,12 +81,12 @@ genie-cli/
 ├── genie/                  # Main package
 │   ├── src/                # TypeScript source
 │   │   ├── cli/            # Parsing and dispatch
-│   │   ├── acp/            # ACP client (run, design, commit, debug)
+│   │   ├── acp/            # ACP helpers for run/design/commit/debug/review
 │   │   ├── output/         # Stream rendering for ACP
-│   │   ├── providers/      # Adapters for doctor, review, legacy spawn surfaces
+│   │   ├── providers/      # Provider doctor checks and compatibility exports
 │   │   ├── execution/      # Envelopes, provider order, fallback helpers
 │   │   ├── config/         # Configuration
-│   │   ├── review/         # Code review (spawn-based multi-agent path)
+│   │   ├── review/         # Review orchestration over ACP providers
 │   │   ├── commit/         # Commit message generation (invoked via ACP from CLI)
 │   │   ├── debug/          # Error diagnosis
 │   │   ├── design/         # Design feedback
@@ -102,14 +102,14 @@ genie-cli/
 
 ## Adding a new provider
 
-**Prompt commands (`run`, `design`, `commit`, `debug`)** go through ACP:
+**Prompt-driven providers** (`run`, `design`, `commit`, `debug`, and the provider-facing part of `review`) go through ACP:
 
-1. Add an `AcpProviderEntry` in `genie/src/acp/provider-registry.ts` (launcher binary or `npx` package, optional `resolveEnv`).
+1. Add an `AcpProviderEntry` in `genie/src/acp/provider-registry.ts` (launcher binary or `npx` package, optional `resolveEnv` / `authCheck`).
 2. Extend `ProviderId` and any defaults in `genie/src/types.ts` and `genie/src/config/schema.ts` if the id is new.
-3. Keep **`genie providers doctor`** accurate: add a matching `ProviderAdapter` in `genie/src/providers/<name>.ts`, register it in `genie/src/providers/registry.ts`, and add `genie/src/providers/mapped-args/<name>.ts` if that CLI needs custom flags for **review** or other spawn paths.
+3. Keep **`genie providers doctor`** accurate by updating `genie/src/providers/doctor-helpers.ts` / `default-checks.ts` with the CLI availability and auth checks users need for that provider.
 4. Add help text in `genie/src/cli/help/topics.ts` and update `genie/src/cli/completion.ts`.
 
-If the provider is **review-only** or has no ACP agent yet, you can start with steps 3–4 only and omit the `acp/` entry until an ACP launcher exists (see `docs/specs/2026-03-30-acp-rewrite-design.md` § cursor-agent).
+If a provider has an ACP launcher but no live doctor probe yet, land the ACP entry first and document the missing doctor coverage explicitly in the same change.
 
 ## Adding a new command
 

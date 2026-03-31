@@ -14,14 +14,16 @@
        ┌───────┴────────┐
        │                │
 ┌──────▼──────┐  ┌──────▼──────────────────────────────┐
-│  ACP path   │  │  Legacy / auxiliary paths            │
-│  (run,      │  │  review → spawn + parse              │
-│  design,    │  │  providers doctor → registry +       │
-│  commit,    │  │  availability checks                 │
-│  debug)     │  │                                      │
-│  acp/run →  │  │  execution/: envelopes, fallback     │
-│  client →   │  │  helpers still used where needed     │
-│  registry   │  │                                      │
+│  ACP path   │  │  Provider diagnostics / compat      │
+│  (run,      │  │  shims                              │
+│  design,    │  │  providers doctor → default-checks  │
+│  commit,    │  │  + doctor-helpers                   │
+│  debug,     │  │  providers/registry.ts keeps        │
+│  review)    │  │  compatibility export names only    │
+│  acp/run +  │  │                                      │
+│  acp/       │  │  execution/: envelopes, aliases,    │
+│  command-   │  │  persistence, fallback helpers      │
+│  runner     │  │                                      │
 └──────┬──────┘  └──────────────┬──────────────────────┘
        │                        │
        └──────────┬─────────────┘
@@ -34,7 +36,7 @@
 └─────────────────────────────────────────────────────┘
 ```
 
-Prompt commands use **ACP** (`acp/client.ts`, `acp/provider-registry.ts`, `acp/fallback.ts`) to spawn ACP agent processes and stream JSON-RPC. **`review`** still uses the older multi-agent path in `review/` with provider adapters. **`genie providers`** (list, doctor) still uses `providers/registry.ts` and related doctor modules.
+Prompt commands and **`review`** use ACP helpers (`acp/client.ts`, `acp/run.ts`, `acp/command-runner.ts`, `acp/fallback.ts`) to spawn ACP agent processes and stream JSON-RPC. **`genie providers doctor`** still shells out to installed CLIs via `providers/default-checks.ts` and `providers/doctor-helpers.ts`. `providers/registry.ts` remains only as a compatibility export surface for older names, not as the canonical execution layer.
 
 ## Module map
 
@@ -42,15 +44,15 @@ Prompt commands use **ACP** (`acp/client.ts`, `acp/provider-registry.ts`, `acp/f
 genie/src/
 ├── index.ts                 # Entry point — delegates to cli()
 ├── cli.ts                   # Top-level orchestrator: parse → dispatch → exit
-├── types.ts                 # Core types: ProviderId, RequestInput, NormalizedRequest, ProviderAdapter
+├── types.ts                 # Core types: ProviderId, config-facing provider tokens, request/output shapes
 ├── errors.ts                # Error hierarchy: UsageError, RuntimeProviderError, AuthConfigurationError, TimeoutError, AggregatedProviderError, AcpProtocolError
 ├── error-format.ts          # User-facing error formatting with next-step suggestions
 │
-├── acp/                     # ACP client: prompt commands (run, design, commit, debug)
+├── acp/                     # ACP execution helpers for run/design/commit/debug/review
 │   ├── client.ts            # Spawn agent, initialize, session, prompt, close
 │   ├── run.ts               # runViaAcp() entry from dispatch
 │   ├── command-runner.ts    # Shared ACP invocation helper for non-run flows
-│   ├── provider-registry.ts # claude / codex / gemini (--acp) / cursor-agent (agent acp + cursor_login)
+│   ├── provider-registry.ts # ACP launcher metadata for claude / codex / gemini / cursor-agent
 │   ├── session-store.ts     # Named session persistence
 │   ├── fallback.ts          # Provider order + ACP retries
 │   ├── host-handlers.ts     # Filesystem, terminal, permission delegation
@@ -87,30 +89,19 @@ genie/src/
 │       └── topics.ts        # Per-command help text arrays
 │
 ├── providers/
-│   ├── registry.ts          # providerAdapters array — all registered adapters
-│   ├── base.ts              # createProviderAdapter() factory with shared logic
-│   ├── command-runner.ts    # spawn-based command execution with timeout
-│   ├── claude.ts            # Claude Code CLI adapter
-│   ├── codex.ts             # Codex CLI adapter
-│   ├── cursor-agent.ts      # Cursor Agent CLI adapter
-│   ├── gemini.ts            # Gemini CLI adapter
 │   ├── doctor.ts            # Provider health check (doctor) command
+│   ├── doctor-helpers.ts    # Doctor target resolution + auth hints
 │   ├── doctor-types.ts      # Doctor result types
-│   ├── doctor-helpers.ts    # Doctor utility functions
 │   ├── default-checks.ts    # Default availability/auth check implementations
-│   ├── codex-auth.ts        # Codex-specific auth detection
-│   └── mapped-args/         # Provider-specific argument mapping
-│       ├── shared.ts        # Shared arg mapping helpers
-│       ├── claude.ts        # Claude flag mapping
-│       ├── codex.ts         # Codex flag mapping
-│       ├── cursor.ts        # Cursor flag mapping
-│       └── gemini.ts        # Gemini flag mapping
+│   ├── registry.ts          # Compatibility re-exports for older provider-registry imports
+│   ├── base.ts              # Shared command runner used by doctor checks
+│   └── codex-auth.ts        # Codex-specific auth detection
 │
 ├── execution/
 │   ├── request-schema.ts    # Zod schema for request validation (shared)
-│   ├── fallback.ts          # Fallback helpers used outside the old run-request path
+│   ├── fallback.ts          # Fallback helpers used outside the ACP prompt path
 │   ├── fallback-helpers.ts  # Fallback utility functions
-│   ├── provider-order.ts    # resolveProviderOrder() — config-aware ordering
+│   ├── provider-order.ts    # resolveProviderOrder() / resolveProviderExecutionPlan()
 │   ├── provider-aliases.ts  # Provider alias resolution (e.g. pi → backend)
 │   ├── envelopes.ts         # Response envelope construction
 │   └── persist.ts           # Result persistence utilities
@@ -179,11 +170,11 @@ genie/src/
    │  Determine provider attempt sequence from config + explicit flag
    │  → ProviderId[] (e.g. ['codex', 'claude', 'gemini', 'cursor-agent'])
    │
-7. ACP execution (prompt commands)
+7. ACP execution
    │  runViaAcp() / runAcpCommand()
-   │  ├── Spawn ACP agent from provider-registry entry (or skip slot if no ACP adapter)
+   │  ├── Resolve ACP launcher metadata from provider-registry
    │  ├── initialize → session → prompt (stream) → close
-   │  └── Map protocol errors to error hierarchy
+   │  └── Map protocol/auth failures to the shared error hierarchy
    │
 8. Output
    ├── --json → GenieResponseEnvelope (structured)
@@ -191,33 +182,18 @@ genie/src/
    └── default → formatted response
 ```
 
-## Provider adapter interface (doctor, review, non-ACP surfaces)
+## Provider diagnostics
 
-Each provider implements `ProviderAdapter` from `types.ts` for paths that still spawn CLIs directly (notably **review** and **providers doctor**):
+`providers/` is no longer the main execution layer for prompt commands or review. It remains for provider discovery, `genie providers doctor`, and compatibility exports consumed by older imports/tests.
 
-```typescript
-interface ProviderAdapter {
-  id: ProviderId
-  isAvailable(runner?: CommandRunner): Promise<ProviderCheckResult>
-  isAuthenticated(runner?: CommandRunner): Promise<ProviderCheckResult>
-  buildInvocation(request: NormalizedRequest): ProviderInvocation
-  execute(request: NormalizedRequest, runner?: CommandRunner): Promise<ProviderParseResult>
-  parse(result: CommandResult): ProviderParseResult
-}
-```
+`genie providers doctor` shells out to installed CLIs and reports availability, authentication, latency, and actionable hints. The main pieces are:
 
-Providers are created via `createProviderAdapter()` in `base.ts`, which wires shared logic (spawn, timeout, result parsing) and accepts optional custom availability/auth checks.
+- `providers/doctor.ts` — doctor command entrypoint
+- `providers/doctor-helpers.ts` — target resolution, Cursor-specific hinting, auth/availability orchestration
+- `providers/default-checks.ts` — shared availability/auth probes (`--version`, `auth status`, `agent status`)
+- `providers/registry.ts` — compatibility re-exports of ACP provider metadata for older callers/tests
 
-### Registered providers (adapter registry)
-
-ACP-backed prompt commands use **`acp/provider-registry.ts`** (currently **claude**, **codex**, **gemini**). The table below describes the **spawn-based adapters** still registered in `providers/registry.ts` for doctor/review and related checks:
-
-| Provider | Binary | Auth method | Key flags |
-|----------|--------|-------------|-----------|
-| `claude` | `claude` | Claude Code auth | `--model`, `--permission-mode`, `--print`, `--add-dir`, `--mcp-config` |
-| `codex` | `codex` | `codex auth` / `~/.codex/auth.json` | `exec`, `--model`, `--sandbox` |
-| `cursor-agent` | `agent` (`GENIE_CURSOR_ACP_BIN`) | `agent status` (same CLI as `agent acp`) | Workspace trust / `agent login` |
-| `gemini` | `gemini` | `GEMINI_API_KEY` env var | `--extensions`, `-p` |
+ACP launcher metadata lives in `acp/provider-registry.ts`, which currently defines `claude`, `codex`, `gemini`, and `cursor-agent` launchers plus env/auth requirements for those ACP agents.
 
 ## Config system
 
@@ -262,7 +238,7 @@ All errors are formatted with context-specific "Next steps" suggestions via `for
 
 ## Review system
 
-The review system runs code review through one or more AI providers in parallel:
+The review system resolves a git diff, maps requested review agents to ACP providers, and runs those ACP prompts in parallel:
 
 ```
 genie review [--all | --agent <id>] [--diff-file | --staged | --base <ref>]
@@ -281,7 +257,7 @@ genie review [--all | --agent <id>] [--diff-file | --staged | --base <ref>]
                      │
                      ▼
               Execute in parallel
-              (each agent → provider adapter → spawn CLI → parse; not the ACP client path)
+              (each agent → runAcpCommand() → ACP provider)
                      │
                      ▼
               ReviewExecutionResult
@@ -295,17 +271,15 @@ Review agents: `codex`, `claude`, `gemini`, `cursor`
 
 | Pattern | Where | Purpose |
 |---------|-------|---------|
-| Adapter | `ProviderAdapter` interface + 4 implementations | Uniform provider API |
-| Factory | `createProviderAdapter()` | Shared adapter construction |
+| Registry | `acp/provider-registry.ts` | Stable ACP launcher metadata per provider |
 | Discriminated Union | `ParsedCommand` variants | Type-safe command dispatch |
 | Chain of Responsibility | Config loading from 5 sources | Precedence-based merging |
-| Strategy | Provider selection at runtime | Swappable AI backends |
-| Fallback/Retry | `acp/fallback.ts` + `execution/fallback.ts` | ACP and legacy retry helpers |
+| Strategy | Provider selection at runtime | Swappable ACP backends |
+| Fallback/Retry | `acp/fallback.ts` + `execution/fallback.ts` | ACP and helper retry behavior |
 
 ## Extension points
 
-1. **New ACP-backed provider** (prompt commands): Add an entry to `acp/provider-registry.ts`, extend `ProviderId` / config as needed, and ensure `providers/registry.ts` doctor adapter stays aligned for `genie providers doctor`.
-2. **New spawn-only surface** (e.g. review): Create adapter in `providers/`, add to `providers/registry.ts`, add `providers/mapped-args/` if the CLI needs custom flags
-3. **New command**: Add parser in `cli/parse/`, dispatcher in `cli/dispatch/`, help in `cli/help/topics.ts`
-4. **Config option**: Extend Zod schema in `config/schema.ts`, add loading in `config/store.ts`
-5. **New error type**: Create in `errors.ts`, add exit code mapping, add formatting in `error-format.ts`
+1. **New ACP-backed provider**: Add an entry to `acp/provider-registry.ts`, extend `ProviderId` / config as needed, and keep `providers/doctor.ts` / `doctor-helpers.ts` able to diagnose the CLI the provider depends on.
+2. **New command**: Add parser in `cli/parse/`, dispatcher in `cli/dispatch/`, help in `cli/help/topics.ts`. Reuse `runViaAcp()` or `runAcpCommand()` if the command is prompt-driven.
+3. **Config option**: Extend Zod schema in `config/schema.ts`, add loading in `config/store.ts`.
+4. **New error type**: Create in `errors.ts`, add exit code mapping, add formatting in `error-format.ts`.
