@@ -53,6 +53,34 @@ export function createDefaultAvailabilityCheck(binary: string, invocation?: Prov
   }
 }
 
+/** Auth probe for the Cursor CLI (`agent status`), aligned with ACP (`agent acp`). */
+export function createCursorCliAuthCheck(command: string) {
+  return async (runner: CommandRunner): Promise<ProviderCheckResult> => {
+    const result = await runner({
+      command,
+      args: ['status'],
+      timeoutMs: 4_000,
+    })
+
+    if (result.code === 0) {
+      return {
+        ok: true,
+        details: (result.stdout || result.stderr).trim() || undefined,
+      }
+    }
+
+    return {
+      ok: false,
+      reason: `Cursor CLI (${command}) authentication check failed`,
+      details: result.stderr || result.stdout || undefined,
+      hint: result.stderr || result.stdout || 'Run `agent login` or set CURSOR_API_KEY and retry.',
+      authFailure: true,
+      timeout: isLikelyTimeout(result),
+      code: result.code,
+    }
+  }
+}
+
 export function createDefaultAuthCheck(id: string, binary: string) {
   return async (runner: CommandRunner): Promise<ProviderCheckResult> => {
     const result = await runner({

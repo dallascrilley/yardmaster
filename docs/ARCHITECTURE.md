@@ -216,7 +216,7 @@ ACP-backed prompt commands use **`acp/provider-registry.ts`** (currently **claud
 |----------|--------|-------------|-----------|
 | `claude` | `claude` | Claude Code auth | `--model`, `--permission-mode`, `--print`, `--add-dir`, `--mcp-config` |
 | `codex` | `codex` | `codex auth` / `~/.codex/auth.json` | `exec`, `--model`, `--sandbox` |
-| `cursor-agent` | `cursor-agent` | `cursor-agent auth status` | Workspace trust required |
+| `cursor-agent` | `agent` (`GENIE_CURSOR_ACP_BIN`) | `agent status` (same CLI as `agent acp`) | Workspace trust / `agent login` |
 | `gemini` | `gemini` | `GEMINI_API_KEY` env var | `--extensions`, `-p` |
 
 ## Config system
