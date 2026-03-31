@@ -4,16 +4,17 @@ import { join } from 'node:path'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { checkProvider } from './support/provider-check.js'
-import { piSmokeBackends } from './support/pi-smoke.js'
 import { resolveGeniePackageRoot } from './support/genie-root.js'
 import { spawnWithTimeout } from './support/async-spawn.js'
+import { resolvePiSmokeBackends, resolveSmokeProviders } from './support/smoke-providers.js'
 
 const projectRoot = resolveGeniePackageRoot()
 const bunResult = spawnSync('which', ['bun'], { encoding: 'utf8' })
 const bunBinary = bunResult.status === 0 ? bunResult.stdout.trim() : 'bun'
 const sourceCliPath = join(projectRoot, 'src', 'bin', 'genie.ts')
 
-const providers = ['claude', 'codex', 'gemini', 'cursor-agent'] as const
+const providers = resolveSmokeProviders()
+const piSmokeBackends = resolvePiSmokeBackends(providers)
 
 function createStagedRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'genie-smoke-commit-'))

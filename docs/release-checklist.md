@@ -4,12 +4,15 @@ Use this checklist before cutting a release tag for `genie`.
 
 ## 1) Pre-release checks
 
+- [ ] `genie/CHANGELOG.md` **Unreleased** section is updated (or versioned) with user-visible behavior changes, especially ACP default path and review/doctor caveats.
 - [ ] Working tree is clean for release-intended files (`git status --short`); local logs, agent session dirs, and package-manager debug logs are covered by root `.gitignore` (see `*.log`, `.omc/`, `.omcodex/`, etc.).
 - [ ] Fresh worktree dependencies are installed before verification (`cd genie && bun install --frozen-lockfile`).
 - [ ] `README.md` usage, flags, exit codes, and examples match current CLI behavior.
 - [ ] `genie --help` and subcommand help output are reviewed for regressions.
 - [ ] Node/Bun runtime and lockfile are in expected state for reproducible builds.
 - [ ] If using `bun link`, confirm the installed binary is reachable via `PATH` or invoke it via `$HOME/.bun/bin/genie`.
+
+- [ ] GitHub Actions view shows only the intended active workflows (**CI** and **Smoke Tests**). Historical empty-name `startup_failure` rows from deleted workflow id `253562637` are noise; if new runs still appear there, treat that as repo-admin cleanup work before release sign-off.
 
 ## 2) Command contract checks
 
@@ -62,7 +65,7 @@ set -e
 
 - [ ] `genie providers list` shows all supported providers:
   - `claude`, `codex`, `cursor-agent`, `gemini`
-- [ ] `genie providers doctor` reports availability/auth/latency details plus actionable hints when checks fail (for `cursor-agent`, hints distinguish workspace trust vs sign-in when `auth status` stderr is informative).
+- [ ] `genie providers doctor` reports availability/auth/latency details plus actionable hints when checks fail (for `cursor-agent`, hints distinguish workspace trust vs sign-in when `agent status` stderr is informative).
 - [ ] `genie providers doctor --provider <id>` works for each provider.
 - [ ] Doctor command does not hang and returns actionable hints on failure.
 - [ ] Release notes or checklist explicitly call out optional provider gates:
