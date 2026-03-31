@@ -26,6 +26,7 @@ vi.mock('../src/acp/command-runner.js', () => ({
 
 describe('review command', () => {
   beforeEach(() => {
+    delete process.env.GENIE_REVIEW_TIMEOUT_MS
     vi.clearAllMocks()
   })
 

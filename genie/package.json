@@ -1,6 +1,6 @@
 {
   "name": "genie",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "bin": {
@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:critical-path": "vitest run test/cli.help.integration.test.ts test/cli.exit-codes.integration.test.ts test/cli.review-json.integration.test.ts test/cli.linked-binary.integration.test.ts",
     "test:smoke": "vitest run --config vitest.smoke.config.ts",
+    "test:smoke:preflight": "GENIE_SMOKE_PROVIDERS=gemini vitest run --config vitest.smoke.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "doctor:flake": "bun run scripts/quantify-doctor-flake.ts"
   },

@@ -1,14 +1,21 @@
+import { resolveCursorCliCommand } from '../acp/provider-registry.js'
 import { UsageError } from '../errors.js'
 import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
 import { type ProviderCheckResult, type ProviderId } from '../types.js'
 import { runCommand } from './base.js'
-import { createDefaultAvailabilityCheck, createDefaultAuthCheck } from './default-checks.js'
+import {
+  createCursorCliAuthCheck,
+  createDefaultAvailabilityCheck,
+  createDefaultAuthCheck,
+} from './default-checks.js'
 import type { ProviderDoctorStatus } from './doctor-types.js'
 
 type DoctorTarget = {
   id: ProviderId
   binary: string
   resolveAuthHint?: (result: Extract<ProviderCheckResult, { ok: false }>) => string | undefined
+  /** Use `agent --version` / `agent status` — same binary as ACP `agent acp`. */
+  cursorCliDoctor?: true
 }
 
 function resolveCursorAgentAuthHint(result: Extract<ProviderCheckResult, { ok: false }>): string | undefined {
@@ -18,11 +25,11 @@ function resolveCursorAgentAuthHint(result: Extract<ProviderCheckResult, { ok: f
     .toLowerCase()
 
   if (result.timeout || signal.includes('trust') || signal.includes('approve') || signal.includes('workspace')) {
-    return 'cursor-agent did not respond to `auth status`. Open Cursor and trust/approve this workspace for agent access before retrying.'
+    return 'The Cursor CLI (`agent`) did not respond to `agent status`. Open Cursor and trust/approve this workspace, or run `agent login` if you are not signed in.'
   }
 
   if (signal.includes('login') || signal.includes('log in') || signal.includes('sign in') || signal.includes('authenticated') || signal.includes('auth')) {
-    return 'cursor-agent is not authenticated. Open Cursor, sign in to your account, then retry.'
+    return 'The Cursor CLI is not authenticated. Run `agent login` or open Cursor and sign in, then retry.'
   }
 
   return result.hint
@@ -33,8 +40,9 @@ const doctorTargets: DoctorTarget[] = [
   { id: 'codex', binary: 'codex' },
   {
     id: 'cursor-agent',
-    binary: 'cursor-agent',
+    binary: 'agent',
     resolveAuthHint: resolveCursorAgentAuthHint,
+    cursorCliDoctor: true,
   },
   { id: 'gemini', binary: 'gemini' },
 ]
@@ -63,13 +71,16 @@ export function resolveDoctorTargets(provider?: string) {
 
 export async function doctorProviderStatus(entry: DoctorTarget): Promise<ProviderDoctorStatus> {
   const startedAt = Date.now()
-  const availability = await createDefaultAvailabilityCheck(entry.binary)(runCommand)
+  const command = entry.cursorCliDoctor ? resolveCursorCliCommand() : entry.binary
+  const availability = await createDefaultAvailabilityCheck(command)(runCommand)
   let authenticated = false
   let authDetails: string | undefined
   let hint = availability.ok ? undefined : availability.hint
 
   if (availability.ok) {
-    const auth = await createDefaultAuthCheck(entry.id, entry.binary)(runCommand)
+    const auth = entry.cursorCliDoctor
+      ? await createCursorCliAuthCheck(command)(runCommand)
+      : await createDefaultAuthCheck(entry.id, entry.binary)(runCommand)
     authenticated = auth.ok
     authDetails = auth.ok
       ? auth.details
