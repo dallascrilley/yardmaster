@@ -41,6 +41,22 @@ function resolveBinaryFromPath(binaryName: string): string | undefined {
   return undefined
 }
 
+/**
+ * Cursor CLI binary used for ACP (`agent acp`) and for `genie providers doctor` (`agent --version`, `agent status`).
+ * Override with **`GENIE_CURSOR_ACP_BIN`** when `agent` is not on `PATH`.
+ */
+export function resolveCursorCliCommand(): string {
+  const envOverride = process.env.GENIE_CURSOR_ACP_BIN?.trim()
+  if (envOverride) {
+    return envOverride
+  }
+  const binaryPath = resolveBinaryFromPath('agent')
+  if (binaryPath) {
+    return binaryPath
+  }
+  return 'agent'
+}
+
 function resolveAcpLauncher(options: {
   envVar: string
   binaryName: string
@@ -90,17 +106,8 @@ const registry: ReadonlyMap<ProviderId, AcpProviderEntry> = new Map([
   }],
   ['cursor-agent', {
     id: 'cursor-agent',
-    ...(() => {
-      const envOverride = process.env.GENIE_CURSOR_ACP_BIN?.trim()
-      if (envOverride) {
-        return { agentCommand: envOverride, args: ['acp'] as const }
-      }
-      const binaryPath = resolveBinaryFromPath('agent')
-      if (binaryPath) {
-        return { agentCommand: binaryPath, args: ['acp'] as const }
-      }
-      return { agentCommand: 'agent', args: ['acp'] as const }
-    })(),
+    agentCommand: resolveCursorCliCommand(),
+    args: ['acp'] as const,
     acpAuthenticateMethodId: 'cursor_login',
   }],
 ])

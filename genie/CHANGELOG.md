@@ -9,6 +9,7 @@ All notable changes to the `genie` package are documented here. This project use
 - **ACP Gemini**: spawn `gemini --acp` so JSON-RPC mode matches the documented Gemini CLI ACP contract (fixes hangs / broken review when the interactive CLI was invoked without `--acp`).
 - **ACP Cursor**: register `cursor-agent` as **`agent acp`** with post-`initialize` **`authenticate` (`cursor_login`)**; optional **`GENIE_CURSOR_ACP_BIN`** when `agent` is not on `PATH`.
 - **ACP errors**: normalize `@agentclientprotocol/sdk` JSON-RPC rejections (plain `{ code, message, data }` objects) so `genie review` and fallback diagnostics show real messages instead of `[object Object]`.
+- **`genie providers doctor` (`cursor-agent`)**: probe **`agent --version`** and **`agent status`** (same binary as **`agent acp`** / **`GENIE_CURSOR_ACP_BIN`**) instead of the obsolete `cursor-agent auth status` pair.
 
 ## [0.2.0] - 2026-03-30
 
