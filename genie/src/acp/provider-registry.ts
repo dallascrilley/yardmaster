@@ -6,39 +6,39 @@ import type { AcpProviderEntry } from './types.js'
 
 /** Environment variable names for model selection per provider. */
 export const modelEnvVars: Record<ProviderId, string> = {
-  claude: 'ANTHROPIC_MODEL',
-  codex: 'OPENAI_MODEL',
-  gemini: 'GEMINI_MODEL',
-  'cursor-agent': 'CURSOR_MODEL',
+   claude: 'ANTHROPIC_MODEL',
+   codex: 'OPENAI_MODEL',
+   gemini: 'GEMINI_MODEL',
+   'cursor-agent': 'CURSOR_MODEL',
 }
 
 type StableLauncher = {
-  agentCommand: string
-  args?: readonly string[]
+   agentCommand: string
+   args?: readonly string[]
 }
 
 function isExecutable(path: string): boolean {
-  try {
-    accessSync(path, fsConstants.X_OK)
-    return true
-  } catch {
-    return false
-  }
+   try {
+      accessSync(path, fsConstants.X_OK)
+      return true
+   } catch {
+      return false
+   }
 }
 
 function resolveBinaryFromPath(binaryName: string): string | undefined {
-  const searchPath = process.env.PATH
-  if (!searchPath) return undefined
+   const searchPath = process.env.PATH
+   if (!searchPath) return undefined
 
-  for (const dir of searchPath.split(delimiter)) {
-    if (!dir) continue
-    const candidate = join(dir, binaryName)
-    if (isExecutable(candidate)) {
-      return candidate
-    }
-  }
+   for (const dir of searchPath.split(delimiter)) {
+      if (!dir) continue
+      const candidate = join(dir, binaryName)
+      if (isExecutable(candidate)) {
+         return candidate
+      }
+   }
 
-  return undefined
+   return undefined
 }
 
 /**
@@ -46,76 +46,77 @@ function resolveBinaryFromPath(binaryName: string): string | undefined {
  * Override with **`GENIE_CURSOR_ACP_BIN`** when `agent` is not on `PATH`.
  */
 export function resolveCursorCliCommand(): string {
-  const envOverride = process.env.GENIE_CURSOR_ACP_BIN?.trim()
-  if (envOverride) {
-    return envOverride
-  }
-  const binaryPath = resolveBinaryFromPath('agent')
-  if (binaryPath) {
-    return binaryPath
-  }
-  return 'agent'
+   const envOverride = process.env.GENIE_CURSOR_ACP_BIN?.trim()
+   if (envOverride) {
+      return envOverride
+   }
+   const binaryPath = resolveBinaryFromPath('agent')
+   if (binaryPath) {
+      return binaryPath
+   }
+   return 'agent'
 }
 
 function resolveAcpLauncher(options: {
-  envVar: string
-  binaryName: string
-  packageName: string
+   envVar: string
+   binaryName: string
+   packageName: string
 }): StableLauncher {
-  const envOverride = process.env[options.envVar]?.trim()
-  if (envOverride) {
-    return { agentCommand: envOverride }
-  }
+   const envOverride = process.env[options.envVar]?.trim()
+   if (envOverride) {
+      return { agentCommand: envOverride }
+   }
 
-  const binaryPath = resolveBinaryFromPath(options.binaryName)
-  if (binaryPath) {
-    return { agentCommand: binaryPath }
-  }
+   const binaryPath = resolveBinaryFromPath(options.binaryName)
+   if (binaryPath) {
+      return { agentCommand: binaryPath }
+   }
 
-  return {
-    agentCommand: 'npx',
-    args: [options.packageName],
-  }
+   return {
+      agentCommand: 'npx',
+      args: [options.packageName],
+   }
 }
 
 const registry: ReadonlyMap<ProviderId, AcpProviderEntry> = new Map([
-  ['claude', {
-    id: 'claude',
-    ...resolveAcpLauncher({
-      envVar: 'GENIE_CLAUDE_ACP_BIN',
-      binaryName: 'claude-agent-acp',
-      packageName: '@zed-industries/claude-agent-acp',
-    }),
-  }],
-  ['codex', {
-    id: 'codex',
-    ...resolveAcpLauncher({
-      envVar: 'GENIE_CODEX_ACP_BIN',
-      binaryName: 'codex-acp',
-      packageName: '@zed-industries/codex-acp',
-    }),
-  }],
-  ['gemini', {
-    id: 'gemini',
-    agentCommand: 'gemini',
-    args: ['--acp'],
-    resolveEnv: (): Record<string, string> => {
-      const key = process.env.GEMINI_API_KEY
-      return key ? { GEMINI_API_KEY: key } : {}
-    },
-  }],
-  ['cursor-agent', {
-    id: 'cursor-agent',
-    agentCommand: resolveCursorCliCommand(),
-    args: ['acp'] as const,
-    acpAuthenticateMethodId: 'cursor_login',
-  }],
+   ['claude', {
+      id: 'claude',
+      ...resolveAcpLauncher({
+         envVar: 'GENIE_CLAUDE_ACP_BIN',
+         binaryName: 'claude-agent-acp',
+         packageName: '@zed-industries/claude-agent-acp',
+      }),
+   }],
+   ['codex', {
+      id: 'codex',
+      ...resolveAcpLauncher({
+         envVar: 'GENIE_CODEX_ACP_BIN',
+         binaryName: 'codex-acp',
+         packageName: '@zed-industries/codex-acp',
+      }),
+   }],
+   ['gemini', {
+      id: 'gemini',
+      agentCommand: 'gemini',
+      args: ['--acp'],
+      resolveEnv: (): Record<string, string> => {
+         const key = process.env.GEMINI_API_KEY?.trim()
+         return key ? { GEMINI_API_KEY: key } : {}
+      },
+      authCheck: async (): Promise<boolean> => Boolean(process.env.GEMINI_API_KEY?.trim()),
+   }],
+   ['cursor-agent', {
+      id: 'cursor-agent',
+      agentCommand: resolveCursorCliCommand(),
+      args: ['acp'] as const,
+      acpAuthenticateMethodId: 'cursor_login',
+   }],
 ])
 
 export function getAcpProvider(id: ProviderId): AcpProviderEntry | undefined {
-  return registry.get(id)
+   return registry.get(id)
 }
 
 export function listAcpProviders(): AcpProviderEntry[] {
-  return [...registry.values()]
+   return [...registry.values()]
 }

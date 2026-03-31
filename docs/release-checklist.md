@@ -12,6 +12,8 @@ Use this checklist before cutting a release tag for `genie`.
 - [ ] Node/Bun runtime and lockfile are in expected state for reproducible builds.
 - [ ] If using `bun link`, confirm the installed binary is reachable via `PATH` or invoke it via `$HOME/.bun/bin/genie`.
 
+- [ ] GitHub Actions view shows only the intended active workflows (**CI** and **Smoke Tests**). Historical empty-name `startup_failure` rows from deleted workflow id `253562637` are noise; if new runs still appear there, treat that as repo-admin cleanup work before release sign-off.
+
 ## 2) Command contract checks
 
 - [ ] Legacy shorthand and explicit run command both work:
