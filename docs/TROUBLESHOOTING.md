@@ -116,6 +116,22 @@ genie providers doctor --provider cursor-agent --json
 
 If checks still time out, restart Cursor and run the doctor command again.
 
+## Gemini ACP (`genie --provider gemini`)
+
+Genie runs **`gemini --acp`** for the ACP client path. If you see JSON-RPC parse failures, opaque protocol errors, or long hangs:
+
+- Ensure **`GEMINI_API_KEY`** is set when using API-based auth.
+- Upgrade **`gemini`** to a current release; older builds may disagree with the ACP handshake or **`protocolVersion`** expectations.
+- Upstream issues: Gemini CLI has reported **stdout logging breaking NDJSON** and occasional **hangs** in `--acp` mode; see [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli) ACP discussions. If logs corrupt the stream, you may see errors until the CLI routes noise to **stderr** only.
+
+## Smoke tests (local and CI)
+
+Optional real-LLM smoke: from `genie/`, `bun run test:smoke` exercises `run` and `commit` across installed providers. It can run for a long time.
+
+- Limit providers: `GENIE_SMOKE_PROVIDERS=gemini` (comma-separated list). Unavailable providers are skipped using `genie providers doctor` results.
+- Shorter default: `bun run test:smoke:preflight` (Gemini-only filter).
+- In **GitHub Actions**, workflow [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) requires the **`GEMINI_API_KEY`** repository secret; scheduled runs and manual `workflow_dispatch` only.
+
 ## Timeout handling and slow providers
 
 `genie` returns exit code `124` when provider execution or checks time out.

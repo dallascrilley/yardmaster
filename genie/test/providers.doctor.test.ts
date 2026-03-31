@@ -81,7 +81,7 @@ describe('providers doctor', () => {
     spy.mockRestore()
   })
 
-  it('returns actionable cursor-agent trust guidance when auth status times out', async () => {
+  it('returns actionable cursor-agent trust guidance when agent status times out', async () => {
     const spy = vi
       .spyOn(base, 'runCommand')
       .mockResolvedValueOnce({
@@ -101,13 +101,18 @@ describe('providers doctor', () => {
       available: true,
       authenticated: false,
       authDetails: 'Timed out after 4000ms',
-      hint: 'cursor-agent did not respond to `auth status`. Open Cursor and trust/approve this workspace for agent access before retrying.',
+      hint: 'The Cursor CLI (`agent`) did not respond to `agent status`. Open Cursor and trust/approve this workspace, or run `agent login` if you are not signed in.',
     })
+
+    const invocations = spy.mock.calls.map(([invocation]) => invocation)
+    expect(invocations[0]?.args).toEqual(['--version'])
+    expect(invocations[1]?.args).toEqual(['status'])
+    expect(invocations[0]?.command).toBe(invocations[1]?.command)
 
     spy.mockRestore()
   })
 
-  it('returns actionable cursor-agent auth guidance when auth status reports sign-in failure', async () => {
+  it('returns actionable cursor-agent auth guidance when agent status reports sign-in failure', async () => {
     const spy = vi
       .spyOn(base, 'runCommand')
       .mockResolvedValueOnce({
@@ -127,7 +132,7 @@ describe('providers doctor', () => {
       available: true,
       authenticated: false,
       authDetails: 'Not authenticated. Please sign in.',
-      hint: 'cursor-agent is not authenticated. Open Cursor, sign in to your account, then retry.',
+      hint: 'The Cursor CLI is not authenticated. Run `agent login` or open Cursor and sign in, then retry.',
     })
 
     spy.mockRestore()
