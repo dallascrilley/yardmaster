@@ -95,7 +95,8 @@ src/
 │   ├── default-checks.ts    # Default availability/auth check implementations
 │   ├── registry.ts          # Compatibility re-exports for older provider-registry imports
 │   ├── base.ts              # Shared command runner used by doctor checks
-│   └── codex-auth.ts        # Codex-specific auth detection
+│   ├── codex-auth.ts        # Version-tolerant Codex auth probe
+│   └── redact.ts            # Strips operator identity from doctor output
 │
 ├── execution/
 │   ├── request-schema.ts    # Zod schema for request validation (shared)
@@ -191,6 +192,8 @@ src/
 - `providers/doctor.ts` — doctor command entrypoint
 - `providers/doctor-helpers.ts` — target resolution, Cursor-specific hinting, auth/availability orchestration
 - `providers/default-checks.ts` — shared availability/auth probes (`--version`, `auth status`, `agent status`)
+- `providers/codex-auth.ts` — Codex auth probe that tries `codex login status`, then `codex auth status`, then `~/.codex/auth.json`, then reports an unsupported CLI version
+- `providers/redact.ts` — replaces identity-bearing values in doctor detail fields unless `--show-identity` is passed
 - `providers/registry.ts` — compatibility re-exports of ACP provider metadata for older callers/tests
 
 ACP launcher metadata lives in `acp/provider-registry.ts`, which currently defines `claude`, `codex`, `gemini`, and `cursor-agent` launchers plus env/auth requirements for those ACP agents.
