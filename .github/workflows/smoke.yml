@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: '0 6 * * *'
 
+env:
+  CODEX_HOME: ${{ github.workspace }}/.codex-ci
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -22,10 +25,10 @@ jobs:
       # line and reads like a TypeScript parse error.
       - name: Check required secret
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          if [ -z "${GEMINI_API_KEY}" ]; then
-            echo "::error::The GEMINI_API_KEY repository secret is not set. The smoke suite drives the real Gemini CLI, so it cannot run without it. Add it under Settings -> Secrets and variables -> Actions."
+          if [ -z "${OPENROUTER_API_KEY}" ]; then
+            echo "::error::The OPENROUTER_API_KEY repository secret is not set. The smoke suite drives the real Codex CLI against OpenRouter, so it cannot run without it. Add it under Settings -> Secrets and variables -> Actions."
             exit 1
           fi
 
@@ -35,20 +38,45 @@ jobs:
       - name: Build
         run: bun run build
 
-      # `yardmaster providers doctor` probes gemini with `gemini --version`, so
-      # the CLI has to exist on PATH before global setup runs. Intentionally
-      # unpinned: this daily job is a canary for upstream provider drift.
-      - name: Install Gemini CLI
+      # Two binaries, two jobs. `codex` is what `yardmaster providers doctor`
+      # probes for availability (`codex --version`) and auth (`codex login
+      # status`); `codex-acp` is the ACP agent yardmaster actually spawns, and
+      # it must be on PATH so the provider registry resolves it without falling
+      # back to `npx`, which blocks on an install prompt in CI. Both are
+      # intentionally unpinned: this daily job is a canary for upstream
+      # provider drift.
+      - name: Install Codex CLI and ACP agent
         run: |
-          npm install -g @google/gemini-cli
-          gemini --version
+          npm install -g @openai/codex @zed-industries/codex-acp
+          codex --version
+          command -v codex-acp
 
-      # Only gemini can authenticate from a secret; claude, codex, and
-      # cursor-agent need interactive OAuth and are never available here.
-      # GEMINI_CLI_TRUST_WORKSPACE is required because the CLI refuses to run
-      # in an untrusted directory, which every fresh runner checkout is.
+      # Codex authenticates against OpenRouter from an environment variable
+      # instead of an interactive ChatGPT login, which is the only way any
+      # provider can authenticate on a fresh runner. `wire_api = "responses"`
+      # is required: current codex rejects the older "chat" value outright, and
+      # OpenRouter serves the Responses API. `codex login status` still reports
+      # "Not logged in" for this setup, so `providers doctor` reads this file to
+      # confirm the configured `env_key` is populated.
+      - name: Configure Codex for OpenRouter
+        run: |
+          mkdir -p "${CODEX_HOME}"
+          cat > "${CODEX_HOME}/config.toml" <<'TOML'
+          model = "google/gemini-3-flash-preview"
+          model_provider = "openrouter"
+
+          [model_providers.openrouter]
+          name = "OpenRouter"
+          base_url = "https://openrouter.ai/api/v1"
+          env_key = "OPENROUTER_API_KEY"
+          wire_api = "responses"
+          TOML
+          cat "${CODEX_HOME}/config.toml"
+
+      # codex-only. claude, gemini, and cursor-agent are not installed here:
+      # claude and cursor-agent need interactive OAuth, and gemini would need a
+      # second provider secret for no extra signal.
       - name: Run smoke tests
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_CLI_TRUST_WORKSPACE: 'true'
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: bun run test:smoke:preflight

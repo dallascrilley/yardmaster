@@ -32,7 +32,8 @@
     "test": "vitest run",
     "test:critical-path": "vitest run test/cli.help.integration.test.ts test/cli.exit-codes.integration.test.ts test/cli.review-json.integration.test.ts test/cli.linked-binary.integration.test.ts",
     "test:smoke": "vitest run --config vitest.smoke.config.ts",
-    "test:smoke:preflight": "YARDMASTER_SMOKE_PROVIDERS=gemini vitest run --config vitest.smoke.config.ts",
+    "test:smoke:preflight": "YARDMASTER_SMOKE_PROVIDERS=codex vitest run --config vitest.smoke.config.ts",
+    "test:smoke:gemini": "YARDMASTER_SMOKE_PROVIDERS=gemini vitest run --config vitest.smoke.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate": "bun run typecheck && bun run test && bun run build && bun run test:critical-path",
     "doctor:flake": "bun run scripts/quantify-doctor-flake.ts"

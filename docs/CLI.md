@@ -484,7 +484,7 @@ Each command keeps its command-specific payload fields alongside that shared met
 ## Provider prerequisites
 
 - `claude`: installed and authenticated via Claude Code
-- `codex`: installed and authenticated. The probe tries `codex login status` first (the spelling supported by codex-cli 0.147.0), falls back to `codex auth status` for older builds, then to a credential in `~/.codex/auth.json`. A CLI that supports none of those is reported as an unsupported version rather than an auth failure.
+- `codex`: installed and authenticated. The probe tries `codex login status` first (the spelling supported by codex-cli 0.147.0), falls back to `codex auth status` for older builds. If a probe reports **no login** (as opposed to failing for some other reason), it reads `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`): a Codex configured against an API-key `model_provider` never logs in, so an active `model_provider` whose `env_key` names a populated environment variable counts as authenticated. The reported details name the provider and the variable, never its value. Last, it falls back to a credential in `$CODEX_HOME/auth.json`. A CLI that supports none of the probes is reported as an unsupported version rather than an auth failure.
 - `gemini`: installed and authenticated via `GEMINI_API_KEY`
 - `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `yardmaster providers doctor --provider cursor-agent --json` reports an auth failure, sign in through Cursor first; if it times out, open Cursor and trust/approve the current workspace for agent access before retrying
 

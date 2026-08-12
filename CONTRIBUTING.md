@@ -64,8 +64,11 @@ That suite covers bootstrap help flows, prompt commands, stateful commands, upda
 Real-LLM smoke lives in `test/smoke/` (`bun run test:smoke`). It is **provider-dependent** and can take several minutes when many CLIs are installed.
 
 - **Narrow providers locally**: `YARDMASTER_SMOKE_PROVIDERS=gemini` (comma-separated) limits the matrix; unavailable providers are skipped per `yardmaster providers doctor`.
-- **Quick default (Gemini-only)**: `bun run test:smoke:preflight` sets that filter for you (still needs a working Gemini auth for non-skipped cases).
-- **Scheduled CI**: [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml) runs on `workflow_dispatch` and a daily cron; configure the **`GEMINI_API_KEY`** repository secret for the job to pass global setup. The job installs the Gemini CLI and runs the Gemini-only filter, because the other provider CLIs need interactive OAuth and can never authenticate on a runner. Forks do not receive upstream secrets—expect skips or failures unless secrets are provided.
+- **Quick default (Codex-only)**: `bun run test:smoke:preflight` sets that filter for you. It needs a Codex CLI configured against an API-key `model_provider` (see below), or an interactive `codex login`.
+- **Gemini-only**: `bun run test:smoke:gemini` (still needs a working Gemini auth for non-skipped cases).
+- **Scheduled CI**: [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml) runs on `workflow_dispatch` and a daily cron; configure the **`OPENROUTER_API_KEY`** repository secret for the job to pass global setup. The job installs `@openai/codex` and `@zed-industries/codex-acp`, writes a `$CODEX_HOME/config.toml` that points Codex at OpenRouter, and runs the Codex-only filter — an API key is the only credential a fresh runner can use, since claude, gemini, and cursor-agent otherwise need interactive OAuth or a second secret. Forks do not receive upstream secrets—expect skips or failures unless secrets are provided.
+
+To reproduce the CI setup locally, export `OPENROUTER_API_KEY` and point `CODEX_HOME` at a directory whose `config.toml` matches the one the workflow writes. `codex login status` still reports "Not logged in" for that setup; `yardmaster providers doctor` reads the config and reports codex authenticated because the `env_key` it names is populated.
 
 ## CI / GitHub Actions
 

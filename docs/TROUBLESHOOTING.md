@@ -128,8 +128,9 @@ Yardmaster runs **`gemini --acp`** for the ACP client path. If you see JSON-RPC 
 Optional real-LLM smoke: from `yardmaster/`, `bun run test:smoke` exercises `run` and `commit` across installed providers. It can run for a long time.
 
 - Limit providers: `YARDMASTER_SMOKE_PROVIDERS=gemini` (comma-separated list). Unavailable providers are skipped using `yardmaster providers doctor` results.
-- Shorter default: `bun run test:smoke:preflight` (Gemini-only filter).
-- In **GitHub Actions**, workflow [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) requires the **`GEMINI_API_KEY`** repository secret; scheduled runs and manual `workflow_dispatch` only. The job installs the Gemini CLI itself (`providers doctor` probes `gemini --version`) and sets `GEMINI_CLI_TRUST_WORKSPACE=true`, since the CLI refuses to run in an untrusted directory.
+- Shorter default: `bun run test:smoke:preflight` (Codex-only filter); `bun run test:smoke:gemini` for the Gemini-only filter.
+- In **GitHub Actions**, workflow [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) requires the **`OPENROUTER_API_KEY`** repository secret; scheduled runs and manual `workflow_dispatch` only. The job installs `@openai/codex` (`providers doctor` probes `codex --version` and `codex login status`) and `@zed-industries/codex-acp` (the ACP agent yardmaster spawns), then writes a `$CODEX_HOME/config.toml` selecting an OpenRouter `model_provider`. That is the only auth path a fresh runner has: claude and cursor-agent need interactive OAuth.
+- Codex against a third-party provider reports **"Not logged in"** from `codex login status` even when it works. `yardmaster providers doctor` therefore also reads `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`): if the active `model_provider` declares an `env_key` and that variable is set, codex is reported authenticated, and the details name the provider and the variable — never its value.
 
 ## Timeout handling and slow providers
 

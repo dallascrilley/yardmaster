@@ -102,12 +102,7 @@ describe('AcpClient', () => {
       const entry = makeEntry()
       const { options } = makeOptions()
       const client = new AcpClient(entry, options)
-      const child = {
-         exitCode: null,
-         kill: vi.fn(),
-         once: vi.fn(),
-         removeListener: vi.fn(),
-      }
+      const child = makeFakeChild()
          ; (client as any).child = child
 
       client.close()
@@ -121,21 +116,126 @@ describe('AcpClient', () => {
       const entry = makeEntry()
       const { options } = makeOptions()
       const client = new AcpClient(entry, options)
-      let onExit: (() => void) | undefined
-      const child = {
-         exitCode: null,
-         kill: vi.fn(),
-         once: vi.fn((event: string, handler: () => void) => {
-            if (event === 'exit') onExit = handler
-         }),
-         removeListener: vi.fn(),
-      }
+      const child = makeFakeChild()
          ; (client as any).child = child
 
       client.close()
-      onExit?.()
+      child.emitExit()
       vi.advanceTimersByTime(3000)
       expect(child.kill).toHaveBeenCalledTimes(1)
       expect(child.kill).toHaveBeenCalledWith('SIGTERM')
    })
+
+   // Regression: the CLI printed its result envelope and then hung forever.
+   // `ndJsonStream` holds `child.stdout` behind a web-stream reader that is
+   // never cancelled, so the pipe never reaches EOF and its handle keeps the
+   // event loop alive after the child is gone. `src/cli.ts` only sets
+   // `process.exitCode`, so a referenced handle means the process never exits.
+   it('destroys the child stdio pipes once the child exits', () => {
+      vi.useFakeTimers()
+      const entry = makeEntry()
+      const { options } = makeOptions()
+      const client = new AcpClient(entry, options)
+      const child = makeFakeChild()
+         ; (client as any).child = child
+
+      client.close()
+      expect(child.stdout.destroy).not.toHaveBeenCalled()
+
+      child.emitExit()
+
+      expect(child.stdin.destroy).toHaveBeenCalled()
+      expect(child.stdout.destroy).toHaveBeenCalled()
+      expect(child.stderr.destroy).toHaveBeenCalled()
+   })
+
+   it('destroys the stdio pipes without re-signalling a child that already exited', () => {
+      const entry = makeEntry()
+      const { options } = makeOptions()
+      const client = new AcpClient(entry, options)
+      const child = makeFakeChild({ exitCode: 0 })
+         ; (client as any).child = child
+
+      client.close()
+
+      expect(child.kill).not.toHaveBeenCalled()
+      expect(child.stdout.destroy).toHaveBeenCalled()
+   })
+
+   // A signal-killed child reports `exitCode === null` forever and carries the
+   // signal in `signalCode`, so `exitCode` alone cannot detect "already gone".
+   it('treats a signal-killed child as already exited', () => {
+      const entry = makeEntry()
+      const { options } = makeOptions()
+      const client = new AcpClient(entry, options)
+      const child = makeFakeChild({ signalCode: 'SIGTERM' })
+         ; (client as any).child = child
+
+      client.close()
+
+      expect(child.kill).not.toHaveBeenCalled()
+      expect(child.stdout.destroy).toHaveBeenCalled()
+   })
+
+   // A failed spawn never emits `exit`, and Bun leaves both exitCode and
+   // signalCode null there. Arming the escalation timer would then stall the
+   // CLI for the full escalation deadline on every provider it tries.
+   it('arms no escalation timer for a child that never started', () => {
+      vi.useFakeTimers()
+      const entry = makeEntry()
+      const { options } = makeOptions()
+      const client = new AcpClient(entry, options)
+      const child = makeFakeChild({ pid: undefined })
+         ; (client as any).child = child
+
+      client.close()
+
+      expect(vi.getTimerCount()).toBe(0)
+      expect(child.kill).not.toHaveBeenCalled()
+      expect(child.stdout.destroy).toHaveBeenCalled()
+   })
+
+   // The live child's own handle keeps the loop open, so an unref'd timer still
+   // fires; unref keeps it from being what holds the CLI open.
+   it('leaves the escalation timer unref\'d', () => {
+      vi.useFakeTimers()
+      const entry = makeEntry()
+      const { options } = makeOptions()
+      const client = new AcpClient(entry, options)
+      const child = makeFakeChild()
+         ; (client as any).child = child
+      const unref = vi.fn()
+      const setTimeoutSpy = vi
+         .spyOn(globalThis, 'setTimeout')
+         .mockReturnValue({ unref } as unknown as ReturnType<typeof setTimeout>)
+
+      client.close()
+
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 3000)
+      expect(unref).toHaveBeenCalled()
+   })
 })
+
+function makeFakeStream() {
+   return { destroy: vi.fn() }
+}
+
+function makeFakeChild(
+   overrides: { exitCode?: number | null; signalCode?: string | null; pid?: number | undefined } = {},
+) {
+   let onExit: (() => void) | undefined
+   return {
+      exitCode: overrides.exitCode ?? null,
+      signalCode: overrides.signalCode ?? null,
+      pid: 'pid' in overrides ? overrides.pid : 4242,
+      stdin: makeFakeStream(),
+      stdout: makeFakeStream(),
+      stderr: makeFakeStream(),
+      kill: vi.fn(),
+      once: vi.fn((event: string, handler: () => void) => {
+         if (event === 'exit') onExit = handler
+      }),
+      removeListener: vi.fn(),
+      emitExit: (): void => onExit?.(),
+   }
+}
