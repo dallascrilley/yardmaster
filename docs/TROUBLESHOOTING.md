@@ -1,31 +1,30 @@
 # Troubleshooting
 
-Operational fixes for common `genie` failures in local and CI environments.
+Operational fixes for common `yardmaster` failures in local and CI environments.
 
 ## Quick triage
 
 Run a provider health check first:
 
 ```bash
-genie providers doctor
-genie providers list --json
+yardmaster providers doctor
+yardmaster providers list --json
 ```
 
 Use targeted diagnostics when needed:
 
 ```bash
-genie providers doctor --provider codex --json
-genie providers doctor --provider cursor-agent --json
+yardmaster providers doctor --provider codex --json
+yardmaster providers doctor --provider cursor-agent --json
 ```
 
 ## Install and PATH issues
 
-### `genie: command not found` after install
+### `yardmaster: command not found` after install
 
-Build and link again from `genie/`:
+Build and link again from `yardmaster/`:
 
 ```bash
-cd genie
 bun install
 bun run build
 bun link
@@ -40,7 +39,7 @@ export PATH="$HOME/.bun/bin:$PATH"
 Verify:
 
 ```bash
-genie --help
+yardmaster --help
 ```
 
 ### Provider binary missing on PATH
@@ -57,7 +56,7 @@ which cursor-agent
 Then rerun:
 
 ```bash
-genie providers doctor
+yardmaster providers doctor
 ```
 
 ## Provider authentication failures
@@ -75,7 +74,7 @@ codex auth status
 codex login
 ```
 
-`genie` also checks `~/.codex/auth.json`. If your Codex CLI does not support `auth status`, ensure a valid token exists there.
+`yardmaster` also checks `~/.codex/auth.json`. If your Codex CLI does not support `auth status`, ensure a valid token exists there.
 
 ### Gemini auth failures
 
@@ -86,7 +85,7 @@ Recovery:
 
 ```bash
 export GEMINI_API_KEY="<your-key>"
-genie providers doctor --provider gemini --json
+yardmaster providers doctor --provider gemini --json
 ```
 
 ### Claude auth failures
@@ -95,7 +94,7 @@ If Claude provider checks fail, authenticate with the Claude CLI and retry docto
 
 ```bash
 claude auth status
-genie providers doctor --provider claude --json
+yardmaster providers doctor --provider claude --json
 ```
 
 ## Cursor Agent workspace trust and auth status timeouts
@@ -111,14 +110,14 @@ Recovery sequence:
 4. Retry:
 
 ```bash
-genie providers doctor --provider cursor-agent --json
+yardmaster providers doctor --provider cursor-agent --json
 ```
 
 If checks still time out, restart Cursor and run the doctor command again.
 
-## Gemini ACP (`genie --provider gemini`)
+## Gemini ACP (`yardmaster --provider gemini`)
 
-Genie runs **`gemini --acp`** for the ACP client path. If you see JSON-RPC parse failures, opaque protocol errors, or long hangs:
+Yardmaster runs **`gemini --acp`** for the ACP client path. If you see JSON-RPC parse failures, opaque protocol errors, or long hangs:
 
 - Ensure **`GEMINI_API_KEY`** is set when using API-based auth.
 - Upgrade **`gemini`** to a current release; older builds may disagree with the ACP handshake or **`protocolVersion`** expectations.
@@ -126,26 +125,26 @@ Genie runs **`gemini --acp`** for the ACP client path. If you see JSON-RPC parse
 
 ## Smoke tests (local and CI)
 
-Optional real-LLM smoke: from `genie/`, `bun run test:smoke` exercises `run` and `commit` across installed providers. It can run for a long time.
+Optional real-LLM smoke: from `yardmaster/`, `bun run test:smoke` exercises `run` and `commit` across installed providers. It can run for a long time.
 
-- Limit providers: `GENIE_SMOKE_PROVIDERS=gemini` (comma-separated list). Unavailable providers are skipped using `genie providers doctor` results.
+- Limit providers: `YARDMASTER_SMOKE_PROVIDERS=gemini` (comma-separated list). Unavailable providers are skipped using `yardmaster providers doctor` results.
 - Shorter default: `bun run test:smoke:preflight` (Gemini-only filter).
 - In **GitHub Actions**, workflow [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) requires the **`GEMINI_API_KEY`** repository secret; scheduled runs and manual `workflow_dispatch` only.
 
 ## Timeout handling and slow providers
 
-`genie` returns exit code `124` when provider execution or checks time out.
+`yardmaster` returns exit code `124` when provider execution or checks time out.
 
 Use a higher timeout for slow responses:
 
 ```bash
-genie run --timeout-ms 120000 "<prompt>"
+yardmaster run --timeout-ms 120000 "<prompt>"
 ```
 
 Isolate one provider while debugging fallback chains:
 
 ```bash
-genie run --provider codex --no-fallback --timeout-ms 120000 "<prompt>"
+yardmaster run --provider codex --no-fallback --timeout-ms 120000 "<prompt>"
 ```
 
 ## JSON vs plain output confusion
@@ -157,23 +156,23 @@ Use global output flags based on the consumer:
 Examples:
 
 ```bash
-genie run --json "summarize this repo"
-genie run --plain "summarize this repo"
+yardmaster run --json "summarize this repo"
+yardmaster run --plain "summarize this repo"
 ```
 
 Important behavior:
-- `genie commit` rejects `--json`.
-- `genie review --json-schema` cannot be combined with review target flags.
+- `yardmaster commit` rejects `--json`.
+- `yardmaster review --json-schema` cannot be combined with review target flags.
 - `stdout` is payload output; diagnostics and hints are printed to `stderr`.
 
 ## Recovery commands reference
 
 ```bash
-genie help
-genie help run
-genie help review
-genie providers doctor
-genie providers list --json
+yardmaster help
+yardmaster help run
+yardmaster help review
+yardmaster providers doctor
+yardmaster providers list --json
 ```
 
 If all providers fail, repair one provider end-to-end first, then rerun with `--provider <id> --no-fallback` to confirm a stable baseline.

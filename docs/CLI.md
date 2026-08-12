@@ -1,24 +1,24 @@
 # CLI Reference
 
-> Complete command reference for genie v0.2.0.
+> Complete command reference for yardmaster v0.2.0.
 
 For failure recovery patterns (install/PATH fixes, provider auth and trust checks, timeout tuning, and output mode pitfalls), see [Troubleshooting](./TROUBLESHOOTING.md).
 
 ## Quick reference
 
 ```bash
-genie <prompt>                    # Shorthand for genie run
-genie run [options] <prompt>      # Execute prompt with provider routing
-genie design [options] <prompt>   # Frontend design feedback
-genie commit [options]            # Generate commit message from staged diff
-genie debug [options]             # Diagnose piped terminal errors
-genie review [options]            # Code review with AI agents
-genie review --json-schema        # Print the review JSON Schema
-genie update [options]            # Refresh local install
-genie providers <subcommand>     # Provider inventory and diagnostics
-genie config <subcommand>        # Configuration management
-genie presets <subcommand>       # Preset management
-genie completion <shell>          # Generate shell completions
+yardmaster <prompt>                    # Shorthand for yardmaster run
+yardmaster run [options] <prompt>      # Execute prompt with provider routing
+yardmaster design [options] <prompt>   # Frontend design feedback
+yardmaster commit [options]            # Generate commit message from staged diff
+yardmaster debug [options]             # Diagnose piped terminal errors
+yardmaster review [options]            # Code review with AI agents
+yardmaster review --json-schema        # Print the review JSON Schema
+yardmaster update [options]            # Refresh local install
+yardmaster providers <subcommand>     # Provider inventory and diagnostics
+yardmaster config <subcommand>        # Configuration management
+yardmaster presets <subcommand>       # Preset management
+yardmaster completion <shell>          # Generate shell completions
 ```
 
 ---
@@ -41,23 +41,23 @@ These flags are parsed before the subcommand and work across the CLI unless a co
 Task-oriented help is available for every major command:
 
 ```bash
-genie help run
-genie help design
-genie help debug
-genie help review
-genie help config
-genie help completion
+yardmaster help run
+yardmaster help design
+yardmaster help debug
+yardmaster help review
+yardmaster help config
+yardmaster help completion
 ```
 
 ---
 
-## genie run
+## yardmaster run
 
 Execute a prompt with provider routing, config defaults, and fallback.
 
 ```bash
-genie run [options] <prompt>
-genie <prompt>                    # Shorthand
+yardmaster run [options] <prompt>
+yardmaster <prompt>                    # Shorthand
 ```
 
 ### Options
@@ -83,44 +83,44 @@ genie <prompt>                    # Shorthand
 ### Examples
 
 ```bash
-genie "summarize this repo"
-genie run --provider codex --no-fallback "generate release notes"
-genie run --preset headless-codex --json "list risky files"
-genie run --prompt-file prompt.txt
-cat prompt.txt | genie run --prompt-file -
-genie run -p gemini -m gemini-2.0-flash "summarize this"
+yardmaster "summarize this repo"
+yardmaster run --provider codex --no-fallback "generate release notes"
+yardmaster run --preset headless-codex --json "list risky files"
+yardmaster run --prompt-file prompt.txt
+cat prompt.txt | yardmaster run --prompt-file -
+yardmaster run -p gemini -m gemini-2.0-flash "summarize this"
 ```
 
 The global `--json`, `--plain`, `--quiet`, `--verbose`, `--no-color`, and `--no-input` flags also apply here.
 
 ---
 
-## genie design
+## yardmaster design
 
 Get frontend design feedback and implementation-aware UI recommendations.
 
 ```bash
-genie design [options] <prompt>
+yardmaster design [options] <prompt>
 ```
 
-Accepts the same options as `genie run`. The prompt is wrapped with a design-focused system instruction before being sent to the provider.
+Accepts the same options as `yardmaster run`. The prompt is wrapped with a design-focused system instruction before being sent to the provider.
 
 ### Examples
 
 ```bash
-genie design "review the pricing page hierarchy and CTA emphasis"
-genie design --provider codex --no-fallback "critique the dashboard empty state"
-genie design --prompt-file brief.txt --json
+yardmaster design "review the pricing page hierarchy and CTA emphasis"
+yardmaster design --provider codex --no-fallback "critique the dashboard empty state"
+yardmaster design --prompt-file brief.txt --json
 ```
 
 ---
 
-## genie commit
+## yardmaster commit
 
 Generate a Conventional Commits message from staged git changes.
 
 ```bash
-genie commit [options]
+yardmaster commit [options]
 ```
 
 ### Options
@@ -141,21 +141,21 @@ genie commit [options]
 ### Examples
 
 ```bash
-genie commit                              # Print generated message
-genie commit --apply                      # Commit with generated message
-genie commit --apply --provider claude    # Use specific provider
+yardmaster commit                              # Print generated message
+yardmaster commit --apply                      # Commit with generated message
+yardmaster commit --apply --provider claude    # Use specific provider
 ```
 
-`genie commit` reads `git diff --staged --no-color` from the selected workspace. It fails if there are no staged changes, `--workspace <path>` changes which repository is inspected before generating or applying the message, and `--json` is rejected for this command.
+`yardmaster commit` reads `git diff --staged --no-color` from the selected workspace. It fails if there are no staged changes, `--workspace <path>` changes which repository is inspected before generating or applying the message, and `--json` is rejected for this command.
 
 ---
 
-## genie debug
+## yardmaster debug
 
 Read terminal error output and return a plain-language diagnosis.
 
 ```bash
-genie debug [options]
+yardmaster debug [options]
 ```
 
 Input is read from stdin or `--input-file`.
@@ -178,22 +178,22 @@ Input is read from stdin or `--input-file`.
 ### Examples
 
 ```bash
-npm test 2>&1 | genie debug
-cat error.log | genie debug --provider claude --no-fallback
-bun run build 2>&1 | genie debug --json
-genie debug --input-file error.log --provider claude
+npm test 2>&1 | yardmaster debug
+cat error.log | yardmaster debug --provider claude --no-fallback
+bun run build 2>&1 | yardmaster debug --json
+yardmaster debug --input-file error.log --provider claude
 ```
 
-When no `--input-file` is provided, `genie debug` expects piped input and rejects an interactive TTY with usage guidance.
+When no `--input-file` is provided, `yardmaster debug` expects piped input and rejects an interactive TTY with usage guidance.
 
 ---
 
-## genie review
+## yardmaster review
 
 Review repository changes with one or more AI agents.
 
 ```bash
-genie review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]
+yardmaster review [--all | --agent <id>] [--diff-file <path> | --staged | --base <ref>] [--json]
 ```
 
 ### Options
@@ -227,21 +227,21 @@ One target is required: `--all` or `--agent <id>`.
 ### Examples
 
 ```bash
-genie review --all
-genie review --agent codex --staged
-genie review --all --base origin/main
-genie review --all --diff-file saved.patch --json
-genie review --json-schema
+yardmaster review --all
+yardmaster review --agent codex --staged
+yardmaster review --all --base origin/main
+yardmaster review --all --diff-file saved.patch --json
+yardmaster review --json-schema
 ```
 
 ---
 
-## genie update
+## yardmaster update
 
-Refresh the local genie install by rebuilding and relinking.
+Refresh the local yardmaster install by rebuilding and relinking.
 
 ```bash
-genie update [--json] [--dry-run] [--force]
+yardmaster update [--json] [--dry-run] [--force]
 ```
 
 Runs: `bun run build` then `bun link`.
@@ -249,49 +249,71 @@ Runs: `bun run build` then `bun link`.
 ### Examples
 
 ```bash
-genie update --dry-run    # Preview without changes
-genie update --force      # Skip confirmation
+yardmaster update --dry-run    # Preview without changes
+yardmaster update --force      # Skip confirmation
 ```
 
 ---
 
-## genie providers
+## yardmaster providers
 
 Inspect provider inventory and diagnose availability/auth issues.
 
 ### Subcommands
 
 ```bash
-genie providers list [--json]                   # List all providers
-genie providers doctor [--provider <id>] [--json] # Health check
+yardmaster providers list [--json]                   # List all providers
+yardmaster providers doctor [--provider <id>] [--show-identity] [--json] # Health check
 ```
 
 ### Examples
 
 ```bash
-genie providers list
-genie providers list --json
-genie providers doctor
-genie providers doctor --provider codex --json
+yardmaster providers list
+yardmaster providers list --json
+yardmaster providers doctor
+yardmaster providers doctor --provider codex --json
 ```
 
-`--provider <id>` is only supported with `genie providers doctor`.
+`--provider <id>` and `--show-identity` are only supported with `yardmaster providers doctor`.
+
+### Identity redaction
+
+Provider CLIs print the signed-in account. `claude auth status` returns JSON
+carrying `email`, `orgId`, and `orgName`. Doctor output is meant to be pasted
+into issues and CI logs, so it is filtered on three surfaces: JSON found
+anywhere in the output (including inside a version notice, and one object per
+line for NDJSON), labelled identity lines such as `Org Name: Acme`, and bare
+emails and UUIDs. Redacted values become `[redacted]` and the report sets
+`identityRedacted: true`. JSON keeps its shape and its diagnostic fields, so
+machine consumers still parse it and `plan`, `seats`, or `subscriptionType`
+survive.
+
+This is a filter, not a proof. A provider that prints an unlabelled opaque
+account token would pass through, so skim a report before publishing it.
+
+Pass `--show-identity` to print the raw provider output, and treat that output
+as sensitive:
+
+```bash
+yardmaster providers doctor --provider claude --show-identity --json
+```
 
 If provider checks fail or time out (especially `cursor-agent` trust/auth state), use the step-by-step fixes in [Troubleshooting](./TROUBLESHOOTING.md).
 
 ---
 
-## genie config
+## yardmaster config
 
 Inspect and change persistent configuration defaults.
 
 ### Subcommands
 
 ```bash
-genie config get [key] [--json]           # Read config value(s)
-genie config set <key> <value> [--dry-run] # Set a config value
-genie config init [--dry-run] [--force]   # Create default config file
-genie config path [--json]                # Show config file path
+yardmaster config get [key] [--json]           # Read config value(s)
+yardmaster config set <key> <value> [--dry-run] # Set a config value
+yardmaster config init [--dry-run] [--force]   # Create default config file
+yardmaster config path [--json]                # Show config file path
 ```
 
 ### Supported keys
@@ -310,28 +332,28 @@ genie config path [--json]                # Show config file path
 ### Examples
 
 ```bash
-genie config init
-genie config get provider.default
-genie config set provider.default codex --dry-run
-genie config path
+yardmaster config init
+yardmaster config get provider.default
+yardmaster config set provider.default codex --dry-run
+yardmaster config path
 ```
 
-`genie config get` accepts zero or one key only. `genie config init` and `genie config path` reject extra positional arguments.
+`yardmaster config get` accepts zero or one key only. `yardmaster config init` and `yardmaster config path` reject extra positional arguments.
 
 ---
 
-## genie presets
+## yardmaster presets
 
 Save reusable execution defaults as named presets.
 
 ### Subcommands
 
 ```bash
-genie presets list [--json]
-genie presets get <name> [--json]
-genie presets set <name> [options] [--dry-run] [--force]
-genie presets delete <name> [--dry-run] [--force]
-genie presets use <name> [--dry-run]
+yardmaster presets list [--json]
+yardmaster presets get <name> [--json]
+yardmaster presets set <name> [options] [--dry-run] [--force]
+yardmaster presets delete <name> [--dry-run] [--force]
+yardmaster presets use <name> [--dry-run]
 ```
 
 ### Preset options (for `set`)
@@ -341,37 +363,37 @@ genie presets use <name> [--dry-run]
 ### Examples
 
 ```bash
-genie presets set headless-codex --provider codex --yolo --default --dry-run
-genie presets list
-genie presets get headless-codex
-genie presets use headless-codex
-genie presets delete headless-codex --force
-genie run --preset headless-codex "summarize open todos"
+yardmaster presets set headless-codex --provider codex --yolo --default --dry-run
+yardmaster presets list
+yardmaster presets get headless-codex
+yardmaster presets use headless-codex
+yardmaster presets delete headless-codex --force
+yardmaster run --preset headless-codex "summarize open todos"
 ```
 
-The preset mutation flags (`--provider`, `--model`, `--mode`, `--output-format`, `--include-directories`, `--extensions`, `--mcp`, `--trust`, `--yolo`, `--print`, `--default`) are only valid with `genie presets set`, even when they appear before the subcommand token.
+The preset mutation flags (`--provider`, `--model`, `--mode`, `--output-format`, `--include-directories`, `--extensions`, `--mcp`, `--trust`, `--yolo`, `--print`, `--default`) are only valid with `yardmaster presets set`, even when they appear before the subcommand token.
 
 ---
 
-## genie completion
+## yardmaster completion
 
 Generate shell completion scripts.
 
 ```bash
-genie completion <bash|zsh|fish>
+yardmaster completion <bash|zsh|fish>
 ```
 
 ### Install
 
 ```bash
 # bash
-genie completion bash > ~/.local/share/bash-completion/completions/genie
+yardmaster completion bash > ~/.local/share/bash-completion/completions/yardmaster
 
 # zsh
-genie completion zsh > ~/.zfunc/_genie
+yardmaster completion zsh > ~/.zfunc/_yardmaster
 
 # fish
-genie completion fish > ~/.config/fish/completions/genie.fish
+yardmaster completion fish > ~/.config/fish/completions/yardmaster.fish
 ```
 
 ---
@@ -380,7 +402,7 @@ genie completion fish > ~/.config/fish/completions/genie.fish
 
 - Prompt commands (`run`, `design`, `debug`) use the response envelope documented in [API.md](API.md).
 - State and mutation commands use stable envelopes with `kind`, `version`, `ok`, `exitCode`, and `error`.
-- `genie review --json` emits the `review_result` envelope, and `genie review --json-schema` prints the matching JSON Schema.
+- `yardmaster review --json` emits the `review_result` envelope, and `yardmaster review --json-schema` prints the matching JSON Schema.
 
 ---
 
@@ -415,7 +437,7 @@ genie completion fish > ~/.config/fish/completions/genie.fish
 - stderr: diagnostics, warnings, and errors only.
 - `--json`: stable envelope:
   - `provider`, `model`, `response`, `fallbackUsed`, `timings`, `error`
-  - `genie review --json`: `kind`, `version`, `mode`, `targets`, `source`, `cwd`, `git`, `diff`, `summary`, `results`, `exitCode`
+  - `yardmaster review --json`: `kind`, `version`, `mode`, `targets`, `source`, `cwd`, `git`, `diff`, `summary`, `results`, `exitCode`
 - `--plain`: response text only.
 - `--verbose`: extra execution diagnostics on stderr without changing stdout payloads.
 - `--quiet`: suppresses confirmation-only success chatter such as `config init`.
@@ -427,8 +449,8 @@ genie completion fish > ~/.config/fish/completions/genie.fish
 
 ### Paths
 
-- User: `~/.config/genie/config.json`
-- Project: `<repo>/.genie/config.json` (optional)
+- User: `~/.config/yardmaster/config.json`
+- Project: `<repo>/.yardmaster/config.json` (optional)
 
 ### Precedence
 
@@ -436,14 +458,14 @@ genie completion fish > ~/.config/fish/completions/genie.fish
 
 ### Supported env vars
 
-- `GENIE_PROVIDER`
-- `GENIE_MODEL`
-- `GENIE_MODE`
-- `GENIE_WORKSPACE`
-- `GENIE_TRUST`
-- `GENIE_TIMEOUT_MS`
-- `GENIE_OUTPUT`
-- `GENIE_STRICT_COMMANDS`
+- `YARDMASTER_PROVIDER`
+- `YARDMASTER_MODEL`
+- `YARDMASTER_MODE`
+- `YARDMASTER_WORKSPACE`
+- `YARDMASTER_TRUST`
+- `YARDMASTER_TIMEOUT_MS`
+- `YARDMASTER_OUTPUT`
+- `YARDMASTER_STRICT_COMMANDS`
 
 ### JSON output contract
 
@@ -455,18 +477,18 @@ When `--json` is used, commands emit a stable top-level envelope with:
 - `exitCode`
 - `error`
 
-Each command keeps its command-specific payload fields alongside that shared metadata. `genie review --json-schema` describes the `genie review --json` envelope.
+Each command keeps its command-specific payload fields alongside that shared metadata. `yardmaster review --json-schema` describes the `yardmaster review --json` envelope.
 
 ---
 
 ## Provider prerequisites
 
 - `claude`: installed and authenticated via Claude Code
-- `codex`: installed and authenticated via `codex auth` or `~/.codex/auth.json`
+- `codex`: installed and authenticated. The probe tries `codex login status` first (the spelling supported by codex-cli 0.147.0), falls back to `codex auth status` for older builds, then to a credential in `~/.codex/auth.json`. A CLI that supports none of those is reported as an unsupported version rather than an auth failure.
 - `gemini`: installed and authenticated via `GEMINI_API_KEY`
-- `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `genie providers doctor --provider cursor-agent --json` reports an auth failure, sign in through Cursor first; if it times out, open Cursor and trust/approve the current workspace for agent access before retrying
+- `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `yardmaster providers doctor --provider cursor-agent --json` reports an auth failure, sign in through Cursor first; if it times out, open Cursor and trust/approve the current workspace for agent access before retrying
 
-Use `genie providers doctor` for a quick health check before relying on any provider in automation or release smoke tests.
+Use `yardmaster providers doctor` for a quick health check before relying on any provider in automation or release smoke tests.
 
 ---
 
@@ -505,10 +527,10 @@ Strict command parsing is the default. Unknown bare root tokens now fail fast so
 
 ```bash
 # default behavior: usage error (exit 2)
-genie gleep
+yardmaster gleep
 
 # opt back into the legacy single-token fallback
-GENIE_STRICT_COMMANDS=0 genie gleep
+YARDMASTER_STRICT_COMMANDS=0 yardmaster gleep
 ```
 
 ---
@@ -517,45 +539,45 @@ GENIE_STRICT_COMMANDS=0 genie gleep
 
 ```bash
 # shorthand prompt still works for actual prompt text
-genie "explain recursion in one sentence"
-genie explain recursion in one sentence
+yardmaster "explain recursion in one sentence"
+yardmaster explain recursion in one sentence
 
 # explicit run command
-genie run -p gemini -m gemini-2.0-flash "summarize this"
+yardmaster run -p gemini -m gemini-2.0-flash "summarize this"
 
 # file/stdin prompt input
-genie run --prompt-file prompt.txt
-cat prompt.txt | genie run --prompt-file -
+yardmaster run --prompt-file prompt.txt
+cat prompt.txt | yardmaster run --prompt-file -
 
 # diagnose piped terminal output
-npm test 2>&1 | genie debug
-genie debug --input-file error.log
+npm test 2>&1 | yardmaster debug
+yardmaster debug --input-file error.log
 
 # generate a conventional commit message from staged changes
-genie commit
+yardmaster commit
 
 # generate and apply the commit directly
-genie commit --apply
+yardmaster commit --apply
 
 # disable fallback for strict provider execution
-genie run --provider codex --no-fallback "generate release notes"
+yardmaster run --provider codex --no-fallback "generate release notes"
 
 # machine output
-genie run --json "what changed in src/"
+yardmaster run --json "what changed in src/"
 
 # provider diagnostics
-genie providers doctor --json
+yardmaster providers doctor --json
 
 # review with one or all coding agents
-genie review --agent codex
-genie review --all
-genie review --all --diff-file original-agents.diff
-genie review --all --staged
-genie review --all --base origin/main
-genie review --json-schema
+yardmaster review --agent codex
+yardmaster review --all
+yardmaster review --all --diff-file original-agents.diff
+yardmaster review --all --staged
+yardmaster review --all --base origin/main
+yardmaster review --json-schema
 
 # config workflows
-genie config init --dry-run
-genie config set provider.default codex --dry-run
-genie config get provider.default
+yardmaster config init --dry-run
+yardmaster config set provider.default codex --dry-run
+yardmaster config get provider.default
 ```

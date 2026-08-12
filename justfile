@@ -5,9 +5,8 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 # ── Variables ────────────────────────────────────────────────────────
 
 project_root := justfile_directory()
-genie_dir := join(justfile_directory(), "genie")
-genie_bin := "node dist/bin/genie.js"
-genie_src_bin := "bun genie/src/bin/genie.ts"
+yardmaster_bin := "node dist/bin/yardmaster.js"
+yardmaster_src_bin := "bun src/bin/yardmaster.ts"
 review_runs_dir := join(justfile_directory(), ".review-runs")
 default_review_base := "origin/main"
 default_review_agent := "codex"
@@ -23,23 +22,19 @@ default:
 
 # ── Development ──────────────────────────────────────────────────────
 
-# Install genie dependencies
-[working-directory("genie")]
+# Install yardmaster dependencies
 install:
     bun install --frozen-lockfile
 
-# Build the genie CLI
-[working-directory("genie")]
+# Build the yardmaster CLI
 build:
     bun run build
 
-# Update the local linked genie install
-[working-directory("genie")]
+# Update the local linked yardmaster install
 update: build
-    {{ genie_bin }} update --force
+    {{ yardmaster_bin }} update --force
 
 # Remove build artifacts
-[working-directory("genie")]
 clean:
     -rm -rf dist
 
@@ -53,12 +48,10 @@ ci: install typecheck test build
     @echo "Local CI checks passed"
 
 # Run TypeScript type checking
-[working-directory("genie")]
 typecheck:
     bun run typecheck
 
 # Run the full test suite
-[working-directory("genie")]
 test *args:
     bun test {{ args }}
 
@@ -151,7 +144,7 @@ review-ready base=default_review_base timeout="5":
     check claude-auth claude auth status
     check gemini command -v gemini
     check gemini-headless "$timeout_cmd" "{{ timeout }}"s sh -c 'printf "hello" | gemini --extensions "" -p "say ok"'
-    check genie-cursor "$timeout_cmd" "{{ timeout }}"s sh -c 'cd "{{ project_root }}" && {{ genie_src_bin }} review --agent cursor --base "{{ base }}"'
+    check yardmaster-cursor "$timeout_cmd" "{{ timeout }}"s sh -c 'cd "{{ project_root }}" && {{ yardmaster_src_bin }} review --agent cursor --base "{{ base }}"'
 
 # Render review output for a single reviewer using the strongest available path
 [no-exit-message]
@@ -188,7 +181,7 @@ _review-output reviewer base timeout:
             ;;
         cursor)
             cd "{{ project_root }}"
-            "$timeout_cmd" "{{ timeout }}"s {{ genie_src_bin }} review --agent cursor --base "{{ base }}"
+            "$timeout_cmd" "{{ timeout }}"s {{ yardmaster_src_bin }} review --agent cursor --base "{{ base }}"
             ;;
         *)
             echo "Unknown reviewer: {{ reviewer }}"
@@ -196,7 +189,7 @@ _review-output reviewer base timeout:
             ;;
     esac
 
-# Review current branch changes with all Genie review agents using bounded, best-effort execution
+# Review current branch changes with all Yardmaster review agents using bounded, best-effort execution
 [script("bash")]
 review-all base=default_review_base timeout=default_review_timeout_seconds:
     set -euo pipefail
@@ -294,14 +287,14 @@ review-staged agent=default_review_agent timeout=default_review_timeout_seconds:
     set -euo pipefail
     cd "{{ project_root }}"
     timeout_cmd="$(just --quiet _timeout-bin)"
-    "$timeout_cmd" "{{ timeout }}"s {{ genie_src_bin }} review --agent "{{ agent }}" --staged
+    "$timeout_cmd" "{{ timeout }}"s {{ yardmaster_src_bin }} review --agent "{{ agent }}" --staged
 
 # Print the stable JSON schema for review automation
 [script("bash")]
 review-schema:
     set -euo pipefail
     cd "{{ project_root }}"
-    {{ genie_src_bin }} review --json-schema
+    {{ yardmaster_src_bin }} review --json-schema
 
 # Check provider installation/auth status before running AI reviews
 [script("bash")]
@@ -309,9 +302,9 @@ review-doctor provider="":
     set -euo pipefail
     cd "{{ project_root }}"
     if [ -n "{{ provider }}" ]; then
-        {{ genie_src_bin }} providers doctor --provider "{{ provider }}" --json
+        {{ yardmaster_src_bin }} providers doctor --provider "{{ provider }}" --json
     else
-        {{ genie_src_bin }} providers doctor --json
+        {{ yardmaster_src_bin }} providers doctor --json
     fi
 
 # Post a single-agent review as a PR comment when a PR exists for the branch

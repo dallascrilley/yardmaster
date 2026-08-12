@@ -1,6 +1,6 @@
 # Architecture
 
-> Internal architecture reference for genie-cli (genie package version in `genie/package.json`).
+> Internal architecture reference for yardmaster (yardmaster package version in `yardmaster/package.json`).
 
 ## System overview
 
@@ -36,12 +36,12 @@
 └─────────────────────────────────────────────────────┘
 ```
 
-Prompt commands and **`review`** use ACP helpers (`acp/client.ts`, `acp/run.ts`, `acp/command-runner.ts`, `acp/fallback.ts`) to spawn ACP agent processes and stream JSON-RPC. **`genie providers doctor`** still shells out to installed CLIs via `providers/default-checks.ts` and `providers/doctor-helpers.ts`. `providers/registry.ts` remains only as a compatibility export surface for older names, not as the canonical execution layer.
+Prompt commands and **`review`** use ACP helpers (`acp/client.ts`, `acp/run.ts`, `acp/command-runner.ts`, `acp/fallback.ts`) to spawn ACP agent processes and stream JSON-RPC. **`yardmaster providers doctor`** still shells out to installed CLIs via `providers/default-checks.ts` and `providers/doctor-helpers.ts`. `providers/registry.ts` remains only as a compatibility export surface for older names, not as the canonical execution layer.
 
 ## Module map
 
 ```
-genie/src/
+src/
 ├── index.ts                 # Entry point — delegates to cli()
 ├── cli.ts                   # Top-level orchestrator: parse → dispatch → exit
 ├── types.ts                 # Core types: ProviderId, config-facing provider tokens, request/output shapes
@@ -95,7 +95,8 @@ genie/src/
 │   ├── default-checks.ts    # Default availability/auth check implementations
 │   ├── registry.ts          # Compatibility re-exports for older provider-registry imports
 │   ├── base.ts              # Shared command runner used by doctor checks
-│   └── codex-auth.ts        # Codex-specific auth detection
+│   ├── codex-auth.ts        # Version-tolerant Codex auth probe
+│   └── redact.ts            # Strips operator identity from doctor output
 │
 ├── execution/
 │   ├── request-schema.ts    # Zod schema for request validation (shared)
@@ -107,7 +108,7 @@ genie/src/
 │   └── persist.ts           # Result persistence utilities
 │
 ├── config/
-│   ├── schema.ts            # GenieConfig Zod schema, defaults, mergeConfig()
+│   ├── schema.ts            # YardmasterConfig Zod schema, defaults, mergeConfig()
 │   ├── store.ts             # Load/save/update config from disk
 │   └── commands.ts          # Config subcommand implementations
 │
@@ -177,20 +178,22 @@ genie/src/
    │  └── Map protocol/auth failures to the shared error hierarchy
    │
 8. Output
-   ├── --json → GenieResponseEnvelope (structured)
+   ├── --json → YardmasterResponseEnvelope (structured)
    ├── --plain → response text only
    └── default → formatted response
 ```
 
 ## Provider diagnostics
 
-`providers/` is no longer the main execution layer for prompt commands or review. It remains for provider discovery, `genie providers doctor`, and compatibility exports consumed by older imports/tests.
+`providers/` is no longer the main execution layer for prompt commands or review. It remains for provider discovery, `yardmaster providers doctor`, and compatibility exports consumed by older imports/tests.
 
-`genie providers doctor` shells out to installed CLIs and reports availability, authentication, latency, and actionable hints. The main pieces are:
+`yardmaster providers doctor` shells out to installed CLIs and reports availability, authentication, latency, and actionable hints. The main pieces are:
 
 - `providers/doctor.ts` — doctor command entrypoint
 - `providers/doctor-helpers.ts` — target resolution, Cursor-specific hinting, auth/availability orchestration
 - `providers/default-checks.ts` — shared availability/auth probes (`--version`, `auth status`, `agent status`)
+- `providers/codex-auth.ts` — Codex auth probe that tries `codex login status`, then `codex auth status`, then `~/.codex/auth.json`, then reports an unsupported CLI version
+- `providers/redact.ts` — replaces identity-bearing values in doctor detail fields unless `--show-identity` is passed
 - `providers/registry.ts` — compatibility re-exports of ACP provider metadata for older callers/tests
 
 ACP launcher metadata lives in `acp/provider-registry.ts`, which currently defines `claude`, `codex`, `gemini`, and `cursor-agent` launchers plus env/auth requirements for those ACP agents.
@@ -200,7 +203,7 @@ ACP launcher metadata lives in `acp/provider-registry.ts`, which currently defin
 **Schema** (Zod-validated in `config/schema.ts`):
 
 ```
-GenieConfig
+YardmasterConfig
 ├── provider.default: ProviderId        # Default: 'claude'
 ├── provider.fallbackOrder: ProviderId[] # Default: all providers
 ├── model.byProvider: Record<string, string>
@@ -215,9 +218,9 @@ GenieConfig
 
 **Precedence** (highest wins):
 1. CLI flags (`--provider`, `--model`, etc.)
-2. Environment variables (`GENIE_PROVIDER`, `GENIE_MODEL`, etc.)
-3. Project config (`.genie/config.json`)
-4. User config (`~/.config/genie/config.json`)
+2. Environment variables (`YARDMASTER_PROVIDER`, `YARDMASTER_MODEL`, etc.)
+3. Project config (`.yardmaster/config.json`)
+4. User config (`~/.config/yardmaster/config.json`)
 5. Hardcoded defaults
 
 ## Error hierarchy
@@ -241,7 +244,7 @@ All errors are formatted with context-specific "Next steps" suggestions via `for
 The review system resolves a git diff, maps requested review agents to ACP providers, and runs those ACP prompts in parallel:
 
 ```
-genie review [--all | --agent <id>] [--diff-file | --staged | --base <ref>]
+yardmaster review [--all | --agent <id>] [--diff-file | --staged | --base <ref>]
                      │
                      ▼
               Resolve diff source

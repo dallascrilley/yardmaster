@@ -1,28 +1,51 @@
-# Generated and local artifacts
+# Dependencies
+node_modules/
+
+# Build output
 dist/
-/genie/dist/
-package-lock.json
-/genie/package-lock.json
 
-.todos/
+# Environment
+.env
+.env.*
+!.env.example
 
-# Local agent/session artifacts
-/.omc/
-/.omcodex/
-/error.log
-/genie/error.log
+# Logs
 *.log
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 bun-error.log*
 **/.npm/_logs/
 .eslintcache
+
+# Alternate package managers (bun is the lockfile of record)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Local run artifacts
 /.review-runs/
+/.yardmaster/
 
-# Nightshift local monitoring
+# Agent, tracker, and editor session state (kept local, never published)
+.agents/
+.beads/
+.claude/
+.codex/
+.cursor/
+.grok/
 .nightshift/
+.omc/
+.omcodex/
+.planning/
+.sisyphus/
+.specify/
+.todos/
+thoughts/
+handoff.md
+STATUS.md
+prd.json
 
-# Local Claude worktree artifacts
-.claude/worktrees/
+# OS
+.DS_Store
+Thumbs.db
