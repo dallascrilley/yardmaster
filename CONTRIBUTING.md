@@ -16,6 +16,9 @@ Guidelines for developing and extending yardmaster.
 
 ## Setup
 
+This package is not published to npm (`"private": true`). Develop from a clone.
+
+
 ```bash
 bun install
 bun run build
