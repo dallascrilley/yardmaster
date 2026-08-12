@@ -16,7 +16,7 @@ export async function handleProvidersListCommand(parsed: Extract<ParsedCommand, 
 }
 
 export async function handleProvidersDoctorCommand(parsed: Extract<ParsedCommand, { kind: 'providers-doctor' }>): Promise<void> {
-  const report = await doctorProviders(parsed.provider)
+  const report = await doctorProviders(parsed.provider, { showIdentity: parsed.showIdentity === true })
   if (shouldUseJson(parsed.globals)) {
     writeJson(toCliJsonSuccessEnvelope('providers_doctor', { providers: report }))
     return

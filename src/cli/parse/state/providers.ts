@@ -7,6 +7,7 @@ export function parseProvidersArgs(tokens: string[]): ParsedCommand {
   const globals = defaultGlobals()
   let subcommand: 'list' | 'doctor' | undefined
   let provider
+  let showIdentity = false
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
@@ -15,6 +16,11 @@ export function parseProvidersArgs(tokens: string[]): ParsedCommand {
 
     if (!subcommand && (token === 'list' || token === 'doctor')) {
       subcommand = token
+      continue
+    }
+
+    if (token === '--show-identity') {
+      showIdentity = true
       continue
     }
 
@@ -36,6 +42,9 @@ export function parseProvidersArgs(tokens: string[]): ParsedCommand {
     if (provider) {
       throw new UsageError('--provider is not supported with providers list')
     }
+    if (showIdentity) {
+      throw new UsageError('--show-identity is not supported with providers list')
+    }
     return {
       kind: 'providers-list',
       globals,
@@ -45,6 +54,7 @@ export function parseProvidersArgs(tokens: string[]): ParsedCommand {
   return {
     kind: 'providers-doctor',
     provider,
+    showIdentity,
     globals,
   }
 }

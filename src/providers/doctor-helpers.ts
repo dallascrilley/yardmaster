@@ -3,12 +3,14 @@ import { UsageError } from '../errors.js'
 import { isConfigProviderId, resolveConfigProviderToken } from '../execution/provider-aliases.js'
 import { type ProviderCheckResult, type ProviderId } from '../types.js'
 import { runCommand } from './base.js'
+import { codexAuthCheck } from './codex-auth.js'
 import {
   createCursorCliAuthCheck,
   createDefaultAvailabilityCheck,
   createDefaultAuthCheck,
 } from './default-checks.js'
-import type { ProviderDoctorStatus } from './doctor-types.js'
+import type { DoctorOptions, ProviderDoctorStatus } from './doctor-types.js'
+import { redactIdentity } from './redact.js'
 
 type DoctorTarget = {
   id: ProviderId
@@ -16,6 +18,8 @@ type DoctorTarget = {
   resolveAuthHint?: (result: Extract<ProviderCheckResult, { ok: false }>) => string | undefined
   /** Use `agent --version` / `agent status` — same binary as ACP `agent acp`. */
   cursorCliDoctor?: true
+  /** Codex changed its auth subcommand; use the version-tolerant probe. */
+  codexDoctor?: true
 }
 
 function resolveCursorAgentAuthHint(result: Extract<ProviderCheckResult, { ok: false }>): string | undefined {
@@ -37,7 +41,7 @@ function resolveCursorAgentAuthHint(result: Extract<ProviderCheckResult, { ok: f
 
 const doctorTargets: DoctorTarget[] = [
   { id: 'claude', binary: 'claude' },
-  { id: 'codex', binary: 'codex' },
+  { id: 'codex', binary: 'codex', codexDoctor: true },
   {
     id: 'cursor-agent',
     binary: 'agent',
@@ -69,7 +73,16 @@ export function resolveDoctorTargets(provider?: string) {
   return [entry]
 }
 
-export async function doctorProviderStatus(entry: DoctorTarget): Promise<ProviderDoctorStatus> {
+function resolveAuthCheck(entry: DoctorTarget, command: string) {
+  if (entry.cursorCliDoctor) return createCursorCliAuthCheck(command)
+  if (entry.codexDoctor) return codexAuthCheck
+  return createDefaultAuthCheck(entry.id, entry.binary)
+}
+
+export async function doctorProviderStatus(
+  entry: DoctorTarget,
+  options: DoctorOptions = {},
+): Promise<ProviderDoctorStatus> {
   const startedAt = Date.now()
   const command = entry.cursorCliDoctor ? resolveCursorCliCommand() : entry.binary
   const availability = await createDefaultAvailabilityCheck(command)(runCommand)
@@ -78,9 +91,7 @@ export async function doctorProviderStatus(entry: DoctorTarget): Promise<Provide
   let hint = availability.ok ? undefined : availability.hint
 
   if (availability.ok) {
-    const auth = entry.cursorCliDoctor
-      ? await createCursorCliAuthCheck(command)(runCommand)
-      : await createDefaultAuthCheck(entry.id, entry.binary)(runCommand)
+    const auth = await resolveAuthCheck(entry, command)(runCommand)
     authenticated = auth.ok
     authDetails = auth.ok
       ? auth.details
@@ -92,13 +103,18 @@ export async function doctorProviderStatus(entry: DoctorTarget): Promise<Provide
     }
   }
 
+  // Provider CLIs print the signed-in operator (`claude auth status` returns
+  // email/orgId/orgName). Redact unless the caller explicitly opted in.
+  const scrub = options.showIdentity ? (value: string | undefined) => value : redactIdentity
+
   return {
     provider: entry.id,
     available: availability.ok,
     authenticated,
-    availabilityDetails: availability.ok ? availability.details : availability.reason,
-    authDetails,
-    hint,
+    availabilityDetails: scrub(availability.ok ? availability.details : availability.reason),
+    authDetails: scrub(authDetails),
+    hint: scrub(hint),
+    identityRedacted: !options.showIdentity,
     latencyMs: Date.now() - startedAt,
   }
 }

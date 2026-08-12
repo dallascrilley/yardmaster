@@ -5,6 +5,21 @@ import { UsageError } from '../src/errors.js'
 import { resolveDoctorTargets } from '../src/providers/doctor-helpers.js'
 import { doctorProviders, listProviders } from '../src/providers/doctor.js'
 
+/** Shape emitted by `claude auth status` (values replaced with test data). */
+const CLAUDE_AUTH_STATUS = JSON.stringify(
+  {
+    loggedIn: true,
+    authMethod: 'claude.ai',
+    apiProvider: 'firstParty',
+    email: 'operator@example.com',
+    orgId: '00000000-0000-4000-8000-000000000000',
+    orgName: "operator@example.com's Organization",
+    subscriptionType: 'max',
+  },
+  null,
+  2,
+)
+
 describe('providers doctor', () => {
   it('lists all providers', async () => {
     const providers = await listProviders()
@@ -134,6 +149,57 @@ describe('providers doctor', () => {
       authDetails: 'Not authenticated. Please sign in.',
       hint: 'The Cursor CLI is not authenticated. Run `agent login` or open Cursor and sign in, then retry.',
     })
+
+    spy.mockRestore()
+  })
+
+  it('redacts operator identity from claude auth status by default', async () => {
+    const spy = vi
+      .spyOn(base, 'runCommand')
+      .mockResolvedValueOnce({ code: 0, stdout: '2.1.228 (Claude Code)', stderr: '' })
+      .mockResolvedValueOnce({ code: 0, stdout: CLAUDE_AUTH_STATUS, stderr: '' })
+
+    const report = await doctorProviders('claude')
+    const serialized = JSON.stringify(report)
+
+    expect(report[0]?.authenticated).toBe(true)
+    expect(report[0]?.identityRedacted).toBe(true)
+    expect(serialized).not.toContain('operator@example.com')
+    expect(serialized).not.toContain('00000000-0000-4000-8000-000000000000')
+    expect(report[0]?.authDetails).toContain('"loggedIn": true')
+
+    spy.mockRestore()
+  })
+
+  it('shows operator identity only when explicitly requested', async () => {
+    const spy = vi
+      .spyOn(base, 'runCommand')
+      .mockResolvedValueOnce({ code: 0, stdout: '2.1.228 (Claude Code)', stderr: '' })
+      .mockResolvedValueOnce({ code: 0, stdout: CLAUDE_AUTH_STATUS, stderr: '' })
+
+    const report = await doctorProviders('claude', { showIdentity: true })
+
+    expect(report[0]?.identityRedacted).toBe(false)
+    expect(report[0]?.authDetails).toContain('operator@example.com')
+
+    spy.mockRestore()
+  })
+
+  it('reports codex as authenticated via `codex login status`', async () => {
+    const spy = vi
+      .spyOn(base, 'runCommand')
+      .mockResolvedValueOnce({ code: 0, stdout: 'codex-cli 0.147.0', stderr: '' })
+      .mockResolvedValueOnce({ code: 0, stdout: 'Logged in using ChatGPT', stderr: '' })
+
+    const report = await doctorProviders('codex')
+
+    expect(report[0]).toMatchObject({
+      provider: 'codex',
+      available: true,
+      authenticated: true,
+      authDetails: 'Logged in using ChatGPT',
+    })
+    expect(spy.mock.calls[1]?.[0]?.args).toEqual(['login', 'status'])
 
     spy.mockRestore()
   })

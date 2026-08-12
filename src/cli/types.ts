@@ -133,6 +133,7 @@ export type ParsedCommand =
   | {
       kind: 'providers-doctor'
       provider?: ConfigProviderId
+      showIdentity?: boolean
       globals: GlobalOptions
     }
   | {

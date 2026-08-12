@@ -64,40 +64,90 @@ export function hasCodexAuthToken(): boolean {
   }
 }
 
+/**
+ * Auth probes for the Codex CLI, newest spelling first.
+ *
+ * `codex auth status` was removed from the Codex CLI; 0.147.0 answers it with
+ * `error: unrecognized subcommand 'status'` and exit 2. `codex login status`
+ * is the current spelling. Both are tried so one binary version does not
+ * decide the whole check, and a CLI that supports neither degrades to an
+ * explicit unsupported-version result instead of a bogus auth failure.
+ */
+const CODEX_AUTH_PROBES: readonly (readonly string[])[] = [
+  ['login', 'status'],
+  ['auth', 'status'],
+]
+
+const UNSUPPORTED_SUBCOMMAND_SIGNALS = [
+  'unrecognized subcommand',
+  'unknown subcommand',
+  'unrecognized command',
+  'unknown command',
+  'unexpected argument',
+  'invalid subcommand',
+  'usage:',
+]
+
+function isUnsupportedSubcommand(stdout: string, stderr: string): boolean {
+  const output = `${stderr}\n${stdout}`.toLowerCase()
+  return UNSUPPORTED_SUBCOMMAND_SIGNALS.some((signal) => output.includes(signal))
+}
+
 export async function codexAuthCheck(runner: CommandRunner): Promise<ProviderCheckResult> {
-  const result = await runner({
-    command: 'codex',
-    args: ['auth', 'status'],
-    timeoutMs: 4_000,
-  })
+  const attempted: string[] = []
 
-  if (result.code === 0) {
-    return { ok: true, details: (result.stdout || result.stderr).trim() || undefined }
-  }
+  for (const args of CODEX_AUTH_PROBES) {
+    attempted.push(`codex ${args.join(' ')}`)
 
-  const output = `${result.stderr}\n${result.stdout}`.toLowerCase()
-  if (output.includes('unknown') || output.includes('unrecognized') || output.includes('usage')) {
-    if (hasCodexAuthToken()) {
+    const result = await runner({
+      command: 'codex',
+      args: [...args],
+      timeoutMs: 4_000,
+    })
+
+    if (result.code === 0) {
+      return { ok: true, details: (result.stdout || result.stderr).trim() || undefined }
+    }
+
+    if (result.code === 124) {
       return {
-        ok: true,
-        details: 'codex auth status unsupported; token found in ~/.codex/auth.json',
+        ok: false,
+        reason: `${attempted[attempted.length - 1]} timed out`,
+        details: result.stderr || result.stdout || undefined,
+        hint: 'The Codex CLI did not respond to its auth probe. Retry, or run `codex login` to confirm the CLI is healthy.',
+        authFailure: true,
+        timeout: true,
+        code: result.code,
       }
+    }
+
+    if (isUnsupportedSubcommand(result.stdout, result.stderr)) {
+      continue
     }
 
     return {
       ok: false,
-      reason: 'codex authentication not configured',
-      hint: 'Run codex login or add a token to ~/.codex/auth.json and retry.',
+      reason: 'codex authentication check failed',
+      details: result.stderr || result.stdout || undefined,
+      hint: result.stderr || result.stdout || 'Run `codex login` and retry.',
       authFailure: true,
+      code: result.code,
+    }
+  }
+
+  // Every probe spelling was rejected by this Codex CLI build. Fall back to the
+  // credential file so a working install is not reported as unauthenticated.
+  if (hasCodexAuthToken()) {
+    return {
+      ok: true,
+      details: `no supported codex auth probe (tried ${attempted.join(', ')}); credentials found in ~/.codex/auth.json`,
     }
   }
 
   return {
     ok: false,
-    reason: 'codex authentication check failed',
-    hint: result.stderr || result.stdout || 'Run codex login and retry.',
+    reason: `this codex CLI supports no known auth probe (tried ${attempted.join(', ')})`,
+    hint: 'Run `codex login`, or upgrade the Codex CLI so `codex login status` is available, and retry.',
     authFailure: true,
-    timeout: result.code === 124,
-    code: result.code,
   }
 }
