@@ -263,7 +263,7 @@ Inspect provider inventory and diagnose availability/auth issues.
 
 ```bash
 yardmaster providers list [--json]                   # List all providers
-yardmaster providers doctor [--provider <id>] [--json] # Health check
+yardmaster providers doctor [--provider <id>] [--show-identity] [--json] # Health check
 ```
 
 ### Examples
@@ -275,7 +275,22 @@ yardmaster providers doctor
 yardmaster providers doctor --provider codex --json
 ```
 
-`--provider <id>` is only supported with `yardmaster providers doctor`.
+`--provider <id>` and `--show-identity` are only supported with `yardmaster providers doctor`.
+
+### Identity redaction
+
+Provider CLIs print the signed-in account. `claude auth status` returns JSON
+carrying `email`, `orgId`, and `orgName`. Doctor output is meant to be pasted
+into issues and CI logs, so those values are replaced with `[redacted]` and the
+report sets `identityRedacted: true`. The payload keeps its shape and its
+non-identity fields, so machine consumers still parse it.
+
+Pass `--show-identity` to print the raw provider output, and treat that output
+as sensitive:
+
+```bash
+yardmaster providers doctor --provider claude --show-identity --json
+```
 
 If provider checks fail or time out (especially `cursor-agent` trust/auth state), use the step-by-step fixes in [Troubleshooting](./TROUBLESHOOTING.md).
 
@@ -462,7 +477,7 @@ Each command keeps its command-specific payload fields alongside that shared met
 ## Provider prerequisites
 
 - `claude`: installed and authenticated via Claude Code
-- `codex`: installed and authenticated via `codex auth` or `~/.codex/auth.json`
+- `codex`: installed and authenticated. The probe tries `codex login status` first (the spelling supported by codex-cli 0.147.0), falls back to `codex auth status` for older builds, then to a credential in `~/.codex/auth.json`. A CLI that supports none of those is reported as an unsupported version rather than an auth failure.
 - `gemini`: installed and authenticated via `GEMINI_API_KEY`
 - `cursor-agent`: installed plus authenticated and trusted for the current workspace; if `yardmaster providers doctor --provider cursor-agent --json` reports an auth failure, sign in through Cursor first; if it times out, open Cursor and trust/approve the current workspace for agent access before retrying
 

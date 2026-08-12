@@ -25,7 +25,6 @@ yardmaster providers doctor --provider cursor-agent --json
 Build and link again from `yardmaster/`:
 
 ```bash
-cd yardmaster
 bun install
 bun run build
 bun link

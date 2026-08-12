@@ -41,7 +41,7 @@ Prompt commands and **`review`** use ACP helpers (`acp/client.ts`, `acp/run.ts`,
 ## Module map
 
 ```
-yardmaster/src/
+src/
 ├── index.ts                 # Entry point — delegates to cli()
 ├── cli.ts                   # Top-level orchestrator: parse → dispatch → exit
 ├── types.ts                 # Core types: ProviderId, config-facing provider tokens, request/output shapes
