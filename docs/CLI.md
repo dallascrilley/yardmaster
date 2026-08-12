@@ -281,9 +281,16 @@ yardmaster providers doctor --provider codex --json
 
 Provider CLIs print the signed-in account. `claude auth status` returns JSON
 carrying `email`, `orgId`, and `orgName`. Doctor output is meant to be pasted
-into issues and CI logs, so those values are replaced with `[redacted]` and the
-report sets `identityRedacted: true`. The payload keeps its shape and its
-non-identity fields, so machine consumers still parse it.
+into issues and CI logs, so it is filtered on three surfaces: JSON found
+anywhere in the output (including inside a version notice, and one object per
+line for NDJSON), labelled identity lines such as `Org Name: Acme`, and bare
+emails and UUIDs. Redacted values become `[redacted]` and the report sets
+`identityRedacted: true`. JSON keeps its shape and its diagnostic fields, so
+machine consumers still parse it and `plan`, `seats`, or `subscriptionType`
+survive.
+
+This is a filter, not a proof. A provider that prints an unlabelled opaque
+account token would pass through, so skim a report before publishing it.
 
 Pass `--show-identity` to print the raw provider output, and treat that output
 as sensitive:

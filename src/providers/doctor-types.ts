@@ -15,7 +15,10 @@ export type ProviderDoctorStatus = {
   availabilityDetails?: string
   authDetails?: string
   hint?: string
-  /** True when identity-bearing values in the detail fields were replaced. */
+  /**
+   * True when identity redaction was applied to the detail fields. It says the
+   * filter ran, not that the output is provably free of identifying values.
+   */
   identityRedacted: boolean
   latencyMs: number
 }

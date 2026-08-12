@@ -388,4 +388,19 @@ describe('cli parser', () => {
     const commandHelpFlag = parseArgv(['help', '--help'])
     expect(commandHelpFlag.kind).toBe('help')
   })
+
+  it('parses --show-identity only for providers doctor', () => {
+    const off = parseArgv(['providers', 'doctor'])
+    if (off.kind !== 'providers-doctor') throw new Error('expected providers-doctor')
+    expect(off.showIdentity).toBe(false)
+
+    const on = parseArgv(['providers', 'doctor', '--show-identity', '--json'])
+    if (on.kind !== 'providers-doctor') throw new Error('expected providers-doctor')
+    expect(on.showIdentity).toBe(true)
+    expect(on.globals.json).toBe(true)
+
+    expect(() => parseArgv(['providers', 'list', '--show-identity'])).toThrow(
+      '--show-identity is not supported with providers list',
+    )
+  })
 })

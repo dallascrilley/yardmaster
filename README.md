@@ -116,12 +116,15 @@ find out what went wrong. Bad input is 2, an auth or configuration problem is
 in [`src/errors.ts`](src/errors.ts) and is asserted end to end against the real
 binary in [`test/cli.exit-codes.integration.test.ts`](test/cli.exit-codes.integration.test.ts).
 
-**Diagnostics do not leak the operator.** `claude auth status` answers with
-JSON carrying `email`, `orgId`, and `orgName`, so a doctor report pasted into
-an issue used to carry the author's account with it. Detail fields now pass
-through [`src/providers/redact.ts`](src/providers/redact.ts), which keeps the
-payload's shape and its useful fields and replaces the identity-bearing ones.
-`identityRedacted` says so in the output, and `--show-identity` opts back in.
+**Diagnostics do not carry the operator's account.** `claude auth status`
+answers with JSON carrying `email`, `orgId`, and `orgName`, so a doctor report
+pasted into an issue used to carry the author's account with it. Detail fields
+now pass through [`src/providers/redact.ts`](src/providers/redact.ts), which
+finds JSON anywhere in the output (including inside a version notice), keeps
+its shape and its diagnostic fields, and replaces identity values, labelled
+identity lines, emails, and UUIDs. `identityRedacted` says the filter ran, and
+`--show-identity` opts back in. It is a filter rather than a proof, so an
+opaque unlabelled token would still pass through.
 
 **One protocol instead of four adapters.** Providers are reached over Agent
 Client Protocol rather than a bespoke wrapper per vendor, so sessions, streamed

@@ -18,12 +18,16 @@ sessions. That means a few things are worth knowing.
   `gemini` and relies on whatever login those tools already have. The one
   exception is `providers doctor`, which reads `~/.codex/auth.json` to check
   whether a credential exists when the Codex CLI exposes no working auth probe;
-  it reports presence only and never the token value.
+  it reports presence only, never the token value, and says in its details that
+  the credential was not validated.
 - **Diagnostics redact operator identity by default.** Provider CLIs print the
   signed-in account: `claude auth status` returns `email`, `orgId`, and
-  `orgName`. `providers doctor` replaces those values and sets
-  `identityRedacted: true`. `--show-identity` prints them unredacted; treat
-  that output as sensitive.
+  `orgName`. `providers doctor` replaces identity values in JSON found anywhere
+  in the output, labelled identity lines such as `Org Name:`, and bare emails
+  and UUIDs, then sets `identityRedacted: true`. This is a best-effort filter,
+  not a guarantee: a provider that prints an unlabelled opaque account token
+  would pass through, so skim a report before publishing it. `--show-identity`
+  prints the raw provider output; treat that as sensitive.
 - **Filesystem access is workspace-scoped.** ACP host handlers resolve read and
   write requests against the resolved workspace root and reject paths that
   escape it (`src/acp/host-handlers.ts`).

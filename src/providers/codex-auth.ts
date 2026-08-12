@@ -53,8 +53,8 @@ export function hasCodexAuthToken(): boolean {
       }
 
       return Object.entries(value as Record<string, unknown>).some(
-        ([key, innerValue]) =>
-          allowedTokenKeys.has(key) &&
+        ([innerKey, innerValue]) =>
+          allowedTokenKeys.has(innerKey) &&
           typeof innerValue === 'string' &&
           innerValue.trim().length > 0,
       )
@@ -78,6 +78,15 @@ const CODEX_AUTH_PROBES: readonly (readonly string[])[] = [
   ['auth', 'status'],
 ]
 
+/**
+ * Signals that the CLI rejected the subcommand itself rather than the login.
+ *
+ * These are deliberately specific. A `usage:` banner does not qualify: plenty
+ * of CLIs print usage on a genuine auth error, and treating that as
+ * "unsupported" would fall through to the credential-file branch and report a
+ * logged-out CLI as authenticated. codex-cli 0.147.0 says `error: unrecognized
+ * subcommand 'status'`, which the first entry already covers.
+ */
 const UNSUPPORTED_SUBCOMMAND_SIGNALS = [
   'unrecognized subcommand',
   'unknown subcommand',
@@ -85,7 +94,6 @@ const UNSUPPORTED_SUBCOMMAND_SIGNALS = [
   'unknown command',
   'unexpected argument',
   'invalid subcommand',
-  'usage:',
 ]
 
 function isUnsupportedSubcommand(stdout: string, stderr: string): boolean {
@@ -137,10 +145,12 @@ export async function codexAuthCheck(runner: CommandRunner): Promise<ProviderChe
 
   // Every probe spelling was rejected by this Codex CLI build. Fall back to the
   // credential file so a working install is not reported as unauthenticated.
+  // Presence is all this can check; the token is not validated or checked for
+  // expiry, and the details say so.
   if (hasCodexAuthToken()) {
     return {
       ok: true,
-      details: `no supported codex auth probe (tried ${attempted.join(', ')}); credentials found in ~/.codex/auth.json`,
+      details: `no supported codex auth probe (tried ${attempted.join(', ')}); a credential exists in ~/.codex/auth.json but was not validated`,
     }
   }
 
