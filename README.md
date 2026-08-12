@@ -1,4 +1,4 @@
-# genie
+# yardmaster
 
 Unified AI CLI with deterministic provider routing, script-safe output, and robust non-hanging execution.
 
@@ -18,13 +18,13 @@ Unified AI CLI with deterministic provider routing, script-safe output, and robu
 From the project root:
 
 ```bash
-cd genie
+cd yardmaster
 bun install
 bun run build
 bun link
 ```
 
-If `genie` is not found after `bun link`, add Bun's global bin directory to your shell `PATH`:
+If `yardmaster` is not found after `bun link`, add Bun's global bin directory to your shell `PATH`:
 
 ```bash
 export PATH="$HOME/.bun/bin:$PATH"
@@ -33,8 +33,8 @@ export PATH="$HOME/.bun/bin:$PATH"
 Then verify the installed binary:
 
 ```bash
-genie --help
-genie providers list --json
+yardmaster --help
+yardmaster providers list --json
 ```
 
 Or use `npm link` / `pnpm link` after `bun run build`.
@@ -42,13 +42,13 @@ Or use `npm link` / `pnpm link` after `bun run build`.
 ## Start here
 
 ```bash
-genie "summarize the current branch"
-npm test 2>&1 | genie debug
-genie review --all
-genie providers doctor
+yardmaster "summarize the current branch"
+npm test 2>&1 | yardmaster debug
+yardmaster review --all
+yardmaster providers doctor
 ```
 
-If you just run `genie`, the root command now shows workflow-oriented help with examples, command discovery, and suggested next commands.
+If you just run `yardmaster`, the root command now shows workflow-oriented help with examples, command discovery, and suggested next commands.
 
 ## Global flags
 
@@ -74,7 +74,7 @@ If you just run `genie`, the root command now shows workflow-oriented help with 
 See [Contributing](docs/CONTRIBUTING.md) for development guidelines and extension guides.
 
 ```bash
-cd genie
+cd yardmaster
 bun run typecheck
 bun run test
 bun run build

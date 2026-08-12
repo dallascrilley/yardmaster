@@ -1,35 +1,35 @@
 # Contributing
 
-Guidelines for developing and extending genie-cli.
+Guidelines for developing and extending yardmaster.
 
 ## Key Resources
 - **Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md) for system design and module map.
 - **API Reference**: See [API.md](API.md) for types and contracts.
-- **Capabilities**: Explore the [genie-dispatch skill](../.claude/skills/genie-dispatch/SKILL.md) for provider strengths.
+- **Capabilities**: Explore the [yardmaster-dispatch skill](../.claude/skills/yardmaster-dispatch/SKILL.md) for provider strengths.
 
 ## Prerequisites
 
 - Node.js 18+
 - Bun (for dependency management and running)
 - At least one provider CLI installed (claude, codex, gemini, or cursor-agent)
-- For **Cursor** ACP (`genie run` / `genie review` with `cursor-agent`): the **`agent`** binary from the Cursor CLI must be on `PATH`, or set **`GENIE_CURSOR_ACP_BIN`** to its full path (often `~/.local/bin/agent`). Run `agent login` (or use `CURSOR_API_KEY` / docs) so `authenticate` can succeed.
+- For **Cursor** ACP (`yardmaster run` / `yardmaster review` with `cursor-agent`): the **`agent`** binary from the Cursor CLI must be on `PATH`, or set **`YARDMASTER_CURSOR_ACP_BIN`** to its full path (often `~/.local/bin/agent`). Run `agent login` (or use `CURSOR_API_KEY` / docs) so `authenticate` can succeed.
 - For **Gemini** ACP, the installed **`gemini`** CLI must support **`--acp`** (current documented mode).
 
 ## Setup
 
 ```bash
-cd genie
+cd yardmaster
 bun install
 bun run build
 bun link
 ```
 
-Verify with `genie --help`.
+Verify with `yardmaster --help`.
 
 ## Development workflow
 
 ```bash
-cd genie
+cd yardmaster
 
 # Type-check without emitting
 bun run typecheck
@@ -54,31 +54,31 @@ just build
 Targeted contract verification that landed after the initial command rollout:
 
 ```bash
-cd genie
+cd yardmaster
 bun run test:critical-path
 ```
 
-That suite covers bootstrap help flows, prompt commands, stateful commands, update behavior, and the linked `genie` binary in isolated temp homes and git workspaces.
+That suite covers bootstrap help flows, prompt commands, stateful commands, update behavior, and the linked `yardmaster` binary in isolated temp homes and git workspaces.
 
 ### Smoke tests (optional, slow)
 
-Real-LLM smoke lives in `genie/test/smoke/` (`bun run test:smoke`). It is **provider-dependent** and can take several minutes when many CLIs are installed.
+Real-LLM smoke lives in `yardmaster/test/smoke/` (`bun run test:smoke`). It is **provider-dependent** and can take several minutes when many CLIs are installed.
 
-- **Narrow providers locally**: `GENIE_SMOKE_PROVIDERS=gemini` (comma-separated) limits the matrix; unavailable providers are skipped per `genie providers doctor`.
+- **Narrow providers locally**: `YARDMASTER_SMOKE_PROVIDERS=gemini` (comma-separated) limits the matrix; unavailable providers are skipped per `yardmaster providers doctor`.
 - **Quick default (Gemini-only)**: `bun run test:smoke:preflight` sets that filter for you (still needs a working Gemini auth for non-skipped cases).
 - **Scheduled CI**: [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) runs on `workflow_dispatch` and a daily cron; configure the **`GEMINI_API_KEY`** repository secret for the job to pass global setup. Forks do not receive upstream secrets—expect skips or failures unless secrets are provided.
 
 ## CI / GitHub Actions
 
-The gate you care about is [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (`bun install --frozen-lockfile`, `typecheck`, `test`, `build`, `test:critical-path` in `genie/`).
+The gate you care about is [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (`bun install --frozen-lockfile`, `typecheck`, `test`, `build`, `test:critical-path` in `yardmaster/`).
 
 The obsolete **`BuildFailed`** workflow (historical id `253562637`) is **`deleted`** in the GitHub Actions API (`state: deleted`). You should only see **CI** and **Smoke Tests** under active workflows. Older PRs may still list historical **`startup_failure`** rows for that deleted workflow; new PRs should surface **`ci.yml`** as the primary check. If an empty-name ghost reappears, a repo admin can clean it under **Settings → Actions**.
 
 ## Project structure
 
 ```
-genie-cli/
-├── genie/                  # Main package
+yardmaster/
+├── yardmaster/                  # Main package
 │   ├── src/                # TypeScript source
 │   │   ├── cli/            # Parsing and dispatch
 │   │   ├── acp/            # ACP helpers for run/design/commit/debug/review
@@ -104,19 +104,19 @@ genie-cli/
 
 **Prompt-driven providers** (`run`, `design`, `commit`, `debug`, and the provider-facing part of `review`) go through ACP:
 
-1. Add an `AcpProviderEntry` in `genie/src/acp/provider-registry.ts` (launcher binary or `npx` package, optional `resolveEnv` / `authCheck`).
-2. Extend `ProviderId` and any defaults in `genie/src/types.ts` and `genie/src/config/schema.ts` if the id is new.
-3. Keep **`genie providers doctor`** accurate by updating `genie/src/providers/doctor-helpers.ts` / `default-checks.ts` with the CLI availability and auth checks users need for that provider.
-4. Add help text in `genie/src/cli/help/topics.ts` and update `genie/src/cli/completion.ts`.
+1. Add an `AcpProviderEntry` in `yardmaster/src/acp/provider-registry.ts` (launcher binary or `npx` package, optional `resolveEnv` / `authCheck`).
+2. Extend `ProviderId` and any defaults in `yardmaster/src/types.ts` and `yardmaster/src/config/schema.ts` if the id is new.
+3. Keep **`yardmaster providers doctor`** accurate by updating `yardmaster/src/providers/doctor-helpers.ts` / `default-checks.ts` with the CLI availability and auth checks users need for that provider.
+4. Add help text in `yardmaster/src/cli/help/topics.ts` and update `yardmaster/src/cli/completion.ts`.
 
 If a provider has an ACP launcher but no live doctor probe yet, land the ACP entry first and document the missing doctor coverage explicitly in the same change.
 
 ## Adding a new command
 
-1. **Parse**: Add parser function in `genie/src/cli/parse/` (prompt-commands or state-commands)
-2. **Dispatch**: Add handler in `genie/src/cli/dispatch/` (prompt-commands or state-commands)
-3. **Help**: Add help topic in `genie/src/cli/help/topics.ts` and register in `help.ts`
-4. **Types**: Add `ParsedCommand` variant in `genie/src/cli/types.ts`
+1. **Parse**: Add parser function in `yardmaster/src/cli/parse/` (prompt-commands or state-commands)
+2. **Dispatch**: Add handler in `yardmaster/src/cli/dispatch/` (prompt-commands or state-commands)
+3. **Help**: Add help topic in `yardmaster/src/cli/help/topics.ts` and register in `help.ts`
+4. **Types**: Add `ParsedCommand` variant in `yardmaster/src/cli/types.ts`
 5. **Completions**: Update shell completion generator
 
 ## Conventions

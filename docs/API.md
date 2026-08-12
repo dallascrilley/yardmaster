@@ -1,6 +1,6 @@
 # API Reference
 
-> TypeScript types, interfaces, and JSON contracts for genie-cli v0.2.0.
+> TypeScript types, interfaces, and JSON contracts for yardmaster v0.2.0.
 
 ## Core types
 
@@ -198,12 +198,12 @@ type CliJsonErrorEnvelope = {
 }
 ```
 
-### GenieRunResult
+### YardmasterRunResult
 
 Complete result of a prompt execution.
 
 ```typescript
-type GenieRunResult = {
+type YardmasterRunResult = {
   provider: ProviderId
   model: string | undefined
   mode: string
@@ -225,12 +225,12 @@ type GenieRunResult = {
 }
 ```
 
-### GenieResponseEnvelope
+### YardmasterResponseEnvelope
 
 JSON output envelope for `--json` mode.
 
 ```typescript
-type GenieResponseEnvelope = {
+type YardmasterResponseEnvelope = {
   provider: ProviderId | null
   model: string | null
   response: string
@@ -252,7 +252,7 @@ type GenieResponseEnvelope = {
 }
 ```
 
-`GenieResponseEnvelope` is the payload wrapped inside the prompt-command JSON success envelopes. `genie run`, `genie design`, and `genie debug` emit `CliJsonSuccessEnvelope<GenieResponseEnvelope>` with command-specific `kind` values such as `run_result`, `design_result`, and `debug_result`. If the CLI fails before a prompt result exists and `--json` was requested, it emits `CliJsonErrorEnvelope` instead.
+`YardmasterResponseEnvelope` is the payload wrapped inside the prompt-command JSON success envelopes. `yardmaster run`, `yardmaster design`, and `yardmaster debug` emit `CliJsonSuccessEnvelope<YardmasterResponseEnvelope>` with command-specific `kind` values such as `run_result`, `design_result`, and `debug_result`. If the CLI fails before a prompt result exists and `--json` was requested, it emits `CliJsonErrorEnvelope` instead.
 
 ---
 
@@ -284,12 +284,12 @@ type ProviderFailureReason = {
 
 ## Config types
 
-### GenieConfig
+### YardmasterConfig
 
 Full configuration schema (Zod-validated).
 
 ```typescript
-type GenieConfig = {
+type YardmasterConfig = {
   provider: {
     default: ProviderId                   // Default: 'claude'
     fallbackOrder: ProviderId[]           // Default: all providers
@@ -394,7 +394,7 @@ type ReviewExecutionResult = {
 
 ### ReviewJsonEnvelope
 
-JSON output for `genie review --json`.
+JSON output for `yardmaster review --json`.
 
 ```typescript
 type ReviewJsonEnvelope = {
@@ -414,7 +414,7 @@ type ReviewJsonEnvelope = {
 }
 ```
 
-Use `genie review --json-schema` to get the full JSON Schema for this envelope.
+Use `yardmaster review --json-schema` to get the full JSON Schema for this envelope.
 
 `targets` is the requested review-agent set. Per-agent execution outcomes appear in `results`.
 
@@ -436,14 +436,14 @@ Use `genie review --json-schema` to get the full JSON Schema for this envelope.
 
 | Variable | Description | Maps to |
 |----------|-------------|---------|
-| `GENIE_PROVIDER` | Default provider | `config.provider.default` |
-| `GENIE_MODEL` | Default model | `config.model.byProvider[provider]` |
-| `GENIE_MODE` | Default mode | `config.mode.default` |
-| `GENIE_WORKSPACE` | Workspace path | `config.workspace.last` |
-| `GENIE_TRUST` | Trust responses (0/1) | `config.trust.default` |
-| `GENIE_TIMEOUT_MS` | Timeout in ms | `config.runtime.timeoutMs` |
-| `GENIE_OUTPUT` | Output mode | `config.output.default` |
-| `GENIE_STRICT_COMMANDS` | Strict command parsing (0/1) | Fail on unknown root tokens |
+| `YARDMASTER_PROVIDER` | Default provider | `config.provider.default` |
+| `YARDMASTER_MODEL` | Default model | `config.model.byProvider[provider]` |
+| `YARDMASTER_MODE` | Default mode | `config.mode.default` |
+| `YARDMASTER_WORKSPACE` | Workspace path | `config.workspace.last` |
+| `YARDMASTER_TRUST` | Trust responses (0/1) | `config.trust.default` |
+| `YARDMASTER_TIMEOUT_MS` | Timeout in ms | `config.runtime.timeoutMs` |
+| `YARDMASTER_OUTPUT` | Output mode | `config.output.default` |
+| `YARDMASTER_STRICT_COMMANDS` | Strict command parsing (0/1) | Fail on unknown root tokens |
 
 ---
 

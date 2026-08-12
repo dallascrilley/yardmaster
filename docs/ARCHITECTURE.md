@@ -1,6 +1,6 @@
 # Architecture
 
-> Internal architecture reference for genie-cli (genie package version in `genie/package.json`).
+> Internal architecture reference for yardmaster (yardmaster package version in `yardmaster/package.json`).
 
 ## System overview
 
@@ -36,12 +36,12 @@
 └─────────────────────────────────────────────────────┘
 ```
 
-Prompt commands and **`review`** use ACP helpers (`acp/client.ts`, `acp/run.ts`, `acp/command-runner.ts`, `acp/fallback.ts`) to spawn ACP agent processes and stream JSON-RPC. **`genie providers doctor`** still shells out to installed CLIs via `providers/default-checks.ts` and `providers/doctor-helpers.ts`. `providers/registry.ts` remains only as a compatibility export surface for older names, not as the canonical execution layer.
+Prompt commands and **`review`** use ACP helpers (`acp/client.ts`, `acp/run.ts`, `acp/command-runner.ts`, `acp/fallback.ts`) to spawn ACP agent processes and stream JSON-RPC. **`yardmaster providers doctor`** still shells out to installed CLIs via `providers/default-checks.ts` and `providers/doctor-helpers.ts`. `providers/registry.ts` remains only as a compatibility export surface for older names, not as the canonical execution layer.
 
 ## Module map
 
 ```
-genie/src/
+yardmaster/src/
 ├── index.ts                 # Entry point — delegates to cli()
 ├── cli.ts                   # Top-level orchestrator: parse → dispatch → exit
 ├── types.ts                 # Core types: ProviderId, config-facing provider tokens, request/output shapes
@@ -107,7 +107,7 @@ genie/src/
 │   └── persist.ts           # Result persistence utilities
 │
 ├── config/
-│   ├── schema.ts            # GenieConfig Zod schema, defaults, mergeConfig()
+│   ├── schema.ts            # YardmasterConfig Zod schema, defaults, mergeConfig()
 │   ├── store.ts             # Load/save/update config from disk
 │   └── commands.ts          # Config subcommand implementations
 │
@@ -177,16 +177,16 @@ genie/src/
    │  └── Map protocol/auth failures to the shared error hierarchy
    │
 8. Output
-   ├── --json → GenieResponseEnvelope (structured)
+   ├── --json → YardmasterResponseEnvelope (structured)
    ├── --plain → response text only
    └── default → formatted response
 ```
 
 ## Provider diagnostics
 
-`providers/` is no longer the main execution layer for prompt commands or review. It remains for provider discovery, `genie providers doctor`, and compatibility exports consumed by older imports/tests.
+`providers/` is no longer the main execution layer for prompt commands or review. It remains for provider discovery, `yardmaster providers doctor`, and compatibility exports consumed by older imports/tests.
 
-`genie providers doctor` shells out to installed CLIs and reports availability, authentication, latency, and actionable hints. The main pieces are:
+`yardmaster providers doctor` shells out to installed CLIs and reports availability, authentication, latency, and actionable hints. The main pieces are:
 
 - `providers/doctor.ts` — doctor command entrypoint
 - `providers/doctor-helpers.ts` — target resolution, Cursor-specific hinting, auth/availability orchestration
@@ -200,7 +200,7 @@ ACP launcher metadata lives in `acp/provider-registry.ts`, which currently defin
 **Schema** (Zod-validated in `config/schema.ts`):
 
 ```
-GenieConfig
+YardmasterConfig
 ├── provider.default: ProviderId        # Default: 'claude'
 ├── provider.fallbackOrder: ProviderId[] # Default: all providers
 ├── model.byProvider: Record<string, string>
@@ -215,9 +215,9 @@ GenieConfig
 
 **Precedence** (highest wins):
 1. CLI flags (`--provider`, `--model`, etc.)
-2. Environment variables (`GENIE_PROVIDER`, `GENIE_MODEL`, etc.)
-3. Project config (`.genie/config.json`)
-4. User config (`~/.config/genie/config.json`)
+2. Environment variables (`YARDMASTER_PROVIDER`, `YARDMASTER_MODEL`, etc.)
+3. Project config (`.yardmaster/config.json`)
+4. User config (`~/.config/yardmaster/config.json`)
 5. Hardcoded defaults
 
 ## Error hierarchy
@@ -241,7 +241,7 @@ All errors are formatted with context-specific "Next steps" suggestions via `for
 The review system resolves a git diff, maps requested review agents to ACP providers, and runs those ACP prompts in parallel:
 
 ```
-genie review [--all | --agent <id>] [--diff-file | --staged | --base <ref>]
+yardmaster review [--all | --agent <id>] [--diff-file | --staged | --base <ref>]
                      │
                      ▼
               Resolve diff source
