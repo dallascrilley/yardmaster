@@ -45,7 +45,7 @@ export function toReviewJsonEnvelope(result: ReviewExecutionResult): ReviewJsonE
 export function getReviewJsonSchema(): ReviewJsonSchema {
   return {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'https://yardmaster.dev/schemas/review-result-v1.json',
+    $id: 'https://github.com/dallascrilley/yardmaster/schemas/review-result-v1.json',
     title: 'Yardmaster Review Result',
     type: 'object',
     additionalProperties: false,
