@@ -129,7 +129,7 @@ Optional real-LLM smoke: from `yardmaster/`, `bun run test:smoke` exercises `run
 
 - Limit providers: `YARDMASTER_SMOKE_PROVIDERS=gemini` (comma-separated list). Unavailable providers are skipped using `yardmaster providers doctor` results.
 - Shorter default: `bun run test:smoke:preflight` (Gemini-only filter).
-- In **GitHub Actions**, workflow [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) requires the **`GEMINI_API_KEY`** repository secret; scheduled runs and manual `workflow_dispatch` only.
+- In **GitHub Actions**, workflow [`.github/workflows/smoke.yml`](../.github/workflows/smoke.yml) requires the **`GEMINI_API_KEY`** repository secret; scheduled runs and manual `workflow_dispatch` only. The job installs the Gemini CLI itself (`providers doctor` probes `gemini --version`) and sets `GEMINI_CLI_TRUST_WORKSPACE=true`, since the CLI refuses to run in an untrusted directory.
 
 ## Timeout handling and slow providers
 

@@ -65,7 +65,7 @@ Real-LLM smoke lives in `test/smoke/` (`bun run test:smoke`). It is **provider-d
 
 - **Narrow providers locally**: `YARDMASTER_SMOKE_PROVIDERS=gemini` (comma-separated) limits the matrix; unavailable providers are skipped per `yardmaster providers doctor`.
 - **Quick default (Gemini-only)**: `bun run test:smoke:preflight` sets that filter for you (still needs a working Gemini auth for non-skipped cases).
-- **Scheduled CI**: [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml) runs on `workflow_dispatch` and a daily cron; configure the **`GEMINI_API_KEY`** repository secret for the job to pass global setup. Forks do not receive upstream secrets—expect skips or failures unless secrets are provided.
+- **Scheduled CI**: [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml) runs on `workflow_dispatch` and a daily cron; configure the **`GEMINI_API_KEY`** repository secret for the job to pass global setup. The job installs the Gemini CLI and runs the Gemini-only filter, because the other provider CLIs need interactive OAuth and can never authenticate on a runner. Forks do not receive upstream secrets—expect skips or failures unless secrets are provided.
 
 ## CI / GitHub Actions
 
