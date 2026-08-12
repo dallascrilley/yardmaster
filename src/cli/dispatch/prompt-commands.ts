@@ -149,14 +149,15 @@ export async function handleCommitCommand(parsed: Extract<ParsedCommand, { kind:
   const workspace = resolveWorkspacePath(effectiveOptions.workspace, config.workspace.last)
   const gitExec = createGitExec({ cwd: workspace })
   
-  // Verify there are staged changes
+  // Verify there are staged changes, and reuse the diff as prompt context so
+  // the agent does not have to fetch it (and narrate doing so) itself.
   const gitRead = createGitRead({ cwd: workspace })
-  readStagedDiff(gitRead)
-  
+  const stagedDiff = readStagedDiff(gitRead)
+
   const trustMode: TrustMode = effectiveOptions.yolo ? 'yolo' : effectiveOptions.trust ? 'trust' : 'default'
   const result = await runAcpCommand({
     systemPrompt: COMMIT_SYSTEM_PROMPT,
-    userPrompt: buildCommitPrompt(),
+    userPrompt: buildCommitPrompt(stagedDiff),
     provider: effectiveOptions.provider,
     model: effectiveOptions.model,
     workspace,

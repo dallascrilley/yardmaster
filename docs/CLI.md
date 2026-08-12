@@ -146,7 +146,9 @@ yardmaster commit --apply                      # Commit with generated message
 yardmaster commit --apply --provider claude    # Use specific provider
 ```
 
-`yardmaster commit` reads `git diff --staged --no-color` from the selected workspace. It fails if there are no staged changes, `--workspace <path>` changes which repository is inspected before generating or applying the message, and `--json` is rejected for this command.
+`yardmaster commit` reads `git diff --staged --no-color` from the selected workspace and sends it to the provider as prompt context, so the agent does not have to fetch the diff itself. It fails if there are no staged changes, `--workspace <path>` changes which repository is inspected before generating or applying the message, and `--json` is rejected for this command.
+
+The provider is expected to reply with the subject line alone. A markdown code fence, an announcement line ending in a colon (`Here is the commit message:`), or a notice the agent CLI glued in front of the answer are all tolerated; an explanation, a refusal, or a list of alternatives is rejected with exit code 2 and the raw response is echoed, truncated to one line, so the failure is diagnosable from CI logs.
 
 ---
 
