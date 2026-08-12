@@ -14,6 +14,13 @@ with a stable contract. Every provider speaks
 `--json` with the same envelope, and every failure mode has its own exit code
 so a script can branch on it.
 
+## Provenance
+
+Yardmaster is original CLI and ACP client work in this repository. Provider
+sessions use the public [`@agentclientprotocol/sdk`](https://www.npmjs.com/package/@agentclientprotocol/sdk);
+vendor agent CLIs (`claude`, `codex`, `agent`, `gemini`) remain separate products
+you install and authenticate yourself. This is not a fork of those CLIs.
+
 ## See it
 
 `providers doctor` answers the question that breaks automation first: which
@@ -135,9 +142,10 @@ adapter.
 
 ## Honest boundaries
 
-- **Not on npm.** There is no published package and no release binary. Install
-  from source with the quickstart above. The `bin` name is `yardmaster`; there
-  is no short alias.
+- **Not on npm.** There is no published package and no release binary.
+  `package.json` sets `"private": true` on purpose so the repo is source-only.
+  Install from a checkout with the quickstart above. The `bin` name is
+  `yardmaster`; there is no short alias.
 - **Version-tolerant, not version-proof.** Vendor CLIs move. `codex auth
   status` was removed in codex-cli 0.147.0, which is why the codex probe tries
   `codex login status` first, falls back to the older spelling, then to
