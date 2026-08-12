@@ -43,7 +43,12 @@ const IDENTITY_KEYS = new Set(
   ].map((key) => key.toLowerCase()),
 )
 
-const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
+// Quantifiers are bounded deliberately. An unbounded `[A-Za-z0-9._%+-]+@` scans
+// the full run of candidate characters from every starting offset, so a long
+// provider log with no `@` in it costs O(n^2): a 100 KB line took ~26s. The
+// bounds keep the work per offset constant while still covering real addresses
+// (RFC 5321 caps the local part at 64 and a domain at 255).
+const EMAIL_PATTERN = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,24}/g
 const UUID_PATTERN = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g
 
 export const REDACTED = '[redacted]'

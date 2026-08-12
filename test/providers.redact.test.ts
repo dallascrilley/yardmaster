@@ -60,4 +60,20 @@ describe('redactIdentity', () => {
   it('passes undefined through', () => {
     expect(redactIdentity(undefined)).toBeUndefined()
   })
+
+  it('stays linear on long output with no address in it', () => {
+    // An unbounded local-part quantifier rescans the whole run from every
+    // offset, so this input used to take ~26s. Provider CLIs can be chatty;
+    // a doctor probe must not stall on one.
+    const haystack = JSON.stringify({ log: 'b'.repeat(100_000) })
+    const startedAt = Date.now()
+    const redacted = redactIdentity(haystack)
+    expect(Date.now() - startedAt).toBeLessThan(1_000)
+    expect(redacted).toContain('bbb')
+  })
+
+  it('still redacts an address buried in long output', () => {
+    const haystack = `${'x'.repeat(50_000)} contact operator@example.com now`
+    expect(redactIdentity(haystack)).toContain('contact [redacted] now')
+  })
 })
