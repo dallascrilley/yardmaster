@@ -35,7 +35,7 @@ Entries at and below `0.2.0` describe the package under its former name, `genie`
 
 ### Unchanged / follow-up
 
-- **`genie review`** still uses the legacy multi-agent spawn and parse path; migrating it to ACP is tracked in `docs/specs/2026-03-30-acp-rewrite-design.md` (implementation status section).
+- **`genie review`** still uses the legacy multi-agent spawn and parse path; migrating it to ACP is a known follow-up.
 - **`genie providers`** (list, doctor) continues to use provider adapters for availability and auth reporting.
 
 ### Migration

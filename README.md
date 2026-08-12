@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/dallascrilley/yardmaster/actions/workflows/ci.yml/badge.svg)](https://github.com/dallascrilley/yardmaster/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178c6.svg)](https://www.typescriptlang.org/)
 
 I kept writing the same shell glue: check which agent CLI is installed, check
 whether it is logged in, run the prompt, parse whatever it printed, guess from
@@ -149,7 +149,7 @@ adapter.
   that supports `--acp`. `providers doctor` reports both.
 - **`pi` is an alias, not a provider.** It resolves to a configured backend via
   `YARDMASTER_PI_BACKEND`; it has no doctor probe of its own.
-- **Smoke tests call real models.** The 260 tests in CI are hermetic. The
+- **Smoke tests call real models.** The test suite CI runs is hermetic. The
   separate `bun run test:smoke` suite spends real tokens and is not part of the
   gate.
 
