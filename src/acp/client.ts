@@ -234,34 +234,81 @@ export class AcpClient {
       return result.stopReason
    }
 
+   /**
+    * Releases the agent subprocess and every handle that references it.
+    *
+    * The stdio teardown is load-bearing, not hygiene. `spawnAndInit` hands
+    * `child.stdout` to `Readable.toWeb()` so `ndJsonStream` can read it, which
+    * locks the socket behind a web-stream reader that is never cancelled. Once
+    * the child is gone nothing drains that reader, so `child.stdout` never
+    * reaches EOF, its `PipeWrap` stays referenced, and the event loop never
+    * empties — the CLI printed its result and then hung forever. `child.stderr`
+    * has the same problem via its buffering `data` listener. Destroying all
+    * three sockets is what actually lets the process exit; `src/cli.ts` only
+    * sets `process.exitCode` and relies on the loop draining.
+    *
+    * The child handle itself is deliberately *not* unref'd. Keeping it
+    * referenced holds the loop open for the few milliseconds the agent needs to
+    * act on SIGTERM, which is also what lets the escalation timer fire even
+    * though it is unref'd. Unref'ing the child would let the CLI exit first and
+    * reparent a live agent to PID 1.
+    */
    close(): void {
       const child = this.child
       this.child = null
       this.connection = null
 
-      if (!child || child.exitCode !== null) {
+      if (!child) {
          return
       }
 
-      let exited = false
+      // A signal-killed child keeps `exitCode === null` forever and reports the
+      // signal in `signalCode`, so both have to be consulted. `?? null`
+      // normalizes the not-yet-populated case.
+      const hasExited = (): boolean =>
+         (child.exitCode ?? null) !== null || (child.signalCode ?? null) !== null
+
+      const destroyStdio = (): void => {
+         // `child.stdin` is already destroyed by the ndJsonStream writer in the
+         // normal path; `destroy()` on an already-destroyed stream is a no-op.
+         child.stdin?.destroy()
+         child.stdout?.destroy()
+         child.stderr?.destroy()
+      }
+
+      // A child that never started has nothing to signal and will never emit
+      // `exit`. Node reports that as `exitCode === -2`, but Bun leaves both
+      // `exitCode` and `signalCode` null, so arming the escalation timer here
+      // would stall every failed spawn by the escalation deadline — and
+      // `fallback.ts` walks several providers per invocation.
+      if (child.pid === undefined || hasExited()) {
+         destroyStdio()
+         return
+      }
+
       let escalationTimer: ReturnType<typeof setTimeout> | undefined
       const onExit = (): void => {
-         exited = true
          if (escalationTimer) {
             clearTimeout(escalationTimer)
+            escalationTimer = undefined
          }
+         destroyStdio()
       }
 
       child.once('exit', onExit)
       child.kill('SIGTERM')
 
-      if (child.exitCode !== null || exited) {
+      if (hasExited()) {
          child.removeListener('exit', onExit)
+         destroyStdio()
          return
       }
 
+      // Unref'd on purpose: the live child's own handle keeps the loop open, so
+      // this still fires for an agent that ignores SIGTERM, and it cannot hold
+      // the CLI open on its own once the child is gone.
       escalationTimer = setTimeout(() => {
-         if (!exited && child.exitCode === null) {
+         if (!hasExited()) {
             child.kill('SIGKILL')
          }
       }, 3000)
