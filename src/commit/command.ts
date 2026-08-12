@@ -130,18 +130,25 @@ const MAX_INLINE_DIFF_CHARS = 24_000
  */
 export function buildCommitPrompt(stagedDiff?: string): string {
   const instruction = 'Generate a Conventional Commits message for the staged changes.'
-  const diff = stagedDiff?.trim()
-  if (!diff) {
+  // Not trimmed: a hunk whose only change is trailing whitespace on its last
+  // line would lose exactly the bytes that make it a change.
+  const diff = stagedDiff ?? ''
+  if (diff.trim().length === 0) {
     return `${instruction} Run 'git diff --staged' to see them.`
   }
 
   if (diff.length > MAX_INLINE_DIFF_CHARS) {
+    // Truncation must never make a staged file invisible, or the message can
+    // describe a subset of the commit. The file list is parsed out of the diff
+    // itself, so every path is named even when its hunks are cut.
+    const paths = changedPathsFromDiff(diff)
     return [
       instruction,
       '',
       `The staged diff is too large to include in full; here are its first ${MAX_INLINE_DIFF_CHARS} characters.`,
-      "Run 'git diff --staged' if you need the rest.",
+      "Run 'git diff --staged' if you need the rest, and describe the commit as a whole rather than only the part shown.",
       '',
+      ...(paths.length > 0 ? ['Every file in this commit:', ...paths.map((p) => `- ${p}`), ''] : []),
       diff.slice(0, MAX_INLINE_DIFF_CHARS),
     ].join('\n')
   }
@@ -149,8 +156,36 @@ export function buildCommitPrompt(stagedDiff?: string): string {
   return [instruction, '', 'Staged diff:', '', diff].join('\n')
 }
 
-/** The first fenced code block in a response, if there is one. */
-const FENCED_BLOCK_RE = /```[a-zA-Z0-9_-]*[ \t]*\r?\n?([\s\S]*?)```/
+const DIFF_HEADER_RE = /^diff --git a\/.+? b\/(.+)$/gm
+
+function changedPathsFromDiff(diff: string): string[] {
+  DIFF_HEADER_RE.lastIndex = 0
+  const paths = new Set<string>()
+  let match: RegExpExecArray | null
+  while ((match = DIFF_HEADER_RE.exec(diff)) !== null) {
+    paths.add(match[1]!.trim())
+  }
+  return [...paths]
+}
+
+/**
+ * A fenced code block.
+ *
+ * The info string is only consumed when a newline follows it. Without that
+ * requirement a same-line fence — ```` ```feat: add x``` ```` — would have
+ * `feat` eaten as its language tag, leaving `: add x`.
+ */
+const FENCED_BLOCK_RE = /```(?:[a-zA-Z0-9_-]*[ \t]*\r?\n)?([\s\S]*?)```/g
+
+function fencedBlocks(text: string): string[] {
+  FENCED_BLOCK_RE.lastIndex = 0
+  const blocks: string[] = []
+  let match: RegExpExecArray | null
+  while ((match = FENCED_BLOCK_RE.exec(text)) !== null) {
+    blocks.push(match[1]!)
+  }
+  return blocks
+}
 
 /**
  * A line that introduces the message that follows, e.g. "Here is the commit
@@ -166,19 +201,53 @@ const MAX_PREAMBLE_LINES = 3
 export function normalizeCommitMessage(raw: string): string {
   const trimmed = raw.trim()
 
-  // Take the contents of a fenced block wherever it appears, not just when the
-  // whole response is one: providers put the message in a fence *after* a
-  // sentence at least as often as they fence the entire reply.
-  const body = (FENCED_BLOCK_RE.exec(trimmed)?.[1] ?? trimmed).trim()
+  // The reply as sent comes first: a message that already reads as a header
+  // must not be displaced by a fence that happens to appear later in the reply.
+  // Fenced blocks are then tried in order, because providers put the message in
+  // a fence after a sentence at least as often as they fence the whole reply,
+  // and an earlier fence may hold something else entirely (a shell command).
+  const candidates = [trimmed, ...fencedBlocks(trimmed)]
 
-  if (!body) {
+  for (const candidate of candidates) {
+    const header = extractHeader(candidate.trim())
+    if (header) {
+      return header
+    }
+  }
+
+  if (candidates.every((candidate) => candidate.trim().length === 0)) {
     throw new UsageError('Provider returned an empty commit message.')
+  }
+
+  throw new UsageError(
+    `Provider returned a non-Conventional-Commit message. Raw response: ${summarizeRawMessage(raw)}`,
+  )
+}
+
+/**
+ * Accepts a candidate header, dropping a closing fence the reply glued to it.
+ *
+ * `` ```feat: add x``` `` is recovered from the raw reply before the fenced
+ * block is ever considered, and `.+$` happily swallows the trailing backticks.
+ */
+function tidyHeader(header: string | undefined): string | undefined {
+  if (header === undefined) {
+    return undefined
+  }
+  const cleaned = header.replace(/\s*`{3,}\s*$/, '').trim()
+  return CONVENTIONAL_HEADER_RE.test(cleaned) ? cleaned : undefined
+}
+
+/** The Conventional Commits header inside one candidate body, if there is one. */
+function extractHeader(body: string): string | undefined {
+  if (body.length === 0) {
+    return undefined
   }
 
   const lines = body.split(/\r?\n/).map((line) => line.trim())
   const firstLine = lines[0] ?? ''
   if (CONVENTIONAL_HEADER_RE.test(firstLine)) {
-    return firstLine
+    return tidyHeader(firstLine)
   }
 
   // Some agent CLIs emit an operational notice through the same channel as the
@@ -189,8 +258,8 @@ export function normalizeCommitMessage(raw: string): string {
   // Recover it from the tail of the line, but only for a known Conventional
   // Commits type glued directly to the notice, so this cannot turn arbitrary
   // prose into a commit message.
-  const glued = recoverGluedHeader(firstLine)
-  if (glued && CONVENTIONAL_HEADER_RE.test(glued)) {
+  const glued = tidyHeader(recoverGluedHeader(firstLine))
+  if (glued) {
     return glued
   }
 
@@ -201,16 +270,14 @@ export function normalizeCommitMessage(raw: string): string {
   for (let index = 0; index < Math.min(lines.length, MAX_PREAMBLE_LINES + 1); index += 1) {
     const line = lines[index]!
     if (CONVENTIONAL_HEADER_RE.test(line)) {
-      return line
+      return tidyHeader(line)
     }
     if (line.length > 0 && !ANNOUNCEMENT_LINE_RE.test(line)) {
       break
     }
   }
 
-  throw new UsageError(
-    `Provider returned a non-Conventional-Commit message. Raw response: ${summarizeRawMessage(raw)}`,
-  )
+  return undefined
 }
 
 const RAW_SNIPPET_MAX_CHARS = 200

@@ -45,8 +45,36 @@ describe('commit command helpers', () => {
       const prompt = buildCommitPrompt(diff)
 
       expect(prompt).toContain('too large to include in full')
-      expect(prompt).toContain("Run 'git diff --staged' if you need the rest.")
+      expect(prompt).toContain("Run 'git diff --staged' if you need the rest")
       expect(prompt.length).toBeLessThan(diff.length)
+    })
+
+    // Truncation must not make a staged file invisible, or the message can
+    // describe only the part of the commit that survived the cut.
+    it('names every changed file when the diff is truncated', () => {
+      const filler = 'x'.repeat(25_000)
+      const diff = [
+        'diff --git a/first.txt b/first.txt',
+        '--- a/first.txt',
+        '+++ b/first.txt',
+        `+${filler}`,
+        'diff --git a/second/deep.ts b/second/deep.ts',
+        '--- a/second/deep.ts',
+        '+++ b/second/deep.ts',
+        '+export const x = 1',
+      ].join('\n')
+
+      const prompt = buildCommitPrompt(diff)
+
+      expect(prompt).toContain('Every file in this commit:')
+      expect(prompt).toContain('- first.txt')
+      expect(prompt).toContain('- second/deep.ts')
+    })
+
+    it('does not trim the diff, so a trailing-whitespace change survives', () => {
+      const diff = 'diff --git a/a.txt b/a.txt\n-value\n+value   \n'
+
+      expect(buildCommitPrompt(diff)).toContain('+value   ')
     })
   })
 
@@ -148,6 +176,27 @@ describe('commit command helpers', () => {
     it('gives up rather than scanning arbitrarily far for a header', () => {
       const preamble = ['a:', 'b:', 'c:', 'd:'].join('\n')
       expect(() => normalizeCommitMessage(`${preamble}\nfeat: buried too deep`)).toThrow(UsageError)
+    })
+
+    it('unwraps a fence that has no newline after the opening backticks', () => {
+      expect(normalizeCommitMessage('```feat: add x```')).toBe('feat: add x')
+      expect(normalizeCommitMessage('```fix(cli): tighten it```')).toBe('fix(cli): tighten it')
+    })
+
+    it('keeps a header that stands on its own over a fence appearing later', () => {
+      const raw = 'chore: bump version\n\nFor reference:\n\n```\ngit diff --staged\n```'
+
+      expect(normalizeCommitMessage(raw)).toBe('chore: bump version')
+    })
+
+    it('skips a fenced block that holds something other than the message', () => {
+      const raw = 'I ran:\n\n```sh\ngit diff --staged\n```\n\nCommit message:\n\n```\nfeat: add parser\n```'
+
+      expect(normalizeCommitMessage(raw)).toBe('feat: add parser')
+    })
+
+    it('reports an empty fence as a rejection with the raw response', () => {
+      expect(() => normalizeCommitMessage('```text\n\n```')).toThrow(/Raw response: /)
     })
   })
 
