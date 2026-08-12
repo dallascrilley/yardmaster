@@ -51,9 +51,10 @@ ci: install typecheck test build
 typecheck:
     bun run typecheck
 
-# Run the full test suite
+# Run the full test suite (vitest — NOT `bun test`, whose runner ignores
+# vitest.config.ts and drags in the token-spending smoke suite)
 test *args:
-    bun test {{ args }}
+    bun run test {{ args }}
 
 # ── Review ───────────────────────────────────────────────────────────
 
